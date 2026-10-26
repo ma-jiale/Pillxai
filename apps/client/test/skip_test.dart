@@ -130,6 +130,26 @@ void main() {
 
       await openSkip();
       expect(model.stage, DispenseStage.paused);
+      final allButton = find.byKey(const ValueKey('skip-resident'));
+      final cancelButton = find.widgetWithText(TextButton, '取消');
+      final singleButton = find.byKey(const ValueKey('skip-confirm'));
+      expect(
+        tester.getCenter(allButton).dy,
+        closeTo(tester.getCenter(cancelButton).dy, 1),
+      );
+      expect(
+        tester.getCenter(allButton).dy,
+        closeTo(tester.getCenter(singleButton).dy, 1),
+      );
+      expect(tester.getSize(allButton).width, lessThan(110));
+      expect(
+        tester
+            .widget<TextButton>(allButton)
+            .style!
+            .foregroundColor!
+            .resolve({}),
+        const Color(0xffb3261e),
+      );
       model.advance();
       expect(model.count, 0);
       final checkbox = find.byKey(const ValueKey('skip-mark-prepared'));

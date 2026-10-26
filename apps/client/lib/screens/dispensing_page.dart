@@ -423,34 +423,28 @@ class DispensingPage extends StatelessWidget {
                     style: TextStyle(fontSize: 12, color: Color(0xff737373)),
                   ),
                 ),
-                const SizedBox(height: 12),
-                const Divider(height: 1),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  key: const ValueKey('skip-resident'),
-                  onPressed: () =>
-                      Navigator.pop(context, _SkipChoice.remaining),
-                  icon: const Icon(Icons.fast_forward_rounded, size: 18),
-                  label: const Text('跳过该长者所有剩余药物'),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '包括当前药，共 $remaining 种；均记为跳过，不标记已摆好。',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xff737373),
-                  ),
-                ),
               ],
             ),
           ),
           actions: [
+            TextButton(
+              key: const ValueKey('skip-resident'),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xffb3261e),
+              ),
+              onPressed: () => Navigator.pop(context, _SkipChoice.remaining),
+              child: const Text('跳过所有'),
+            ),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('取消'),
             ),
             FilledButton(
               key: const ValueKey('skip-confirm'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(44, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
               onPressed: () => Navigator.pop(
                 context,
                 markPrepared ? _SkipChoice.prepared : _SkipChoice.current,
