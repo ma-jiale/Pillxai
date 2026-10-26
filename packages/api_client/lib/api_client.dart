@@ -211,10 +211,20 @@ class ApiClient {
           return LoginResult.fromJson(value);
         case 'MealRelation':
           return MealRelationTypeTransformer().decode(value);
+        case 'PlanMedicine':
+          return PlanMedicine.fromJson(value);
+        case 'PlanPreview':
+          return PlanPreview.fromJson(value);
+        case 'PlanSnapshot':
+          return PlanSnapshot.fromJson(value);
+        case 'PlanTray':
+          return PlanTray.fromJson(value);
         case 'PrescriptionData':
           return PrescriptionData.fromJson(value);
         case 'PrescriptionView':
           return PrescriptionView.fromJson(value);
+        case 'PreviewRequest':
+          return PreviewRequest.fromJson(value);
         case 'ResetPassword':
           return ResetPassword.fromJson(value);
         case 'ResidentData':
@@ -231,6 +241,8 @@ class ApiClient {
           return SavePrescription.fromJson(value);
         case 'SaveResident':
           return SaveResident.fromJson(value);
+        case 'SaveSettings':
+          return SaveSettings.fromJson(value);
         case 'SavedContractSample':
           return SavedContractSample.fromJson(value);
         case 'UpdateAccount':

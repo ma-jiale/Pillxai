@@ -71,6 +71,8 @@ Class | Method | HTTP request | Description
 *IdentityApi* | [**logout**](doc//IdentityApi.md#logout) | **POST** /auth/logout | Logout
 *IdentityApi* | [**resetStaffPassword**](doc//IdentityApi.md#resetstaffpassword) | **POST** /accounts/{account_id}/password | Reset Password
 *IdentityApi* | [**updateStaff**](doc//IdentityApi.md#updatestaff) | **PUT** /accounts/{account_id} | Update Staff
+*PlanningApi* | [**createPlanPreview**](doc//PlanningApi.md#createplanpreview) | **POST** /residents/{resident_id}/plans/preview | Create Preview
+*PlanningApi* | [**getPlanPreview**](doc//PlanningApi.md#getplanpreview) | **GET** /plans/{plan_id} | Get Preview
 *PrescriptionsApi* | [**listPrescriptionVersions**](doc//PrescriptionsApi.md#listprescriptionversions) | **GET** /residents/{resident_id}/prescriptions/{prescription_id}/versions | Versions
 *PrescriptionsApi* | [**listPrescriptions**](doc//PrescriptionsApi.md#listprescriptions) | **GET** /residents/{resident_id}/prescriptions | List Prescriptions
 *PrescriptionsApi* | [**savePrescription**](doc//PrescriptionsApi.md#saveprescription) | **PUT** /residents/{resident_id}/prescriptions/{prescription_id} | Put
@@ -79,6 +81,7 @@ Class | Method | HTTP request | Description
 *ResidentsApi* | [**listResidents**](doc//ResidentsApi.md#listresidents) | **GET** /residents | List Residents
 *ResidentsApi* | [**saveResident**](doc//ResidentsApi.md#saveresident) | **PUT** /residents/{resident_id} | Put
 *SettingsApi* | [**getSettings**](doc//SettingsApi.md#getsettings) | **GET** /settings | Get Settings
+*SettingsApi* | [**saveSettings**](doc//SettingsApi.md#savesettings) | **PUT** /settings | Save Settings
 
 
 ## Documentation For Models
@@ -97,8 +100,13 @@ Class | Method | HTTP request | Description
  - [Login](doc//Login.md)
  - [LoginResult](doc//LoginResult.md)
  - [MealRelation](doc//MealRelation.md)
+ - [PlanMedicine](doc//PlanMedicine.md)
+ - [PlanPreview](doc//PlanPreview.md)
+ - [PlanSnapshot](doc//PlanSnapshot.md)
+ - [PlanTray](doc//PlanTray.md)
  - [PrescriptionData](doc//PrescriptionData.md)
  - [PrescriptionView](doc//PrescriptionView.md)
+ - [PreviewRequest](doc//PreviewRequest.md)
  - [ResetPassword](doc//ResetPassword.md)
  - [ResidentData](doc//ResidentData.md)
  - [ResidentPage](doc//ResidentPage.md)
@@ -107,6 +115,7 @@ Class | Method | HTTP request | Description
  - [SaveContractSample](doc//SaveContractSample.md)
  - [SavePrescription](doc//SavePrescription.md)
  - [SaveResident](doc//SaveResident.md)
+ - [SaveSettings](doc//SaveSettings.md)
  - [SavedContractSample](doc//SavedContractSample.md)
  - [UpdateAccount](doc//UpdateAccount.md)
 

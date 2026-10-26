@@ -711,6 +711,36 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -718,6 +748,226 @@
             "HTTPBearer": []
           }
         ]
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Save Settings",
+        "operationId": "save_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/residents/{resident_id}/plans/preview": {
+      "post": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Create Preview",
+        "operationId": "create_plan_preview",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/plans/{plan_id}": {
+      "get": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Get Preview",
+        "operationId": "get_plan_preview",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
       }
     },
     "/residents": {
@@ -1650,12 +1900,32 @@
           "bedtime_enabled": {
             "type": "boolean",
             "title": "Bedtime Enabled"
+          },
+          "preparation_days": {
+            "type": "integer",
+            "title": "Preparation Days"
+          },
+          "split_meals": {
+            "type": "boolean",
+            "title": "Split Meals"
+          },
+          "start_tomorrow": {
+            "type": "boolean",
+            "title": "Start Tomorrow"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
           }
         },
         "type": "object",
         "required": [
           "timezone",
-          "bedtime_enabled"
+          "bedtime_enabled",
+          "preparation_days",
+          "split_meals",
+          "start_tomorrow",
+          "revision"
         ],
         "title": "AppSettings"
       },
@@ -1918,6 +2188,176 @@
         ],
         "title": "MealRelation"
       },
+      "PlanMedicine": {
+        "properties": {
+          "prescription": {
+            "$ref": "#/components/schemas/PrescriptionView"
+          },
+          "particles": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Particles"
+          },
+          "total_particles": {
+            "type": "integer",
+            "title": "Total Particles"
+          },
+          "original_units": {
+            "type": "string",
+            "title": "Original Units"
+          }
+        },
+        "type": "object",
+        "required": [
+          "prescription",
+          "particles",
+          "total_particles",
+          "original_units"
+        ],
+        "title": "PlanMedicine"
+      },
+      "PlanPreview": {
+        "properties": {
+          "snapshot": {
+            "$ref": "#/components/schemas/PlanSnapshot"
+          },
+          "current": {
+            "type": "boolean",
+            "title": "Current"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "snapshot",
+          "current",
+          "message"
+        ],
+        "title": "PlanPreview"
+      },
+      "PlanSnapshot": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "resident_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resident Id"
+          },
+          "resident_revision": {
+            "type": "integer",
+            "title": "Resident Revision"
+          },
+          "resident_name": {
+            "type": "string",
+            "title": "Resident Name"
+          },
+          "bed": {
+            "type": "string",
+            "title": "Bed"
+          },
+          "business_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Business Date"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/AppSettings"
+          },
+          "requested_days": {
+            "type": "integer",
+            "title": "Requested Days"
+          },
+          "split_meals": {
+            "type": "boolean",
+            "title": "Split Meals"
+          },
+          "dates": {
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "type": "array",
+            "title": "Dates"
+          },
+          "slots": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Slots"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/PrescriptionView"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "trays": {
+            "items": {
+              "$ref": "#/components/schemas/PlanTray"
+            },
+            "type": "array",
+            "title": "Trays"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "resident_id",
+          "resident_revision",
+          "resident_name",
+          "bed",
+          "business_date",
+          "created_at",
+          "settings",
+          "requested_days",
+          "split_meals",
+          "dates",
+          "slots",
+          "sources",
+          "trays"
+        ],
+        "title": "PlanSnapshot"
+      },
+      "PlanTray": {
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "title": "Purpose"
+          },
+          "medicines": {
+            "items": {
+              "$ref": "#/components/schemas/PlanMedicine"
+            },
+            "type": "array",
+            "title": "Medicines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "purpose",
+          "medicines"
+        ],
+        "title": "PlanTray"
+      },
       "PrescriptionData": {
         "properties": {
           "medicine_name": {
@@ -2027,6 +2467,37 @@
           "updated_by"
         ],
         "title": "PrescriptionView"
+      },
+      "PreviewRequest": {
+        "properties": {
+          "days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 7.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days"
+          },
+          "split_meals": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Split Meals"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PreviewRequest"
       },
       "ResetPassword": {
         "properties": {
@@ -2194,6 +2665,43 @@
           "data"
         ],
         "title": "SaveResident"
+      },
+      "SaveSettings": {
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Revision"
+          },
+          "preparation_days": {
+            "type": "integer",
+            "maximum": 7.0,
+            "minimum": 1.0,
+            "title": "Preparation Days"
+          },
+          "split_meals": {
+            "type": "boolean",
+            "title": "Split Meals"
+          },
+          "bedtime_enabled": {
+            "type": "boolean",
+            "title": "Bedtime Enabled"
+          },
+          "start_tomorrow": {
+            "type": "boolean",
+            "title": "Start Tomorrow"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_revision",
+          "preparation_days",
+          "split_meals",
+          "bedtime_enabled",
+          "start_tomorrow"
+        ],
+        "title": "SaveSettings"
       },
       "SavedContractSample": {
         "properties": {

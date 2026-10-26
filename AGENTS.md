@@ -2,7 +2,7 @@
 
 ## 目标与依据
 
-完成工作人员可独立使用的处方管理与摆药系统。采用 Flutter，后端 Python + FastAPI，首发 Android 平板并直接连接 HC-06；后续支持手机、平板、Windows 和 iOS，各端硬件能力分别验证。2026-10-26 用户确认当前极简 UI 阶段完成，并在 `NT` 分支开始实施。已建立同机 WSL/Conda FastAPI/PostgreSQL 基础切片、生成式 Dart SDK、独立 STM32 协议和 Windows 工程联调工具。现 `apps/client` 默认已接入真实登录、长者/处方保存、用药版本；账号管理界面按最新要求暂不提供；演示流程只通过显式 PILLXAI_DEMO 构建启用。生产计划、任务、后台生命周期及设备动作尚未接通或验收。实机路线先用 Windows 连接 HC-06 蓝牙串口，模拟器可独立验证。运行入口见各模块 README，实际结果见 docs/validation/2026-10-26-m0.md 和 docs/validation/2026-10-26-m1.md，责任边界见 docs/08-system-architecture.md，当前计划见 docs/09-agent-development.md。
+完成工作人员可独立使用的处方管理与摆药系统。采用 Flutter，后端 Python + FastAPI，首发 Android 平板并直接连接 HC-06；后续支持手机、平板、Windows 和 iOS，各端硬件能力分别验证。2026-10-26 用户确认当前极简 UI 阶段完成，并在 `NT` 分支开始实施。已建立同机 WSL/Conda FastAPI/PostgreSQL 基础切片、生成式 Dart SDK、独立 STM32 协议和 Windows 工程联调工具。现 `apps/client` 默认已接入真实登录、长者/处方保存、用药版本；账号管理界面按最新要求暂不提供；演示流程只通过显式 PILLXAI_DEMO 构建启用。现已接通通用设置持久化和服务端计划快照预览；任务领取、覆盖衔接、后台生命周期及设备动作尚未接通或验收。实机路线先用 Windows 连接 HC-06 蓝牙串口，模拟器可独立验证。运行入口见各模块 README，实际结果见 docs/validation/2026-10-26-m0.md 和 docs/validation/2026-10-26-m1.md，责任边界见 docs/08-system-architecture.md，当前计划见 docs/09-agent-development.md。
 
 用户最新要求（2026-10-26）：当前版本完全移除多机构功能，单次部署只有一套工作区数据；只保留管理员和工作人员，不实现机构实体、选择器、跨机构角色或机构路径参数。历史数据库迁移只用于升级已有开发库，不是可用功能。
 

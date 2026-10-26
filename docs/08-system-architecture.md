@@ -1,6 +1,6 @@
 # Pillxai Dispenser 系统架构
 
-基线更新：2026 年 10 月 26 日。用户确认当前 UI 开发阶段完成，进入完整新版本实施；沿用已确认的极简界面。技术为 **Flutter + Python/FastAPI**，生产首发仍为 **Android 平板**，后续支持手机、平板、Windows 和 iOS。首次开发部署在同一电脑的 WSL/Conda 中，允许模拟机；2026 年 10 月 26 日实机联调先用 Windows 电脑连接 HC-06 蓝牙串口。M0 已运行 WSL API/PostgreSQL、生成式契约与 Windows 联调基础模块；M1 资料切片已接入真实登录、长者/处方、版本及服务端账号权限，见 [M1 报告](validation/2026-10-26-m1.md)。生产计划、执行、后台与真实动作尚未接通或验收。本文件定义生产系统的责任边界，具体交付顺序见 [09 执行计划](09-agent-development.md)；运行入口和实际验证见[客户端说明](../apps/client/README.md)。
+基线更新：2026 年 10 月 26 日。用户确认当前 UI 开发阶段完成，进入完整新版本实施；沿用已确认的极简界面。技术为 **Flutter + Python/FastAPI**，生产首发仍为 **Android 平板**，后续支持手机、平板、Windows 和 iOS。首次开发部署在同一电脑的 WSL/Conda 中，允许模拟机；2026 年 10 月 26 日实机联调先用 Windows 电脑连接 HC-06 蓝牙串口。M0 已运行 WSL API/PostgreSQL、生成式契约与 Windows 联调基础模块；M1 资料切片已接入真实登录、长者/处方、版本及服务端账号权限，见 [M1 报告](validation/2026-10-26-m1.md)。现已接通通用设置保存和服务端计划快照预览；任务归属、覆盖衔接、执行、后台与真实动作尚未接通或验收。本文件定义生产系统的责任边界，具体交付顺序见 [09 执行计划](09-agent-development.md)；运行入口和实际验证见[客户端说明](../apps/client/README.md)。
 
 ## 1. 产品与平台
 

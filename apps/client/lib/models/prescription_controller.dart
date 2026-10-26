@@ -13,7 +13,13 @@ class PrescriptionController extends ChangeNotifier
   });
   final PrescriptionRepository repository;
   @override
-  final bool bedtime;
+  bool bedtime;
+  void updateBedtime(bool value) {
+    if (bedtime == value || _disposed) return;
+    bedtime = value;
+    notifyListeners();
+  }
+
   @override
   final bool canEdit;
   @override

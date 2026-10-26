@@ -25,6 +25,10 @@ class DemoModel extends ChangeNotifier
   @override
   bool get canSaveRules => true;
   @override
+  bool get persistent => false;
+  @override
+  void reloadSettings() {}
+  @override
   bool get canEdit => true;
 
   /// 创建样例资料和可选计时器。autoTick:false 让测试自行 advance，结果可重复。

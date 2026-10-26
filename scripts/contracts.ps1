@@ -18,6 +18,16 @@ if ($Check -and $previousSchemaHash -ne (Get-FileHash $schemaPath).Hash) { throw
 $target = Join-Path $projectRoot ('.tools/contract-check/' + [Guid]::NewGuid().ToString('N'))
 & $java -jar $jar generate -g dart -i (Join-Path $projectRoot 'contracts/http/openapi.json') -c (Join-Path $projectRoot 'contracts/http/generator.json') -t (Join-Path $projectRoot 'contracts/http/templates') -o $target --global-property 'apiTests=false,modelTests=false,apiDocs=false,modelDocs=false'
 if ($LASTEXITCODE -ne 0) { throw 'Dart API generation failed.' }
+# Generator 7.26 emits a nonexistent DateTime.listFromJson for date arrays.
+# Normalize that expression in the generation pipeline, including drift checks.
+foreach ($model in Get-ChildItem (Join-Path $target 'lib/model') -Filter '*.dart') {
+    $source = [IO.File]::ReadAllText($model.FullName)
+    $fixed = [regex]::Replace($source, 'DateTime\.listFromJson\((json\[r''[^'']+''\])\)', {
+        param($match)
+        '(' + $match.Groups[1].Value + ' as List).map((value) => DateTime.parse(value as String)).toList()'
+    })
+    if ($fixed -ne $source) { [IO.File]::WriteAllText($model.FullName, $fixed, [Text.UTF8Encoding]::new($false)) }
+}
 # This generator emits legacy publishing helpers; they are not part of our SDK.
 foreach ($artifact in @('git_push.sh', '.travis.yml')) {
     $artifactPath = Join-Path $target $artifact

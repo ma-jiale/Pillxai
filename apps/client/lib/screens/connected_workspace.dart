@@ -5,13 +5,14 @@ import '../data/backend_connection.dart';
 import '../data/prescription_repository.dart';
 import '../models/prescription_controller.dart';
 import '../models/prescription_store.dart';
-import '../models/settings_store.dart';
+import '../data/settings_controller.dart';
 import '../theme/app_page.dart';
 import '../widgets/workspace_sidebar.dart';
 import '../widgets/prescription_forms.dart';
 import 'login_page.dart';
 import 'prescriptions_page.dart';
 import 'settings_page.dart';
+import 'plan_preview_page.dart';
 
 class ConnectedWorkspace extends StatefulWidget {
   const ConnectedWorkspace({
@@ -30,7 +31,7 @@ class ConnectedWorkspace extends StatefulWidget {
 class _ConnectedWorkspaceState extends State<ConnectedWorkspace> {
   late final backend = widget.backend ?? BackendConnection();
   PrescriptionController? controller;
-  ReadOnlySettingsStore? settings;
+  SettingsController? settings;
   int page = 0;
   bool signingOut = false;
 
@@ -48,8 +49,10 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace> {
     controller?.dispose();
     settings?.dispose();
     setState(() {
-      settings = ReadOnlySettingsStore(
-        bedtime: backend.settings!.bedtimeEnabled,
+      settings = SettingsController(
+        backend,
+        onSaved: () =>
+            controller?.updateBedtime(backend.settings!.bedtimeEnabled),
       );
       page = 0;
       controller = PrescriptionController(
@@ -131,14 +134,10 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace> {
                         index: page,
                         children: [
                           _prescriptions(),
-                          const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Text(
-                                '摆药执行尚未接通。\n请先在处方管理维护资料。',
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
+                          PlanPreviewPage(
+                            backend: backend,
+                            residents: controller!,
+                            settings: settings!,
                           ),
                           SettingsPage(
                             model: settings!,

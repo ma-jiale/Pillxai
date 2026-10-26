@@ -8,6 +8,7 @@ lib/api.dart
 lib/api/contract_api.dart
 lib/api/default_api.dart
 lib/api/identity_api.dart
+lib/api/planning_api.dart
 lib/api/prescriptions_api.dart
 lib/api/residents_api.dart
 lib/api/settings_api.dart
@@ -33,8 +34,13 @@ lib/model/health.dart
 lib/model/login.dart
 lib/model/login_result.dart
 lib/model/meal_relation.dart
+lib/model/plan_medicine.dart
+lib/model/plan_preview.dart
+lib/model/plan_snapshot.dart
+lib/model/plan_tray.dart
 lib/model/prescription_data.dart
 lib/model/prescription_view.dart
+lib/model/preview_request.dart
 lib/model/reset_password.dart
 lib/model/resident_data.dart
 lib/model/resident_page.dart
@@ -43,6 +49,7 @@ lib/model/role.dart
 lib/model/save_contract_sample.dart
 lib/model/save_prescription.dart
 lib/model/save_resident.dart
+lib/model/save_settings.dart
 lib/model/saved_contract_sample.dart
 lib/model/update_account.dart
 pubspec.yaml

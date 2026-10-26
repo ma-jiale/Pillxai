@@ -9,16 +9,11 @@ from ..identity.service import require_maintain
 from .tables import resident_versions, residents
 
 
-def resident_row(connection, resident_id):
-    row = (
-        connection.execute(
-            select(residents).where(
-                residents.c.id == resident_id,
-            )
-        )
-        .mappings()
-        .first()
-    )
+def resident_row(connection, resident_id, *, lock=False):
+    statement = select(residents).where(residents.c.id == resident_id)
+    if lock:
+        statement = statement.with_for_update()
+    row = connection.execute(statement).mappings().first()
     if not row:
         not_found()
     return row

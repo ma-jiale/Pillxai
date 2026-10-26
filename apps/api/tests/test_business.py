@@ -255,9 +255,9 @@ def test_dose_date_and_password_validation(world):
 def test_single_workspace_contract_and_schema(world):
     client, tokens, _, settings = world
     assert client.get("/settings").status_code == 401
-    assert client.get("/settings", headers=tokens["staff"]).json() == {
-        "timezone": "Asia/Shanghai", "bedtime_enabled": False,
-    }
+    configuration = client.get("/settings", headers=tokens["staff"]).json()
+    assert configuration["timezone"] == "Asia/Shanghai"
+    assert configuration["revision"] >= 1
     schema = client.get("/openapi.json").json()
     assert schema["components"]["schemas"]["Role"]["enum"] == ["admin", "staff"]
     assert not any("institution" in path for path in schema["paths"])

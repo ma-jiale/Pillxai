@@ -1,12 +1,13 @@
 # Pillxai API — 账号、长者与处方
 
-中央服务独立运行于 WSL Ubuntu-24.04，Windows/Flutter 通过 HTTP 调用。这里不包含串口、蓝牙或设备命令。已实现真实账号、账号权限、长者及资料历史、处方保存/停用/恢复与版本；生产计划、任务、执行结果和设备参数仍未实现。实际证据见 [M1 报告](../../docs/validation/2026-10-26-m1.md)。
+中央服务独立运行于 WSL Ubuntu-24.04，Windows/Flutter 通过 HTTP 调用。这里不包含串口、蓝牙或设备命令。已实现真实账号、账号权限、长者及资料历史、处方保存/停用/恢复与版本、通用设置持久化和服务端计划预览。任务领取、覆盖衔接、执行结果和设备参数仍未实现。资料切片证据见 [M1 报告](../../docs/validation/2026-10-26-m1.md)，本轮计划边界见 [planning](src/pillxai_api/planning/README.md)。
 
 ## 模块与契约
 
 - 公开模型以各业务模块 `models.py` 和基础 `contracts.py` 为唯一源，统一导出 OpenAPI。精确剂量使用字符串，业务日期与带时区时间分别表达。
 - `identity/`：账号、会话、权限与账号操作审计；角色和维护权限由服务端校验。
-- `app_settings.py`：单例应用设置，保存业务时区与睡前格开关；不携带机构编号。
+- `app_settings.py`：单例应用设置，保存天数、当天/次日起点、餐食分盘、睡前格及版本；业务时区固定 Asia/Shanghai。管理员通过版本条件更新，历史与操作人同事务保存。
+- `planning/`：从处方版本和设置生成不可变预览快照；日期、分盘、逐格颗粒及原片等价量均由服务端计算。读取预览时核对版本与业务日期；不创建执行任务或覆盖。
 - `residents/`：长者资料、院内非空床位唯一、游标分页及资料版本。
 - `prescriptions/`：独立用药条目、药品身份、精确剂量/日期校验及不可覆盖的处方版本。
 - `database.py`：事务入口和公开业务错误；事务在成功响应发出前提交，资料与历史同事务写入。
@@ -49,8 +50,9 @@ Conda 前缀为仓库 `.tools/conda/backend`；环境和下载缓存不入库、
 .\scripts\contracts.ps1 -Check
 .\scripts\dart.ps1 apps/client run tool/check_backend.dart
 .\scripts\dart.ps1 apps/client run tool/check_business.dart
+.\scripts\dart.ps1 apps/client run tool/check_planning.dart
 ```
 
-测试仅使用 `pillxai_test`，开发检查使用 `pillxai_dev`，只新建明确标记的虚构联调资料。当前 15 项测试通过，覆盖基础契约、管理员/工作人员权限、账号停用/恢复/改密、床位查重、分页、处方并发、停用/恢复历史、重建应用读取及机构表/接口移除。测试库须先迁移；backend.ps1 test 要求测试数据库 URL，直接 pytest 缺少该 URL 时会跳过集成用例，不能算通过。
+测试仅使用 `pillxai_test`，开发检查使用 `pillxai_dev`，只新建明确标记的虚构联调资料。2026-10-26 当前 20 项测试通过，包含资料权限与历史、机构移除、设置并发版本、半片换算、未来和有限疗程、中间空日期、睡前需求、分盘、预览重读与失效。`check_planning.dart` 已经通过真实 SDK/API/PostgreSQL 验证设置保存、新客户端重读、双药双盘计划、日期数组、快照不变与设置修改后失效，并恢复测试前设置。测试库须先迁移；backend.ps1 test 要求测试数据库 URL，直接 pytest 缺少该 URL 时跳过集成用例不能算通过。
 
 当前锁定组合仍产生一条 Starlette 对 httpx 测试客户端的弃用提示；后续升级测试适配时处理，不以隐藏警告代替兼容验证。基础数据库重启验证见 [M0 报告](../../docs/validation/2026-10-26-m0.md)，本轮业务与浏览器验证见 [M1 报告](../../docs/validation/2026-10-26-m1.md)。

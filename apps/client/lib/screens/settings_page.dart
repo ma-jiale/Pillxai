@@ -50,6 +50,9 @@ class _SettingsPageState extends State<SettingsPage> {
   _Category _category = _Category.general;
   String? _colorError;
   bool _autoUpdate = true;
+  bool _saving = false;
+  String? _saveError;
+  String? _saveStatus;
 
   void _checkForUpdates() => showDialog<void>(
     context: context,
@@ -101,14 +104,53 @@ class _SettingsPageState extends State<SettingsPage> {
     widget.onAccentChanged(Color(0xff000000 | int.parse(value, radix: 16)));
   }
 
-  void _saveRules({int? days, bool? split, bool? night, bool? tomorrow}) {
-    if (!widget.model.canSaveRules) return;
-    widget.model.saveSettings(
-      days: days ?? widget.model.preparationDays,
-      split: split ?? widget.model.splitMeals,
-      night: night ?? widget.model.bedtime,
-      tomorrow: tomorrow ?? widget.model.startTomorrow,
-    );
+  Future<void> _saveRules({
+    int? days,
+    bool? split,
+    bool? night,
+    bool? tomorrow,
+  }) async {
+    if (!widget.model.canSaveRules || _saving) return;
+    setState(() {
+      _saving = true;
+      _saveError = null;
+      _saveStatus = null;
+    });
+    try {
+      await widget.model.saveSettings(
+        days: days ?? widget.model.preparationDays,
+        split: split ?? widget.model.splitMeals,
+        night: night ?? widget.model.bedtime,
+        tomorrow: tomorrow ?? widget.model.startTomorrow,
+      );
+      if (mounted) {
+        setState(
+          () => _saveStatus = widget.model.persistent ? '设置已保存' : '已应用到本次会话',
+        );
+      }
+    } catch (error) {
+      if (mounted) setState(() => _saveError = error.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _reloadRules() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await widget.model.reloadSettings();
+      if (mounted) {
+        setState(() {
+          _saveError = null;
+          _saveStatus = '已重新加载设置';
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _saveError = error.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -318,14 +360,46 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         const SizedBox(height: 40),
         if (!widget.model.canSaveRules &&
+            !_saving &&
             items.any((item) => item.group == '准备周期' || item.group == '药盒布局'))
           const Padding(
             padding: EdgeInsets.only(bottom: 24),
             child: Text(
-              '摆药规则暂不可修改；准备周期与餐食分盘显示默认值。',
+              '当前账号只能查看摆药规则。',
               style: TextStyle(fontSize: 12, color: Color(0xff7c7c7c)),
             ),
           ),
+        if (_category == _Category.general || _search.text.isNotEmpty) ...[
+          if (_saving)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 16),
+              child: Text('保存中…'),
+            ),
+          if (_saveStatus != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text(_saveStatus!),
+            ),
+          if (_saveError != null) ...[
+            Text(
+              _saveError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+            Wrap(
+              spacing: 12,
+              children: [
+                TextButton(
+                  onPressed: _saving ? null : () => _saveRules(),
+                  child: const Text('重试保存'),
+                ),
+                TextButton(
+                  onPressed: _saving ? null : _reloadRules,
+                  child: const Text('放弃更改并重新加载'),
+                ),
+              ],
+            ),
+          ],
+        ],
         if (items.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 40),

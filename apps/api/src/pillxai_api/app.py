@@ -13,11 +13,12 @@ from .config import Settings
 from .contracts import ApiError, Health, SaveContractSample, SavedContractSample
 from .database import BusinessError
 from .identity.routes import router as identity_router
+from .planning.routes import router as planning_router
 from .prescriptions.routes import router as prescriptions_router
 from .residents.routes import router as residents_router
 from .storage import RevisionConflict, read_sample, save_sample
 
-SCHEMA_REVISION = "20261026_single_workspace"
+SCHEMA_REVISION = "20261026_planning"
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -41,6 +42,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
     app.include_router(identity_router)
     app.include_router(settings_router)
+    app.include_router(planning_router)
     app.include_router(residents_router)
     app.include_router(prescriptions_router)
 

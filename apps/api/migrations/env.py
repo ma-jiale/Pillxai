@@ -5,6 +5,7 @@ from pillxai_api import app_settings, storage  # noqa: F401
 from pillxai_api.config import Settings
 from pillxai_api.database import metadata
 from pillxai_api.identity import tables as identity_tables  # noqa: F401
+from pillxai_api.planning import routes as planning_routes  # noqa: F401
 from pillxai_api.prescriptions import tables as prescription_tables  # noqa: F401
 from pillxai_api.residents import tables as resident_tables  # noqa: F401
 

@@ -164,6 +164,10 @@ void main() {
           return jsonResponse({
             'timezone': 'Asia/Shanghai',
             'bedtime_enabled': false,
+            'preparation_days': 7,
+            'split_meals': true,
+            'start_tomorrow': false,
+            'revision': 1,
           });
         }
         if (request.url.path.endsWith('/residents')) {
@@ -204,7 +208,7 @@ void main() {
       expect(add.onPressed, isNull);
       await tester.tap(find.byKey(const ValueKey('nav-1')));
       await tester.pumpAndSettle();
-      expect(find.textContaining('摆药执行尚未接通'), findsOneWidget);
+      expect(find.text('预览计划'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('nav-2')));
       await tester.pumpAndSettle();
       expect(find.text('创建机构'), findsNothing);
