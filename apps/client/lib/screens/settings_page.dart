@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_page.dart';
 
-import '../models/demo_model.dart';
+import '../models/settings_store.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_menu.dart';
 
@@ -16,7 +16,7 @@ enum _Category {
   final IconData icon;
 }
 
-/// 偏好页：机构演示规则交给 model，强调色通过回调交给根组件。
+/// 共用设置界面：规则通过设置契约读取，强调色通过回调交给根组件。
 /// 分类、搜索与未应用的HEX草稿是局部状态，切分类时保留颜色草稿。
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -25,7 +25,7 @@ class SettingsPage extends StatefulWidget {
     required this.accent,
     required this.onAccentChanged,
   });
-  final DemoModel model;
+  final SettingsStore model;
   final Color accent;
   final ValueChanged<Color> onAccentChanged;
 
@@ -101,13 +101,15 @@ class _SettingsPageState extends State<SettingsPage> {
     widget.onAccentChanged(Color(0xff000000 | int.parse(value, radix: 16)));
   }
 
-  void _saveRules({int? days, bool? split, bool? night, bool? tomorrow}) =>
-      widget.model.saveSettings(
-        days: days ?? widget.model.preparationDays,
-        split: split ?? widget.model.splitMeals,
-        night: night ?? widget.model.bedtime,
-        tomorrow: tomorrow ?? widget.model.startTomorrow,
-      );
+  void _saveRules({int? days, bool? split, bool? night, bool? tomorrow}) {
+    if (!widget.model.canSaveRules) return;
+    widget.model.saveSettings(
+      days: days ?? widget.model.preparationDays,
+      split: split ?? widget.model.splitMeals,
+      night: night ?? widget.model.bedtime,
+      tomorrow: tomorrow ?? widget.model.startTomorrow,
+    );
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -315,6 +317,15 @@ class _SettingsPageState extends State<SettingsPage> {
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 40),
+        if (!widget.model.canSaveRules &&
+            items.any((item) => item.group == '准备周期' || item.group == '药盒布局'))
+          const Padding(
+            padding: EdgeInsets.only(bottom: 24),
+            child: Text(
+              '摆药规则暂不可修改；准备周期与餐食分盘显示默认值。',
+              style: TextStyle(fontSize: 12, color: Color(0xff7c7c7c)),
+            ),
+          ),
         if (items.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 40),
@@ -345,18 +356,20 @@ class _SettingsPageState extends State<SettingsPage> {
       '准备周期',
       '准备天数',
       '每次准备 1–7 天的用药。',
-      SizedBox(
-        width: 108,
-        child: AppSelect<int>(
-          key: const ValueKey('preparation-days'),
-          value: widget.model.preparationDays,
-          label: '准备天数',
-          options: [
-            for (var day = 1; day <= 7; day++) AppSelectOption(day, '$day 天'),
-          ],
-          onChanged: (value) {
-            _saveRules(days: value);
-          },
+      _ruleControl(
+        SizedBox(
+          width: 108,
+          child: AppSelect<int>(
+            key: const ValueKey('preparation-days'),
+            value: widget.model.preparationDays,
+            label: '准备天数',
+            options: [
+              for (var day = 1; day <= 7; day++) AppSelectOption(day, '$day 天'),
+            ],
+            onChanged: (value) {
+              _saveRules(days: value);
+            },
+          ),
         ),
       ),
     ),
@@ -367,7 +380,9 @@ class _SettingsPageState extends State<SettingsPage> {
       '关闭时，从当天开始准备。',
       Switch(
         value: widget.model.startTomorrow,
-        onChanged: (value) => _saveRules(tomorrow: value),
+        onChanged: widget.model.canSaveRules
+            ? (value) => _saveRules(tomorrow: value)
+            : null,
       ),
     ),
     _SettingItem(
@@ -377,7 +392,9 @@ class _SettingsPageState extends State<SettingsPage> {
       '饭前单独一盘，其余餐食关系共用另一盘。',
       Switch(
         value: widget.model.splitMeals,
-        onChanged: (value) => _saveRules(split: value),
+        onChanged: widget.model.canSaveRules
+            ? (value) => _saveRules(split: value)
+            : null,
       ),
     ),
     _SettingItem(
@@ -387,7 +404,9 @@ class _SettingsPageState extends State<SettingsPage> {
       '在药盒布局中增加睡前格。',
       Switch(
         value: widget.model.bedtime,
-        onChanged: (value) => _saveRules(night: value),
+        onChanged: widget.model.canSaveRules
+            ? (value) => _saveRules(night: value)
+            : null,
       ),
     ),
     _SettingItem(
@@ -467,6 +486,20 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     ),
   ];
+
+  Widget _ruleControl(Widget child) => Semantics(
+    enabled: widget.model.canSaveRules,
+    child: ExcludeFocus(
+      excluding: !widget.model.canSaveRules,
+      child: IgnorePointer(
+        ignoring: !widget.model.canSaveRules,
+        child: Opacity(
+          opacity: widget.model.canSaveRules ? 1 : .45,
+          child: child,
+        ),
+      ),
+    ),
+  );
 
   Widget _groupCard(List<_SettingItem> items) => Surface(
     padding: const EdgeInsets.symmetric(horizontal: 20),

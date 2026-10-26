@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// Local preview only. Real authentication belongs to the account service.
-/// 本地登录预览。表单仅验证演示凭据，成功用回调通知根组件切换界面。
+/// Authentication is supplied by the application session, never by the page.
 /// 控制器随页面销毁，退出后重新进入时不会保留密码。
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key, required this.onDemoLogin});
-  final VoidCallback onDemoLogin;
+  const LoginPage({super.key, required this.onLogin});
+  final Future<void> Function(String username, String password) onLogin;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -17,6 +16,7 @@ class _LoginPageState extends State<LoginPage> {
   final _password = TextEditingController();
   bool _obscurePassword = true;
   String? _error;
+  bool _pending = false;
 
   @override
   void dispose() {
@@ -26,16 +26,20 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   /// 校验输入，失败显示错误且保留草稿；成功通知父组件，不持久化密码。
-  void _login() {
+  Future<void> _login() async {
+    if (_pending) return;
     setState(() => _error = null);
     if (!_formKey.currentState!.validate()) return;
-    if (_account.text.trim() != 'admin' || _password.text != 'admin123') {
-      setState(() => _error = '账号或密码不正确，请重新输入。');
-      return;
-    }
+    setState(() => _pending = true);
     FocusScope.of(context).unfocus();
-    _password.clear();
-    widget.onDemoLogin();
+    try {
+      await widget.onLogin(_account.text.trim(), _password.text);
+      if (mounted) _password.clear();
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _pending = false);
+    }
   }
 
   @override
@@ -163,12 +167,12 @@ class _LoginPageState extends State<LoginPage> {
                               const SizedBox(height: 28),
                               FilledButton(
                                 key: const ValueKey('login-submit'),
-                                onPressed: _login,
-                                child: const Text('登录'),
+                                onPressed: _pending ? null : _login,
+                                child: Text(_pending ? '登录中…' : '登录'),
                               ),
                               const SizedBox(height: 16),
                               const Text(
-                                '账号由机构管理员分配',
+                                '账号由管理员分配',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 12,

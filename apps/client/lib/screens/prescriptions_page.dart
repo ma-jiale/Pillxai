@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../widgets/app_menu.dart';
-import 'history_page.dart';
 
-import '../models/demo_model.dart';
+import '../models/prescription_store.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_page.dart';
 import '../widgets/prescription_forms.dart';
@@ -11,8 +10,15 @@ import '../widgets/profile_avatar.dart';
 
 /// 当前资料的浏览与编辑入口。搜索/滚动属于页面，长者与处方属于共享模型。
 class PrescriptionsPage extends StatefulWidget {
-  const PrescriptionsPage({super.key, required this.model});
-  final DemoModel model;
+  const PrescriptionsPage({
+    super.key,
+    required this.model,
+    this.onHistory,
+    this.onVersions,
+  });
+  final PrescriptionStore model;
+  final void Function(Resident)? onHistory;
+  final void Function(Resident, Medicine)? onVersions;
 
   @override
   State<PrescriptionsPage> createState() => _PrescriptionsPageState();
@@ -92,12 +98,14 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
     final updated = await showDialog<Resident>(
       context: context,
       barrierDismissible: false,
-      builder: (context) =>
-          ResidentForm(model: widget.model, resident: resident),
+      builder: (context) => ResidentForm(
+        model: widget.model,
+        resident: resident,
+        onSave: widget.model.saveResident,
+      ),
     );
     if (!mounted || updated == null) return;
     _search.clear();
-    widget.model.saveResident(updated);
     _showDetails();
     _notify('已保存${updated.name}的资料');
   }
@@ -111,10 +119,10 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
         resident: resident,
         medicine: medicine,
         bedtimeEnabled: widget.model.bedtime,
+        onSave: (updated) => widget.model.saveMedicine(resident.id, updated),
       ),
     );
     if (!mounted || updated == null) return;
-    widget.model.saveMedicine(resident.id, updated);
     _notify('已保存${updated.name}');
   }
 
@@ -142,11 +150,15 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
       ),
     );
     if (!mounted || confirmed != true) return;
-    widget.model.saveMedicine(
-      resident.id,
-      medicine.copyWith(stopped: !medicine.stopped),
-    );
-    _notify('已$action${medicine.name}');
+    try {
+      await widget.model.saveMedicine(
+        resident.id,
+        medicine.copyWith(stopped: !medicine.stopped),
+      );
+      if (mounted) _notify('已$action${medicine.name}');
+    } catch (error) {
+      if (mounted) _notify(error.toString());
+    }
   }
 
   @override
@@ -279,7 +291,7 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
           ),
         const SizedBox(height: 20),
         OutlinedButton.icon(
-          onPressed: () => _editResident(),
+          onPressed: widget.model.canEdit ? () => _editResident() : null,
           icon: const Icon(Icons.add_rounded, size: 18),
           label: const Text('添加长者'),
         ),
@@ -349,27 +361,17 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
               final edit = Wrap(
                 spacing: 8,
                 children: [
-                  TextButton.icon(
-                    key: ValueKey('resident-history-${resident.id}'),
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (context) => Dialog(
-                        insetPadding: const EdgeInsets.all(16),
-                        child: SizedBox(
-                          width: 1000,
-                          child: HistoryPage(
-                            model: widget.model,
-                            residentId: resident.id,
-                            onClose: () => Navigator.pop(context),
-                          ),
-                        ),
-                      ),
+                  if (widget.onHistory != null)
+                    TextButton.icon(
+                      key: ValueKey('resident-history-${resident.id}'),
+                      onPressed: () => widget.onHistory!(resident),
+                      icon: const Icon(Icons.history_rounded, size: 16),
+                      label: const Text('摆药记录'),
                     ),
-                    icon: const Icon(Icons.history_rounded, size: 16),
-                    label: const Text('摆药记录'),
-                  ),
                   TextButton.icon(
-                    onPressed: () => _editResident(resident),
+                    onPressed: widget.model.canEdit
+                        ? () => _editResident(resident)
+                        : null,
                     icon: const Icon(Icons.edit_outlined, size: 16),
                     label: const Text('编辑资料'),
                   ),
@@ -421,7 +423,9 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
               ),
 
               TextButton.icon(
-                onPressed: () => _editMedicine(resident),
+                onPressed: widget.model.canEdit
+                    ? () => _editMedicine(resident)
+                    : null,
                 icon: const Icon(Icons.add_rounded, size: 18),
                 label: const Text('添加药物'),
               ),
@@ -438,10 +442,10 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
                     color: Color(0xffb4b4b4),
                   ),
                   const SizedBox(height: 14),
-                  const Text('还没有用药条目'),
+                  Text(stopped.isEmpty ? '还没有用药条目' : '当前没有启用的用药条目'),
                   const SizedBox(height: 5),
                   Text(
-                    '添加药物，开始维护这位长者的处方。',
+                    stopped.isEmpty ? '添加药物，开始维护这位长者的处方。' : '已停用的条目及其版本仍保留。',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 12,
@@ -484,23 +488,31 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
     bool vertical = false,
   }) {
     final actions = <Widget>[
-      IconButton(
-        tooltip: '编辑${medicine.name}',
-        onPressed: () => _editMedicine(resident, medicine),
-        icon: const Icon(Icons.edit_outlined, size: 17),
-      ),
-      AppActionMenu(
-        tooltip: '${medicine.name}更多操作',
-        actions: [
-          AppMenuAction(
-            medicine.stopped ? '恢复用药' : '停用用药',
-            () => _toggleMedicine(resident, medicine),
-            icon: medicine.stopped
-                ? Icons.play_arrow_rounded
-                : Icons.pause_rounded,
-          ),
-        ],
-      ),
+      if (widget.onVersions != null)
+        IconButton(
+          tooltip: '${medicine.name}用药版本',
+          onPressed: () => widget.onVersions!(resident, medicine),
+          icon: const Icon(Icons.history_rounded, size: 17),
+        ),
+      if (widget.model.canEdit)
+        IconButton(
+          tooltip: '编辑${medicine.name}',
+          onPressed: () => _editMedicine(resident, medicine),
+          icon: const Icon(Icons.edit_outlined, size: 17),
+        ),
+      if (widget.model.canEdit)
+        AppActionMenu(
+          tooltip: '${medicine.name}更多操作',
+          actions: [
+            AppMenuAction(
+              medicine.stopped ? '恢复用药' : '停用用药',
+              () => _toggleMedicine(resident, medicine),
+              icon: medicine.stopped
+                  ? Icons.play_arrow_rounded
+                  : Icons.pause_rounded,
+            ),
+          ],
+        ),
     ];
     return vertical
         ? Column(children: actions)

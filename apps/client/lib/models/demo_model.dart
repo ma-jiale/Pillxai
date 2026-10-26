@@ -3,8 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'dispense_record.dart';
-import 'prescription.dart';
 import 'preparation_plan.dart';
+import 'prescription_store.dart';
+import 'settings_store.dart';
 export 'prescription.dart';
 export 'dispense_record.dart';
 
@@ -19,7 +20,13 @@ enum BoxFeedback { disconnected, opening, waiting, match, other, failed }
 /// 共享会话模型（类似 GUI 中可观察的数据对象）。页面调用语义方法，
 /// 方法完成状态变更后 notifyListeners，ListenableBuilder 据此重新 build。
 /// 读取 getter 没有副作用；计时器仅模拟计数，不向机器发送命令。
-class DemoModel extends ChangeNotifier {
+class DemoModel extends ChangeNotifier
+    implements PrescriptionStore, SettingsStore {
+  @override
+  bool get canSaveRules => true;
+  @override
+  bool get canEdit => true;
+
   /// 创建样例资料和可选计时器。autoTick:false 让测试自行 advance，结果可重复。
   /// 初始化时没有任务；只有用户确认有效计划后才建立任务快照。
   DemoModel({bool autoTick = true}) {
@@ -45,6 +52,7 @@ class DemoModel extends ChangeNotifier {
     }
   }
 
+  @override
   final List<Resident> residents = [
     Resident(
       id: 'r1',
@@ -107,6 +115,7 @@ class DemoModel extends ChangeNotifier {
       avatarAsset: 'assets/images/avatars/chen.png',
     ),
   ];
+  @override
   String selectedResidentId = 'r1';
   Resident get selectedResident =>
       residents.firstWhere((r) => r.id == selectedResidentId);
@@ -129,9 +138,13 @@ class DemoModel extends ChangeNotifier {
   double get opening => _opening;
   DispenseStage get stage => _stage;
 
+  @override
   int preparationDays = 7;
+  @override
   bool splitMeals = true;
+  @override
   bool bedtime = false;
+  @override
   bool startTomorrow = false;
   Timer? _ticker;
   final Map<String, DateTime> demoCoverage = {};
@@ -209,12 +222,14 @@ class DemoModel extends ChangeNotifier {
     DispenseStage.cancelled => '本次已取消',
   };
 
+  @override
   void selectResident(String id) {
     selectedResidentId = id;
     notifyListeners();
   }
 
   /// 按稳定 id 新增或替换资料，选中保存对象，再一次性通知界面。
+  @override
   void saveResident(Resident resident) {
     final index = residents.indexWhere((item) => item.id == resident.id);
     if (index < 0) {
@@ -227,6 +242,7 @@ class DemoModel extends ChangeNotifier {
   }
 
   /// 返回占用该非空床位的另一位长者；忽略空白和大小写，编辑本人时排除本人。
+  @override
   Resident? bedConflict(String bed, {String? excludingId}) {
     String normalize(String value) =>
         value.trim().replaceAll(RegExp(r'\s+'), '').toLowerCase();
@@ -258,6 +274,7 @@ class DemoModel extends ChangeNotifier {
   }
 
   /// 用新药物对象替换处方条目，不修改已开始任务中的原对象。
+  @override
   void saveMedicine(String residentId, Medicine medicine) {
     final list = residents.firstWhere((r) => r.id == residentId).medicines;
     final index = list.indexWhere((m) => m.id == medicine.id);
@@ -552,6 +569,7 @@ class DemoModel extends ChangeNotifier {
   }
 
   /// 保存会话偏好并通知页面。已经启动的任务保留自己的计划数量。
+  @override
   void saveSettings({
     required int days,
     required bool split,

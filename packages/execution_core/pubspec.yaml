@@ -1,0 +1,6 @@
+name: pillxai_execution_core
+description: Platform-independent device semantics for the new Pillxai runtime.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: ^3.13.1

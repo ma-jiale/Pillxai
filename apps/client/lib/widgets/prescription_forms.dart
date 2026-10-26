@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'app_menu.dart';
 
-import '../models/demo_model.dart';
+import 'dart:async';
+
+import '../models/prescription_store.dart';
 import '../models/dose_rules.dart';
 
 String formatDate(DateTime date) =>
@@ -48,9 +50,15 @@ Future<bool> _confirmDiscard(BuildContext context, bool dirty) async {
 /// 长者编辑草稿。TextEditingController 保存文字，Form 统一触发校验。
 /// 保存通过 Navigator.pop 返回新对象；调用页决定是否写入模型。
 class ResidentForm extends StatefulWidget {
-  const ResidentForm({super.key, required this.model, this.resident});
-  final DemoModel model;
+  const ResidentForm({
+    super.key,
+    required this.model,
+    this.resident,
+    this.onSave,
+  });
+  final PrescriptionStore model;
   final Resident? resident;
+  final FutureOr<void> Function(Resident)? onSave;
 
   @override
   State<ResidentForm> createState() => _ResidentFormState();
@@ -61,6 +69,9 @@ class _ResidentFormState extends State<ResidentForm> {
   late final _name = TextEditingController(text: widget.resident?.name);
   late final _bed = TextEditingController(text: widget.resident?.bed);
   bool _dirty = false;
+  bool _saving = false;
+  String? _saveError;
+  late final _id = widget.resident?.id ?? newRecordId();
 
   @override
   void dispose() {
@@ -70,23 +81,35 @@ class _ResidentFormState extends State<ResidentForm> {
   }
 
   Future<void> _cancel() async {
+    if (_saving) return;
     if (await _confirmDiscard(context, _dirty) && mounted) {
       Navigator.pop(context);
     }
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (_saving) return;
     if (!_form.currentState!.validate()) return;
-    Navigator.pop(
-      context,
-      Resident(
-        id: widget.resident?.id ?? 'r${DateTime.now().microsecondsSinceEpoch}',
-        name: _name.text.trim(),
-        bed: _bed.text.trim(),
-        medicines: widget.resident?.medicines ?? [],
-        avatarAsset: widget.resident?.avatarAsset,
-      ),
+    final draft = Resident(
+      id: _id,
+      name: _name.text.trim(),
+      bed: _bed.text.trim(),
+      medicines: widget.resident?.medicines ?? [],
+      avatarAsset: widget.resident?.avatarAsset,
+      revision: widget.resident?.revision ?? 0,
     );
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    try {
+      await widget.onSave?.call(draft);
+      if (mounted) Navigator.pop(context, draft);
+    } catch (error) {
+      if (mounted) setState(() => _saveError = error.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -96,6 +119,8 @@ class _ResidentFormState extends State<ResidentForm> {
     width: 480,
     onCancel: _cancel,
     onSave: _save,
+    saving: _saving,
+    error: _saveError,
     child: Form(
       key: _form,
       onChanged: () => _dirty = true,
@@ -140,10 +165,12 @@ class MedicineForm extends StatefulWidget {
     required this.resident,
     required this.bedtimeEnabled,
     this.medicine,
+    this.onSave,
   });
   final Resident resident;
   final Medicine? medicine;
   final bool bedtimeEnabled;
+  final FutureOr<void> Function(Medicine)? onSave;
 
   @override
   State<MedicineForm> createState() => _MedicineFormState();
@@ -171,6 +198,9 @@ class _MedicineFormState extends State<MedicineForm> {
   late bool _longTerm = widget.medicine?.endDate == null;
   bool _dirty = false;
   String? _doseError;
+  bool _saving = false;
+  String? _saveError;
+  late final _id = widget.medicine?.id ?? newRecordId();
 
   @override
   void dispose() {
@@ -181,6 +211,7 @@ class _MedicineFormState extends State<MedicineForm> {
   }
 
   Future<void> _cancel() async {
+    if (_saving) return;
     if (await _confirmDiscard(context, _dirty) && mounted) {
       Navigator.pop(context);
     }
@@ -197,38 +228,49 @@ class _MedicineFormState extends State<MedicineForm> {
     bedtimeEnabled: widget.bedtimeEnabled,
   );
 
-  void _save() {
+  Future<void> _save() async {
+    if (_saving) return;
     final valid = _form.currentState!.validate();
     final values = _doses
         .map((controller) => parseDoseInput(controller.text))
         .toList();
     setState(() => _doseError = validateDailyDose(values));
     if (!valid || _doseError != null) return;
-    Navigator.pop(
-      context,
-      Medicine(
-        id: widget.medicine?.id ?? 'm${DateTime.now().microsecondsSinceEpoch}',
-        name: _name.text.trim(),
-        strength: _strength.text.trim(),
-        unit: _unit,
-        form: _half
-            ? '预切半片'
-            : _unit == '粒'
-            ? '整粒'
-            : '整片',
-        doses: DoseSchedule(
-          morning: values[0]!,
-          noon: values[1]!,
-          evening: values[2]!,
-          night: values[3]!,
-        ),
-        meal: _meal,
-        startDate: parseDate(_start.text),
-        endDate: _longTerm ? null : parseDate(_end.text),
-        stopped: widget.medicine?.stopped ?? false,
-        imageAsset: widget.medicine?.imageAsset,
+    final draft = Medicine(
+      id: _id,
+      name: _name.text.trim(),
+      strength: _strength.text.trim(),
+      unit: _unit,
+      form: _half
+          ? '预切半片'
+          : _unit == '粒'
+          ? '整粒'
+          : '整片',
+      doses: DoseSchedule(
+        morning: values[0]!,
+        noon: values[1]!,
+        evening: values[2]!,
+        night: values[3]!,
       ),
+      meal: _meal,
+      startDate: parseDate(_start.text),
+      endDate: _longTerm ? null : parseDate(_end.text),
+      stopped: widget.medicine?.stopped ?? false,
+      imageAsset: widget.medicine?.imageAsset,
+      revision: widget.medicine?.revision ?? 0,
     );
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    try {
+      await widget.onSave?.call(draft);
+      if (mounted) Navigator.pop(context, draft);
+    } catch (error) {
+      if (mounted) setState(() => _saveError = error.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _pickDate(TextEditingController controller) async {
@@ -314,6 +356,8 @@ class _MedicineFormState extends State<MedicineForm> {
   @override
   Widget build(BuildContext context) => _FormDialog(
     title: widget.medicine == null ? '添加药物' : '编辑药物',
+    saving: _saving,
+    error: _saveError,
     subtitle: '${widget.resident.name} · 按已确定的处方填写',
     width: 700,
     onCancel: _cancel,
@@ -436,7 +480,7 @@ class _MedicineFormState extends State<MedicineForm> {
                   const Padding(
                     padding: EdgeInsets.only(top: 4),
                     child: Text(
-                      '睡前格尚未启用，可在设置中开启。',
+                      '睡前格尚未启用。',
                       style: TextStyle(fontSize: 12, color: Color(0xff858585)),
                     ),
                   ),
@@ -518,6 +562,8 @@ class _FormDialog extends StatelessWidget {
     required this.child,
     required this.onCancel,
     required this.onSave,
+    this.saving = false,
+    this.error,
     required this.width,
   });
   final String title;
@@ -526,6 +572,8 @@ class _FormDialog extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback onSave;
   final double width;
+  final bool saving;
+  final String? error;
 
   @override
   Widget build(BuildContext context) {
@@ -572,18 +620,34 @@ class _FormDialog extends StatelessWidget {
                   keyboardDismissBehavior:
                       ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: EdgeInsets.all(inset),
-                  child: child,
+                  child: AbsorbPointer(absorbing: saving, child: child),
                 ),
               ),
               const Divider(height: 1),
+              if (error != null)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
               Padding(
                 padding: EdgeInsets.fromLTRB(inset, 16, inset, 16),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    TextButton(onPressed: onCancel, child: const Text('取消')),
+                    TextButton(
+                      onPressed: saving ? null : onCancel,
+                      child: const Text('取消'),
+                    ),
                     const SizedBox(width: 12),
-                    FilledButton(onPressed: onSave, child: const Text('保存')),
+                    FilledButton(
+                      onPressed: saving ? null : onSave,
+                      child: Text(saving ? '保存中…' : '保存'),
+                    ),
                   ],
                 ),
               ),

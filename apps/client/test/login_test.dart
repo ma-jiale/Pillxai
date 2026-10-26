@@ -11,7 +11,7 @@ void main() {
   });
 
   testWidgets('登录校验、密码显隐与退出后清空凭据', (tester) async {
-    await tester.pumpWidget(const PillxaiApp());
+    await tester.pumpWidget(const PillxaiApp(demo: true));
     await tester.pumpAndSettle();
     const account = ValueKey('login-account');
     const password = ValueKey('login-password');
@@ -44,11 +44,10 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('prepare-r1')), findsOneWidget);
-    expect(find.text('管理员'), findsOneWidget);
-    expect(find.text('院内管理员'), findsOneWidget);
+    expect(find.text('管理员'), findsNWidgets(2));
     await tester.tap(find.byKey(const ValueKey('account-menu')));
     await tester.pumpAndSettle();
-    expect(find.text('院内管理员'), findsNWidgets(2));
+    expect(find.text('管理员'), findsNWidgets(4));
     await tester.tap(find.text('退出当前用户'));
     await tester.pumpAndSettle();
     expect(find.text('欢迎回来'), findsOneWidget);
@@ -71,7 +70,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       addTearDown(tester.view.resetViewInsets);
-      await tester.pumpWidget(const PillxaiApp());
+      await tester.pumpWidget(const PillxaiApp(demo: true));
       await tester.pumpAndSettle();
       tester.view.viewInsets = const FakeViewPadding(bottom: 300);
       await tester.pumpAndSettle();
