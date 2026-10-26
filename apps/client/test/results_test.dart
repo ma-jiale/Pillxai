@@ -285,7 +285,7 @@ void main() {
     await tap(find.byKey(const ValueKey('preview-collection')));
     expect(find.text('请取出药盒，等待设备反馈 · 演练'), findsOneWidget);
     await tap(find.text('处方管理'));
-    expect(find.text('王奶奶 · 等待取盒   ↗'), findsOneWidget);
+    expect(find.text('王奶奶 · 等待取盒   ↗'), findsNothing);
     await tap(find.byKey(const ValueKey('resident-history-r1')));
     expect(find.text('共 1 条'), findsOneWidget);
     await tap(find.byKey(const ValueKey('close-history')));

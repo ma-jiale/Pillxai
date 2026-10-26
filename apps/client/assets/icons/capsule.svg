@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">
+  <!-- 与侧栏原图一致：倾斜 45 度，下半黑、上半白，描边宽 1.7。 -->
+  <g transform="translate(11 11) rotate(-45)">
+    <rect x="-10.34" y="-5.06" width="20.68" height="10.12" rx="5.06" fill="#ffffff"/>
+    <path d="M0 -5.06 H-5.28 A5.06 5.06 0 0 0 -5.28 5.06 H0 Z" fill="#242424"/>
+    <rect x="-10.34" y="-5.06" width="20.68" height="10.12" rx="5.06" fill="none" stroke="#242424" stroke-width="1.7"/>
+    <path d="M0 -5.06 V5.06" fill="none" stroke="#242424" stroke-width="1.7" stroke-linecap="round"/>
+  </g>
+</svg>

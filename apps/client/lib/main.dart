@@ -1,7 +1,6 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'models/demo_model.dart';
 import 'models/device_preview_model.dart';
@@ -15,8 +14,12 @@ import 'theme/app_page.dart';
 import 'widgets/profile_avatar.dart';
 import 'widgets/app_menu.dart';
 
+/// 程序入口。=> 是单表达式函数的简写，等价于 { runApp(...); }。
+/// const 创建不可变配置；运行中的可变数据由下面的 State 保存。
 void main() => runApp(const PillxaiApp());
 
+/// 应用的根配置。model 可由测试注入；日常启动时由 State 创建并持有。
+/// Widget 描述“应显示什么”，不等同于 Unity GameObject 或可变的 Qt 控件。
 class PillxaiApp extends StatefulWidget {
   const PillxaiApp({super.key, this.model, this.initiallySignedIn = false});
   final DemoModel? model;
@@ -25,13 +28,18 @@ class PillxaiApp extends StatefulWidget {
   State<PillxaiApp> createState() => _PillxaiAppState();
 }
 
+/// 应用会话的拥有者：登录状态、当前页面、强调色及共享模型。
+/// 下划线使名称在本 Dart library 内私有；State 在多次 build 之间保留。
+/// setState 的闭包立即修改局部状态，Flutter 随后安排重建界面配置。
 class _PillxaiAppState extends State<PillxaiApp> {
+  // late final 首次读取时求值，此后保持同一引用；不会每次 build 都创建模型。
   late final DemoModel model = widget.model ?? DemoModel();
   late final devices = DevicePreviewModel(canConnect: () => !model.busy);
   Color accent = const Color(0xff191919);
-  int page = 1;
+  int page = 1; // IndexedStack 的顺序：0处方、1摆药、2设置。
   late bool _signedIn = widget.initiallySignedIn;
 
+  // 谁创建资源，谁释放。外部传入的模型仍归调用者负责，避免重复 dispose。
   @override
   void dispose() {
     devices.dispose();
@@ -47,145 +55,114 @@ class _PillxaiAppState extends State<PillxaiApp> {
     supportedLocales: const [Locale('zh', 'CN')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
     theme: createTheme(accent: accent),
-    home: LayoutBuilder(
-      builder: (context, bounds) {
-        if (!_signedIn) {
-          return LoginPage(
-            onDemoLogin: () => setState(() {
-              _signedIn = true;
-              page = 1;
-            }),
-          );
-        }
-        final narrow = bounds.maxWidth < 600;
-        return Scaffold(
-          body: SafeArea(
-            child: Column(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      _Sidebar(
-                        selected: page,
-                        compact: narrow,
-                        onSignOut: () => _signOut(context),
-                        onSelect: (value) => setState(() => page = value),
-                      ),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            if (page != 2)
-                              ColoredBox(
-                                key: const ValueKey('workspace-header'),
-                                color: Theme.of(context)
-                                    .scaffoldBackgroundColor,
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    minHeight: 88,
-                                  ),
-                                  child: Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: bounds.maxWidth < 900
-                                          ? 20
-                                          : 32,
-                                      vertical: 16,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: ListenableBuilder(
-                                            listenable: model,
-                                            builder: (context, _) => PageTitle(
-                                              page == 0
-                                                  ? '处方管理'
-                                                  : model.active
-                                                  ? '正在分药'
-                                                  : '摆药',
-                                              key: ValueKey(
-                                                'page-title-${['prescriptions', 'dispensing', 'settings'][page]}',
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        if (page == 1) ...[
-                                          const SizedBox(width: 16),
-                                          DeviceStatusButton(
-                                            devices: devices,
-                                            onPressed: () =>
-                                                _openDevices(context),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            Expanded(
-                              child: IndexedStack(
-                                index: page,
-                                children: [
-                                  PrescriptionsPage(model: model),
-                                  PreparationPage(model: model),
-                                  SettingsPage(
-                                    model: model,
-                                    accent: accent,
-                                    onAccentChanged: (value) =>
-                                        setState(() => accent = value),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            ListenableBuilder(
-                              listenable: model,
-                              builder: (context, _) {
-                                if (page == 1 || !model.busy) {
-                                  return const SizedBox.shrink();
-                                }
-                                return InkWell(
-                                  onTap: () => setState(() => page = 1),
-                                  child: Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 24,
-                                      vertical: 10,
-                                    ),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.white,
-                                      border: Border(
-                                        top: BorderSide(
-                                          color: Color(0xffdedede),
-                                        ),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      model.awaitingCollection
-                                          ? '${model.currentRecord!.name} · ${model.currentRecord!.collectionLabel}   ↗'
-                                          : '${model.taskResidentName} · ${model.currentMedicine.name}  ${model.count} / ${model.currentMedicine.target}  · ${model.stageLabel}   ↗',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+    home: LayoutBuilder(builder: _buildHome),
+  );
+
+  /// 决定显示登录页还是工作区；工作区按“左侧导航、右侧内容”排列。
+  /// context 来自 MaterialApp 内部，弹窗、提示和主题都要用这个上下文。
+  /// 下面的 _build... 是普通方法：返回界面配置，不创建另一份 State。
+  Widget _buildHome(BuildContext context, BoxConstraints bounds) {
+    if (!_signedIn) {
+      return LoginPage(
+        onDemoLogin: () => setState(() {
+          _signedIn = true;
+          page = 1;
+        }),
+      );
+    }
+
+    return Scaffold(
+      body: SafeArea(
+        child: Row(
+          children: [
+            _Sidebar(
+              selected: page,
+              compact: bounds.maxWidth < 600,
+              onSignOut: () => _signOut(context),
+              onSelect: (value) => setState(() => page = value),
+            ),
+            Expanded(
+              child: Column(
+                children: [
+                  if (page != 2) _buildHeader(context, bounds.maxWidth),
+                  Expanded(child: _buildPages()),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 顶栏显示当前页标题，摆药页额外显示设备入口；设置页有自己的标题。
+  /// 只有标题订阅任务模型，计数变化不需要重新构建整个工作区。
+  Widget _buildHeader(BuildContext context, double windowWidth) {
+    return Container(
+      key: const ValueKey('workspace-header'),
+      color: Theme.of(context).scaffoldBackgroundColor,
+      constraints: const BoxConstraints(minHeight: 88),
+      padding: EdgeInsets.symmetric(
+        horizontal: windowWidth < 900 ? 20 : 32,
+        vertical: 16,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: ListenableBuilder(
+              listenable: model,
+              builder: (context, _) {
+                final String title;
+                if (page == 0) {
+                  title = '处方管理';
+                } else {
+                  title = model.active ? '正在分药' : '摆药';
+                }
+                return PageTitle(
+                  title,
+                  key: ValueKey(
+                    'page-title-${page == 0 ? 'prescriptions' : 'dispensing'}',
                   ),
-                ),
-              ],
+                );
+              },
             ),
           ),
-        );
-      },
-    ),
-  );
+          if (page == 1) ...[
+            const SizedBox(width: 16),
+            DeviceStatusButton(
+              devices: devices,
+              onPressed: () => _openDevices(context),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// page 对应 children 的下标。IndexedStack 保留三个页面，只显示选中页。
+  /// 方法重新执行会生成新配置；同位置、同类型的页面仍保留输入与滚动状态。
+  /// 任务由根模型持有，因此切页不会重启计时或清零。
+  Widget _buildPages() {
+    return IndexedStack(
+      index: page,
+      children: [
+        PrescriptionsPage(model: model),
+        PreparationPage(model: model),
+        SettingsPage(
+          model: model,
+          accent: accent,
+          onAccentChanged: (value) => setState(() => accent = value),
+        ),
+      ],
+    );
+  }
 
   void _openDevices(BuildContext context) => showDialog<void>(
     context: context,
     builder: (_) => DevicesPage(devices: devices, taskModel: model),
   );
 
+  /// 退出只在无执行/取盒占用时发生；失败给出原因并保持当前会话。
   void _signOut(BuildContext context) {
     if (model.busy) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -201,6 +178,8 @@ class _PillxaiAppState extends State<PillxaiApp> {
   }
 }
 
+/// 侧栏只把选择事件传给父组件，不直接拥有或修改任务。
+/// 与 PyQt 信号/槽相似：onSelect 是回调；实际状态更新发生在调用者。
 class _Sidebar extends StatelessWidget {
   const _Sidebar({
     required this.selected,
@@ -366,9 +345,11 @@ class _Sidebar extends StatelessWidget {
                     : MainAxisAlignment.start,
                 children: [
                   if (index == 1)
-                    CustomPaint(
-                      size: const Size.square(22),
-                      painter: const _CapsulePainter(Color(0xff242424)),
+                    SvgPicture.asset(
+                      'assets/icons/capsule.svg',
+                      width: 22,
+                      height: 22,
+                      excludeFromSemantics: true,
                     )
                   else
                     Icon(icon, size: 22, color: color),
@@ -403,43 +384,4 @@ class _Sidebar extends StatelessWidget {
       ),
     );
   }
-}
-
-class _CapsulePainter extends CustomPainter {
-  const _CapsulePainter(this.color);
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.7
-      ..strokeCap = StrokeCap.round;
-    final halfHeight = size.height * .23;
-    canvas.translate(size.width / 2, size.height / 2);
-    canvas.rotate(-math.pi / 4);
-    final capsule = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: Offset.zero,
-        width: size.width * .94,
-        height: halfHeight * 2,
-      ),
-      Radius.circular(halfHeight),
-    );
-    canvas.drawRRect(capsule, Paint()..color = Colors.white);
-    canvas.save();
-    canvas.clipRRect(capsule);
-    // The left half becomes the lower half after the capsule is rotated.
-    canvas.drawRect(
-      Rect.fromLTRB(-size.width, -halfHeight, 0, halfHeight),
-      Paint()..color = color,
-    );
-    canvas.restore();
-    canvas.drawRRect(capsule, paint);
-    canvas.drawLine(Offset(0, -halfHeight), Offset(0, halfHeight), paint);
-  }
-
-  @override
-  bool shouldRepaint(_CapsulePainter oldDelegate) => oldDelegate.color != color;
 }
