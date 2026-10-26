@@ -6,6 +6,8 @@ enum MedicineOutcome {
   notStarted,
 }
 
+/// 单药结果：原计数与人工确认量分别保存。二者不能相加成“设备实测”。
+/// 所有字段 final，任务结束后继续修改处方不会改写此对象。
 class MedicineResult {
   const MedicineResult({
     required this.outcome,
@@ -34,6 +36,7 @@ enum CollectionStage {
   complete,
 }
 
+/// 结果中的药物快照，保留执行当时的名称、规格、计划和处理结果。
 class RecordedMedicine {
   const RecordedMedicine({
     required this.id,
@@ -53,6 +56,7 @@ class RecordedMedicine {
   final MedicineResult result;
 }
 
+/// 已发生的一次处理记录；按发生时间记录事实，不用于驱动任务下一步。
 class RecordEvent {
   const RecordEvent(this.at, this.description);
   final DateTime at;
@@ -119,6 +123,8 @@ class DispenseRecord {
     CollectionStage.complete => '取盒已结束',
   };
 
+  /// 以新快照替换取盒状态并追加事件。原快照仍可被详情/测试安全引用。
+  /// 逐药计划与结果保持原值，只有取盒状态和事件列表发生变化。
   DispenseRecord withCollection(CollectionStage value, RecordEvent event) =>
       DispenseRecord(
         id: id,

@@ -9,6 +9,7 @@ import '../widgets/dispenser_icon.dart';
 const _muted = Color(0xff777777);
 const _previewNote = '界面预览 · 示例设备，未连接真实硬件';
 
+/// 顶栏连接状态的监听入口，点击只打开设备面板，不授予摆药启动许可。
 class DeviceStatusButton extends StatelessWidget {
   const DeviceStatusButton({
     super.key,
@@ -43,6 +44,7 @@ class DeviceStatusButton extends StatelessWidget {
   );
 }
 
+/// 面板拥有搜索动画；连接进度归 DevicePreviewModel，关面板后仍可完成连接。
 class DevicesPage extends StatefulWidget {
   const DevicesPage({
     super.key,
@@ -68,6 +70,8 @@ class _DevicesPageState extends State<DevicesPage> {
     'USB 串口设备',
   ];
   String _transport(String name) => name.startsWith('USB') ? 'USB 串口' : '蓝牙串口';
+
+  /// 取消上次搜索计时，再模拟一次搜索；回调前检查 mounted，避免销毁后 setState。
   void _scan() {
     _timer?.cancel();
     setState(() {
@@ -94,6 +98,7 @@ class _DevicesPageState extends State<DevicesPage> {
     super.dispose();
   }
 
+  /// 所有会改变连接的UI操作先检查任务占用；弹窗返回后也必须经过这道检查。
   void _change(VoidCallback action) {
     if (widget.taskModel.busy) {
       setState(

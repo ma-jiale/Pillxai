@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 /// Local preview only. Real authentication belongs to the account service.
+/// 本地登录预览。表单仅验证演示凭据，成功用回调通知根组件切换界面。
+/// 控制器随页面销毁，退出后重新进入时不会保留密码。
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, required this.onDemoLogin});
   final VoidCallback onDemoLogin;
@@ -23,6 +25,7 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  /// 校验输入，失败显示错误且保留草稿；成功通知父组件，不持久化密码。
   void _login() {
     setState(() => _error = null);
     if (!_formKey.currentState!.validate()) return;

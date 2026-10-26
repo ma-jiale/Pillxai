@@ -4,6 +4,8 @@ import '../models/demo_model.dart';
 import '../theme/app_theme.dart';
 import '../widgets/profile_avatar.dart';
 
+/// 用稳定id查询当前快照；监听模型是为了同步取盒反馈，不是允许编辑历史。
+/// 返回的Future在详情关闭时完成，调用页可据此恢复自己的导航状态。
 Future<void> showResultDetails(
   BuildContext context,
   DemoModel model,
@@ -205,6 +207,7 @@ Future<void> showResultDetails(
   ),
 );
 
+/// 结果标签的纯展示组件，状态含义由调用者提供。
 class ResultBadge extends StatelessWidget {
   const ResultBadge(this.label, {super.key, this.attention = false});
   final String label;
@@ -226,6 +229,7 @@ class ResultBadge extends StatelessWidget {
   );
 }
 
+/// 展示任务发生时的资料快照，不能改读当前长者资料来“更新”历史。
 class RecordSummary extends StatelessWidget {
   const RecordSummary({super.key, required this.record});
   final DispenseRecord record;
@@ -284,6 +288,7 @@ class RecordSummary extends StatelessWidget {
 }
 
 /// Non-blocking status on the home screen. Collection is driven by feedback.
+/// 首页持续展示取盒占用。消失由模型确认离轨和就绪驱动，不使用页面倒计时。
 class CollectionStatusBanner extends StatelessWidget {
   const CollectionStatusBanner({super.key, required this.model});
   final DemoModel model;

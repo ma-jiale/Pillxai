@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Profile photos keep their own colors and are always cropped to a circle.
+/// 展示头像及语义名称；缺少图片时保留统一占位，不改变身份文本。
 class ProfileAvatar extends StatelessWidget {
   const ProfileAvatar({
     super.key,
@@ -45,6 +46,7 @@ class ProfileAvatar extends StatelessWidget {
 }
 
 /// Shared identity presentation for lists, confirmation and the execution header.
+/// 把头像、姓名、床位组合成同一个身份展示，列表/详情/弹窗共用。
 class ResidentIdentity extends StatelessWidget {
   const ResidentIdentity({
     super.key,

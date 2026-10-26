@@ -16,6 +16,8 @@ enum _Category {
   final IconData icon;
 }
 
+/// 偏好页：机构演示规则交给 model，强调色通过回调交给根组件。
+/// 分类、搜索与未应用的HEX草稿是局部状态，切分类时保留颜色草稿。
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
     super.key,
@@ -67,6 +69,7 @@ class _SettingsPageState extends State<SettingsPage> {
       '#${(color.toARGB32() & 0xffffff).toRadixString(16).padLeft(6, '0').toUpperCase()}';
 
   @override
+  // 父组件应用新强调色时同步输入框；普通切分类不覆盖尚未提交的文本。
   void didUpdateWidget(covariant SettingsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.accent != widget.accent) {
@@ -87,6 +90,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _search.clear();
   });
 
+  /// 验证HEX格式后向上回传 Color；主题负责不同背景下的可读性。
   void _applyCustomColor() {
     final value = _hexController.text.trim().replaceFirst(RegExp(r'^#'), '');
     if (!RegExp(r'^[0-9a-fA-F]{6}$').hasMatch(value)) {
@@ -290,6 +294,7 @@ class _SettingsPageState extends State<SettingsPage> {
     ],
   );
 
+  /// 有搜索词时跨分类过滤；无搜索词时只列当前分类，保持一套设置定义。
   Widget _content(BuildContext context) {
     final query = _search.text.trim().toLowerCase();
     final items = _items(context)
@@ -573,6 +578,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
+/// 设置行的数据描述：分类、分组、说明及实际控件，供正常浏览和搜索共同使用。
 class _SettingItem {
   const _SettingItem(
     this.category,

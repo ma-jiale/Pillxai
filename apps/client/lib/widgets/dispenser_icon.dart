@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Original dispenser outline, shared by toolbar and device-panel icons.
+/// 与连接方式无关的设备图标；尺寸缩放只影响绘制，不表示连接或识别成功。
 class DispenserIcon extends StatelessWidget {
   const DispenserIcon({
     super.key,

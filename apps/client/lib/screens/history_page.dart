@@ -7,6 +7,7 @@ import '../widgets/app_menu.dart';
 import '../widgets/profile_avatar.dart';
 import 'results_page.dart';
 
+/// 会话历史查询。筛选条件和页码归本页面；记录快照归共享模型。
 class HistoryPage extends StatefulWidget {
   const HistoryPage({
     super.key,
@@ -38,6 +39,7 @@ class _HistoryPageState extends State<HistoryPage> {
     super.dispose();
   }
 
+  /// 筛选后创建新列表再排序，不改变模型中记录顺序。日期按日比较并包含两端。
   List<DispenseRecord> get _filtered {
     final query = _query.trim().toLowerCase().replaceAll(' ', '');
     final records = widget.model.records.where((r) {
@@ -83,6 +85,8 @@ class _HistoryPageState extends State<HistoryPage> {
     _dates = null;
     _page = 0;
   });
+
+  /// 日期选择是异步操作；返回后只有页面仍挂载时才更新筛选与页码。
   Future<void> _chooseDates() async {
     final selected = await showDateRangePicker(
       context: context,

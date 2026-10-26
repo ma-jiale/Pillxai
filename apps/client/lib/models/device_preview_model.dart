@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 /// UI-only device state. Never grants permission to operate a physical machine.
+/// 会话设备列表与单连接状态；canConnect 由根组件注入，避免依赖某个页面。
 class DevicePreviewModel extends ChangeNotifier {
   DevicePreviewModel({this.canConnect});
   final bool Function()? canConnect;
@@ -23,6 +24,7 @@ class DevicePreviewModel extends ChangeNotifier {
     connect(name);
   }
 
+  /// 发起模拟连接时保留原连接。延迟完成会重新检查占用，失败仍可使用原连接。
   void connect(String name) {
     if (!_devices.contains(name) || canConnect?.call() == false) return;
     _connectionTimer?.cancel();

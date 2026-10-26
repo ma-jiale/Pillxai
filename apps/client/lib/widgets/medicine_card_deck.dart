@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 
 /// Promotes the visible next card from its actual slot into the current slot.
 /// Animation owns presentation only; it never starts or delays a medicine.
+/// 动画只搬动画面中的卡片，业务已经推进到下一药；动画完成不会触发出药。
 class MedicineCardDeck extends StatefulWidget {
   const MedicineCardDeck({
     super.key,
@@ -44,10 +45,12 @@ class _MedicineCardDeckState extends State<MedicineCardDeck>
   Rect? _fromNext;
   Rect? _toCurrent;
   Rect? _toNext;
+  // 代次编号用于废弃过期帧回调。连续切药或旋转屏幕后，旧动画不能覆盖新状态。
   int _flight = 0;
 
   bool get _moving => _promoting != null;
 
+  /// 把子卡片边界换算成卡组坐标；尚未布局时返回null，直接展示最新内容。
   Rect? _bounds(GlobalKey key) {
     final root = _deckKey.currentContext?.findRenderObject();
     final box = key.currentContext?.findRenderObject();
@@ -76,6 +79,7 @@ class _MedicineCardDeckState extends State<MedicineCardDeck>
   }
 
   @override
+  // Widget配置被替换时保留State；比较药物id决定是否迁移，布局完成后再测终点。
   void didUpdateWidget(MedicineCardDeck oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.medicineId == oldWidget.medicineId) return;
