@@ -2,7 +2,7 @@
 
 产品名称为 **Pillxai Dispenser**。主标志以已重绘的 PNG 为原稿，导出圆角白底应用图标。文字标志保留用户原稿字形，收紧 SVG 空白画布。
 
-品牌名为 **Pillxai**，2026-10-10 由用户确认。应用窗口、页面、安装包和导出文件使用新名称。素材路径、包名、API 内部命名空间、应用标识 `com.pillxa.dispenser`、本机存储键和环境配置键保留已有技术标识，以延续现有配置、登录状态及数据；这些不是界面品牌名。当前标志图形已有末尾的 i，本次无需重绘。
+品牌名为 **Pillxai**，2026-10-19 按用户要求恢复。当前 Flutter 界面、加载页、应用标题及安装后的显示名称统一使用 Pillxai。素材路径、包名、内部类名及演示登录凭据沿用现有技术标识。当前客户端采用简约图标与文字字标；本目录中的原始素材保留为参考。
 
 | 文件 | 用户原文件 | 用途 |
 | --- | --- | --- |
@@ -20,4 +20,4 @@
 
 使用内置 imagegen，参考图为原应用的 128×128 PNG；没有复用原方形 SVG。最终采用 1254×1254 PNG。
 
-> Use case: identity-preserve brand logo redraw. Asset: square Windows application icon and main brand mark for Pillxa Dispenser. Redraw the supplied PNG reference from scratch as a pristine high-resolution 1024x1024 raster logo; do not reuse or trace the existing SVG file. Preserve its recognizable lowercase typography and arrangement: 'pill' on the top line and 'xa' on the bottom line, compact rounded geometric letterforms, dark charcoal gray #595A5A. Two lines form a balanced almost-square block, centered with about 10% safe margins. Reference is only the identity and composition guide. Correct all rough edges and render crisp, consistent line weights and smooth rounded shapes. Entire square canvas must be solid pure white, including the counters inside p and a and the spaces between letters. Absolutely no transparency anywhere, no checkerboard, no outline of the reference image boundary, no gradient, no shadow, no 3D, no decorative motifs, no extra words. It must look correct on both dark and light desktop backgrounds.
+> Use case: identity-preserve brand logo redraw. Asset: square Windows application icon and main brand mark for Pillxai Dispenser. Redraw the supplied PNG reference from scratch as a pristine high-resolution 1024x1024 raster logo; do not reuse or trace the existing SVG file. Preserve its recognizable lowercase typography and arrangement: 'pill' on the top line and 'xa' on the bottom line, compact rounded geometric letterforms, dark charcoal gray #595A5A. Two lines form a balanced almost-square block, centered with about 10% safe margins. Reference is only the identity and composition guide. Correct all rough edges and render crisp, consistent line weights and smooth rounded shapes. Entire square canvas must be solid pure white, including the counters inside p and a and the spaces between letters. Absolutely no transparency anywhere, no checkerboard, no outline of the reference image boundary, no gradient, no shadow, no 3D, no decorative motifs, no extra words. It must look correct on both dark and light desktop backgrounds.

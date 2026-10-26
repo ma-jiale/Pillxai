@@ -1,0 +1,192 @@
+import 'package:flutter/material.dart';
+
+/// Local preview only. Real authentication belongs to the account service.
+/// 本地登录预览。表单仅验证演示凭据，成功用回调通知根组件切换界面。
+/// 控制器随页面销毁，退出后重新进入时不会保留密码。
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key, required this.onDemoLogin});
+  final VoidCallback onDemoLogin;
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final _formKey = GlobalKey<FormState>();
+  final _account = TextEditingController();
+  final _password = TextEditingController();
+  bool _obscurePassword = true;
+  String? _error;
+
+  @override
+  void dispose() {
+    _account.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  /// 校验输入，失败显示错误且保留草稿；成功通知父组件，不持久化密码。
+  void _login() {
+    setState(() => _error = null);
+    if (!_formKey.currentState!.validate()) return;
+    if (_account.text.trim() != 'admin' || _password.text != 'admin123') {
+      setState(() => _error = '账号或密码不正确，请重新输入。');
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    _password.clear();
+    widget.onDemoLogin();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: const Color(0xfff7f7f6),
+    body: SafeArea(
+      child: LayoutBuilder(
+        builder: (context, bounds) {
+          final compact = bounds.maxWidth < 600;
+          final padding = compact ? 24.0 : 40.0;
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: bounds.maxHeight),
+              child: Padding(
+                padding: EdgeInsets.all(padding),
+                child: Column(
+                  children: [
+                    const Row(
+                      children: [
+                        Text(
+                          'Pillxai',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -.8,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: compact ? 44 : 64),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 432),
+                      child: Container(
+                        padding: EdgeInsets.all(compact ? 24 : 36),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: const Color(0xffe7e7e5)),
+                        ),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Text(
+                                '欢迎回来',
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: -.5,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                '登录 Pillxai，开始今天的工作。',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xff777777),
+                                ),
+                              ),
+                              const SizedBox(height: 32),
+                              const Text('账号', style: TextStyle(fontSize: 13)),
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                key: const ValueKey('login-account'),
+                                controller: _account,
+                                textInputAction: TextInputAction.next,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                decoration: const InputDecoration(
+                                  hintText: '输入账号',
+                                ),
+                                validator: (value) =>
+                                    value == null || value.trim().isEmpty
+                                    ? '请输入账号'
+                                    : null,
+                              ),
+                              const SizedBox(height: 20),
+                              const Text('密码', style: TextStyle(fontSize: 13)),
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                key: const ValueKey('login-password'),
+                                controller: _password,
+                                obscureText: _obscurePassword,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                textInputAction: TextInputAction.done,
+                                onFieldSubmitted: (_) => _login(),
+                                decoration: InputDecoration(
+                                  hintText: '输入密码',
+                                  suffixIcon: IconButton(
+                                    tooltip: _obscurePassword ? '显示密码' : '隐藏密码',
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                      size: 20,
+                                    ),
+                                    onPressed: () => setState(
+                                      () =>
+                                          _obscurePassword = !_obscurePassword,
+                                    ),
+                                  ),
+                                ),
+                                validator: (value) =>
+                                    value == null || value.isEmpty
+                                    ? '请输入密码'
+                                    : null,
+                              ),
+                              if (_error != null) ...[
+                                const SizedBox(height: 12),
+                                Semantics(
+                                  liveRegion: true,
+                                  child: Text(
+                                    _error!,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .error,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 28),
+                              FilledButton(
+                                key: const ValueKey('login-submit'),
+                                onPressed: _login,
+                                child: const Text('登录'),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                '账号由机构管理员分配',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xff888888),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
+}

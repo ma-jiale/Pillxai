@@ -1,0 +1,35 @@
+Pillxa moustache and mouth concepts v3
+Method: built-in image_gen, one edit per variant.
+Reference: references/moustache-user-selected-logo.png
+Status: raster logo design candidates.
+User request: use the original logo, replace arc with moustache and lower bar with mouth, offer several options.
+Verification: visually inspected all four; transparent backgrounds retained; correct Pillxa spelling; enclosure and circular eyes retained. The comparison HTML displays the unmodified PNGs on white.
+
+Shared final prompt:
+Use case: precise-object-edit / logo-brand.
+Edit target: the supplied transparent horizontal Pillxa logo. User explicitly selected this original version and requests moustache and mouth variants.
+STRICT invariants: preserve the original rounded rectangular outer enclosure, two round filled eyes, the exact existing horizontal wordmark "Pillxa", its letterforms, spelling, size, alignment, icon-to-wordmark spacing, original wide canvas aspect ratio, transparent background and near-black #111111 palette. Make changes ONLY to the two interior symbols below the eyes. Do not add a nose, central divider, Finder face division, color panels, extra pills, teeth, tongue, beard below the mouth, hair, eyebrows or glasses. Keep it an extremely simple friendly machine-face brand symbol.
+Required change 1: replace the existing single upward-ended bowl/smile ARC with a clearly recognizable MOUSTACHE, consisting of a left and right half of facial hair immediately above the mouth. It must unmistakably read as a moustache, not merely another smile curve.
+Required change 2: replace the existing horizontal rounded outlined tray slot below that arc with a distinct actual MOUTH, matching the selected expression below. Do not keep a machine-slot rectangle.
+Keep eyes and outer enclosure untouched. Moustache approximately 65-72% of the inner face width. Mouth smaller, approximately 32-45% of inner face width. Moustache and mouth clearly separated by negative space; neither touches eyes or casing. No additional nose. Preserve substantial breathing space below the mouth.
+Render pristine flat 2D geometric contours, consistent optical weight, crisp smooth antialiasing. One single horizontal logo per image, no multiple copies, labels, captions, swatches, boards, mockups, shadows or 3D. Canvas genuinely transparent everywhere outside the black shapes and lettering.
+
+A · 温和短须
+Output: pillxa-dispenser-logo-v3-a-soft.png
+Direction prompt:
+MOUSTACHE A: two short plump soft teardrop/comma shapes mirrored left and right. Their thick inner ends almost meet just below the midpoint between the eyes, separated by a tiny clear notch; each tapers gently outwards and slightly downwards. A restrained friendly classic moustache, no curl. MOUTH A: one small shallow upward-ended smiling curved stroke, with round line caps. Its width is only about half the moustache width. Calm, warm, gentle expression.
+
+B · 几何八字
+Output: pillxa-dispenser-logo-v3-b-geometric.png
+Direction prompt:
+MOUSTACHE B: two simple short and thick rounded diagonal bars form a low broad roof/chevron moustache (like a very wide inverted V), descending from their near-touching inner top ends toward the outer lower ends. Large soft corner radii and a small clear center gap. Distinctly architectural, very low detail. MOUTH B: one small solid near-black open smile shape, a shallow circular segment with a nearly straight upper edge and smoothly curved lower edge, centered below moustache, no white inner stripe, no teeth. Cheerful but subtle.
+
+C · 微翘卷须
+Output: pillxa-dispenser-logo-v3-c-handlebar.png
+Direction prompt:
+MOUSTACHE C: an elegant small handlebar moustache, two symmetric slim flowing S-curved black lobes joined at a narrow center notch, sweeping down then curling gently UP at the far left and right tips. Outer curl is a simple upward hook, not a spiral or loop. The silhouette must have the unmistakable two-lobed moustache structure, with smoothly changing thickness and no hair texture. MOUTH C: a short relaxed almost horizontal closed-mouth curve, slightly lower at center, round ends, width about one third the moustache width. Refined and quietly playful.
+
+D · 饱满双瓣
+Output: pillxa-dispenser-logo-v3-d-full.png
+Direction prompt:
+MOUSTACHE D: a broad compact continuous filled moustache silhouette with two gently rounded upper humps and two plump drooping lower lobes, a modest central dip on top and small center notch on the lower edge. Rounded outer ends, no upturned curls; rich and soft but low enough not to crowd the eyes. Keep it wider and fuller than the other alternatives. MOUTH D: a small outlined D-shaped friendly open smile centered below, nearly flat gently bowed top line and curved lower edge, transparent empty interior. Its shape must be clearly smile-like rather than a long pill or tray slot. No teeth or tongue.
