@@ -1,14 +1,28 @@
 import 'package:flutter/material.dart';
 
+/// 返回适合白底文字/细线的强调色。背景填充仍使用用户原色。
+/// 使用相对亮度计算对比度；过浅时回退墨黑，避免白底白字。
+Color readableAccent(Color accent) =>
+    1.05 / (accent.computeLuminance() + .05) >= 4.5
+    ? accent
+    : const Color(0xff191919);
+
+/// 输入用户强调色，返回完整主题；纯函数，不读写设置。
+/// 字体、触控目标与弹层集中定义，页面只处理确有差异的布局。
 ThemeData createTheme({Color accent = const Color(0xff191919)}) {
   const ink = Color(0xff191919);
-  final onAccent = accent.computeLuminance() > .45 ? ink : Colors.white;
+  final onAccent = accent.computeLuminance() > .179 ? ink : Colors.white;
+  final textAccent = readableAccent(accent);
   final shape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(100),
   );
   return ThemeData(
     useMaterial3: true,
     fontFamily: 'NotoSansSC',
+    materialTapTargetSize: MaterialTapTargetSize.padded,
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
+    ),
     colorScheme: ColorScheme.light(
       primary: accent,
       onPrimary: onAccent,
@@ -46,7 +60,7 @@ ThemeData createTheme({Color accent = const Color(0xff191919)}) {
     ),
     menuButtonTheme: MenuButtonThemeData(
       style: ButtonStyle(
-        minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
+        minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
         padding: const WidgetStatePropertyAll(
           EdgeInsets.symmetric(horizontal: 12),
         ),
@@ -90,6 +104,29 @@ ThemeData createTheme({Color accent = const Color(0xff191919)}) {
       actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
     ),
     datePickerTheme: DatePickerThemeData(
+      // 日历的“今天”和选中态也需能区分，不能仅修复普通文字按钮。
+      todayForegroundColor: WidgetStateProperty.resolveWith(
+        (states) =>
+            states.contains(WidgetState.selected) ? Colors.white : textAccent,
+      ),
+      todayBackgroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? textAccent
+            : Colors.transparent,
+      ),
+      todayBorder: BorderSide(color: textAccent),
+      dayForegroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? Colors.white : null,
+      ),
+      dayBackgroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? textAccent : null,
+      ),
+      yearForegroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? Colors.white : null,
+      ),
+      yearBackgroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? textAccent : null,
+      ),
       backgroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
       shadowColor: const Color(0x20000000),
@@ -109,7 +146,8 @@ ThemeData createTheme({Color accent = const Color(0xff191919)}) {
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        minimumSize: const Size(44, 44),
+        foregroundColor: textAccent,
+        minimumSize: const Size(48, 48),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         textStyle: const TextStyle(
           fontFamily: 'NotoSansSC',
@@ -120,13 +158,10 @@ ThemeData createTheme({Color accent = const Color(0xff191919)}) {
     ),
     switchTheme: SwitchThemeData(
       thumbColor: const WidgetStatePropertyAll(Colors.white),
-      thumbIcon: const WidgetStatePropertyAll(
-        Icon(Icons.circle, color: Colors.white, size: 18),
-      ),
       trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
       trackColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.selected)
-            ? accent
+            ? textAccent
             : const Color(0xffdcdcdc),
       ),
       overlayColor: const WidgetStatePropertyAll(Colors.transparent),
@@ -212,10 +247,15 @@ ThemeData createTheme({Color accent = const Color(0xff191919)}) {
         fontSize: 12,
       ),
     ),
-    sliderTheme: const SliderThemeData(trackHeight: 3),
+    sliderTheme: SliderThemeData(
+      trackHeight: 3,
+      activeTrackColor: textAccent,
+      thumbColor: textAccent,
+    ),
   );
 }
 
+/// 统一白底细边框卡片。只封装重复的视觉规则，不持有业务状态。
 class Surface extends StatelessWidget {
   const Surface({
     super.key,

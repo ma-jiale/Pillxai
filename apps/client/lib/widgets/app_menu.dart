@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// The same compact popover is used by selects and action menus.
+/// 一个菜单动作：可见名称、图标和无参数回调。调用者决定动作的业务含义。
 class AppMenuAction {
   const AppMenuAction(this.label, this.onPressed, {this.icon});
   final String label;
@@ -8,6 +9,7 @@ class AppMenuAction {
   final IconData? icon;
 }
 
+/// 复用 Flutter 菜单的焦点、键盘与屏幕避让能力，统一账户/更多菜单外观。
 class AppActionMenu extends StatelessWidget {
   const AppActionMenu({
     super.key,
@@ -86,6 +88,9 @@ class AppSelectOption<T> {
   final String label;
 }
 
+/// 受控选择器：value 由父组件持有，点击后 onChanged 请求父组件更新。
+/// T 是泛型参数，例如 `AppSelect<int>` 选择天数，`AppSelect<bool>` 选择半片。
+/// options 必须包含当前value；FormField提供校验展示，不另存一份业务选择。
 class AppSelect<T> extends StatelessWidget {
   const AppSelect({
     super.key,
@@ -167,7 +172,7 @@ class AppSelect<T> extends StatelessWidget {
                             ? controller.close()
                             : controller.open(),
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 44),
+                    minimumSize: const Size(0, 48),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 12,

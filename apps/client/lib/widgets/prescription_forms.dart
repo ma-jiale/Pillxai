@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'app_menu.dart';
 
 import '../models/demo_model.dart';
+import '../models/dose_rules.dart';
 
 String formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
+/// 严格解析 YYYY-MM-DD；DateTime 会归一化2月30日，所以还需格式化回比对。
 DateTime? parseDate(String value) {
   if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value.trim())) return null;
   final date = DateTime.tryParse(value.trim());
@@ -20,6 +22,7 @@ String medicinePeriod(Medicine medicine) {
   return '${start == null ? '' : '${start.month}/${start.day} — '}${end.month}/${end.day}';
 }
 
+/// 未修改时直接允许离开；有修改时询问。返回 true 才能丢弃草稿。
 Future<bool> _confirmDiscard(BuildContext context, bool dirty) async {
   if (!dirty) return true;
   return await showDialog<bool>(
@@ -42,6 +45,8 @@ Future<bool> _confirmDiscard(BuildContext context, bool dirty) async {
       false;
 }
 
+/// 长者编辑草稿。TextEditingController 保存文字，Form 统一触发校验。
+/// 保存通过 Navigator.pop 返回新对象；调用页决定是否写入模型。
 class ResidentForm extends StatefulWidget {
   const ResidentForm({super.key, required this.model, this.resident});
   final DemoModel model;
@@ -128,6 +133,7 @@ class _ResidentFormState extends State<ResidentForm> {
   );
 }
 
+/// 药物草稿与原处方分离。字段级错误和整日剂量错误分别显示，输入失败不清空。
 class MedicineForm extends StatefulWidget {
   const MedicineForm({
     super.key,
@@ -155,6 +161,7 @@ class _MedicineFormState extends State<MedicineForm> {
         ? ''
         : formatDate(widget.medicine!.endDate!),
   );
+  // 一个时段一个控制器，顺序固定为早、午、晚、睡前；dispose 时逐一释放。
   late final _doses = (widget.medicine?.doses.values ?? [0.0, 0.0, 0.0, 0.0])
       .map((value) => TextEditingController(text: formatDose(value)))
       .toList();
@@ -182,29 +189,20 @@ class _MedicineFormState extends State<MedicineForm> {
   String? _required(String? value) =>
       value == null || value.trim().isEmpty ? '请填写此项' : null;
 
-  double? _parseDose(String value) =>
-      value.trim().isEmpty ? 0 : double.tryParse(value.trim());
-
-  String? _validateDose(String? input, int index) {
-    final dose = _parseDose(input ?? '');
-    if (dose == null || !dose.isFinite || dose < 0) return '请输入非负用量';
-    if (index == 3 && !widget.bedtimeEnabled && dose > 0) return '请先启用睡前格';
-    if (_half && dose != 0 && dose != .5) return '半片每次填 0.5';
-    if (!_half && dose != dose.roundToDouble()) return '整片 / 整粒填整数';
-    return null;
-  }
+  // FormField 负责显示错误；规则由纯函数提供，与准备计划保持同一含义。
+  String? _validateDose(String? input, int index) => validateDose(
+    parseDoseInput(input ?? ''),
+    slot: index,
+    half: _half,
+    bedtimeEnabled: widget.bedtimeEnabled,
+  );
 
   void _save() {
     final valid = _form.currentState!.validate();
     final values = _doses
-        .map((controller) => _parseDose(controller.text))
+        .map((controller) => parseDoseInput(controller.text))
         .toList();
-    setState(
-      () => _doseError =
-          values.any((value) => value != null && value.isFinite && value > 0)
-          ? null
-          : '至少填写一个时段的正用量。',
-    );
+    setState(() => _doseError = validateDailyDose(values));
     if (!valid || _doseError != null) return;
     Navigator.pop(
       context,
@@ -229,7 +227,6 @@ class _MedicineFormState extends State<MedicineForm> {
         endDate: _longTerm ? null : parseDate(_end.text),
         stopped: widget.medicine?.stopped ?? false,
         imageAsset: widget.medicine?.imageAsset,
-        target: widget.medicine?.target ?? 21,
       ),
     );
   }
@@ -512,6 +509,8 @@ class _MedicineFormState extends State<MedicineForm> {
   );
 }
 
+/// 表单共同外壳：头部和底部操作固定，中部随键盘高度缩小并允许触摸滚动。
+/// 系统返回交给 onCancel，因此与屏幕按钮使用相同的未保存保护。
 class _FormDialog extends StatelessWidget {
   const _FormDialog({
     required this.title,
@@ -533,6 +532,10 @@ class _FormDialog extends StatelessWidget {
     final inset = MediaQuery.sizeOf(context).width < 600 ? 20.0 : 28.0;
     return PopScope(
       canPop: false,
+      // Android 返回手势与屏幕“取消”遵循相同的未保存保护。
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) onCancel();
+      },
       child: Dialog(
         insetPadding: const EdgeInsets.all(20),
         backgroundColor: Colors.white,
@@ -566,6 +569,8 @@ class _FormDialog extends StatelessWidget {
               const Divider(height: 1),
               Flexible(
                 child: SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: EdgeInsets.all(inset),
                   child: child,
                 ),

@@ -1,3 +1,5 @@
+import 'support/tasks.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,8 +56,10 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     final model = DemoModel(autoTick: false);
     addTearDown(model.dispose);
-    model.prepareTask(
-      Resident(
+    startTestTask(
+      model,
+      counts: [1, 1, 1],
+      resident: Resident(
         id: 'automatic-next',
         name: '测试长者',
         bed: '101 床',
@@ -65,8 +69,6 @@ void main() {
         ],
       ),
     );
-    model.verifyBox();
-    model.start();
     await tester.pumpWidget(PillxaiApp(model: model, initiallySignedIn: true));
     await tester.pumpAndSettle();
     expect(find.text('第一种药'), findsOneWidget);
@@ -204,8 +206,7 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('login-submit')));
     await tester.pumpAndSettle();
-    model.verifyBox();
-    model.start();
+    startTestTask(model);
     model.advance();
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('account-menu')));

@@ -10,6 +10,8 @@ import '../widgets/app_menu.dart';
 import '../theme/app_page.dart';
 import '../theme/app_theme.dart';
 
+/// 摆药入口：空闲时列计划，执行时显示执行台，历史视图由本页局部切换。
+/// 阅读主线：planFor → PreparationDialog → startPreparedTask → DispensingPage。
 class PreparationPage extends StatefulWidget {
   const PreparationPage({super.key, required this.model});
   final DemoModel model;
@@ -23,14 +25,6 @@ class _PreparationPageState extends State<PreparationPage> {
   DateTime get today {
     final n = DateTime.now();
     return DateTime(n.year, n.month, n.day);
-  }
-
-  DateTime start(Resident resident) {
-    final coverage = widget.model.demoCoverage[resident.id];
-    if (coverage != null && !coverage.isBefore(today)) {
-      return DateTime(coverage.year, coverage.month, coverage.day + 1);
-    }
-    return today.add(Duration(days: widget.model.startTomorrow ? 1 : 0));
   }
 
   bool isEarly(Resident resident) =>
@@ -48,17 +42,12 @@ class _PreparationPageState extends State<PreparationPage> {
         );
       }
       if (widget.model.active) return DispensingPage(model: widget.model);
-      final residents = widget.model.residents
-          .where(
-            (r) => PreparationPlan(
-              r,
-              start(r),
-              7,
-              bedtime: widget.model.bedtime,
-            ).medicines.isNotEmpty,
-          )
+      // 一次 build 只算一次计划。校验失败的需求仍在清单中显示原因。
+      final plans = widget.model.residents
+          .map((resident) => widget.model.planFor(resident, now: today))
+          .where((plan) => plan.hasDemand)
           .toList();
-      final visible = residents.where((r) => isEarly(r) == early).toList();
+      final visible = plans.where((p) => isEarly(p.resident) == early).toList();
       return Padding(
         padding: AppPage.insets(context),
         child: Column(
@@ -80,7 +69,7 @@ class _PreparationPageState extends State<PreparationPage> {
                     ),
                     onPressed: () => setState(() => early = value),
                     child: Text(
-                      '${value ? '提前准备' : '待准备'} ${residents.where((r) => isEarly(r) == value).length}',
+                      '${value ? '提前准备' : '待准备'} ${plans.where((p) => isEarly(p.resident) == value).length}',
                     ),
                   ),
                 TextButton.icon(
@@ -108,13 +97,8 @@ class _PreparationPageState extends State<PreparationPage> {
                           padding: EdgeInsets.zero,
                           itemCount: visible.length,
                           itemBuilder: (context, index) {
-                            final resident = visible[index];
-                            final plan = PreparationPlan(
-                              resident,
-                              start(resident),
-                              7,
-                              bedtime: widget.model.bedtime,
-                            );
+                            final plan = visible[index];
+                            final resident = plan.resident;
                             return Container(
                               padding: const EdgeInsets.symmetric(vertical: 20),
                               decoration: BoxDecoration(
@@ -134,10 +118,13 @@ class _PreparationPageState extends State<PreparationPage> {
                                     asset: resident.avatarAsset,
                                   );
                                   final details = Text(
-                                    '${early ? '可提前准备下一周期' : '待准备'}\n${plan.medicines.length} 种药 · ${plan.dates}',
-                                    style: const TextStyle(
+                                    plan.issue ??
+                                        '${early ? '可提前准备下一周期' : '待准备'}\n${plan.medicines.length} 种药 · ${plan.dates}',
+                                    style: TextStyle(
                                       fontSize: 12,
-                                      color: Color(0xff737373),
+                                      color: plan.issue == null
+                                          ? const Color(0xff737373)
+                                          : Theme.of(context).colorScheme.error,
                                     ),
                                   );
                                   final action = OutlinedButton(
@@ -188,6 +175,8 @@ class _PreparationPageState extends State<PreparationPage> {
   );
 }
 
+/// 确认窗口拥有“本次天数”和未开始计划，反馈由共享模型提供。
+/// 关闭图案不会销毁此窗口，因此天数保留；收到新反馈则重新判断启动条件。
 class PreparationDialog extends StatefulWidget {
   const PreparationDialog({
     super.key,
@@ -206,7 +195,7 @@ class _PreparationDialogState extends State<PreparationDialog> {
   final _medicinesScroll = ScrollController();
   int days = 7;
   bool get opening => widget.model.boxFeedback.value == BoxFeedback.opening;
-  String get feedback => widget.model.boxFeedback.value.name;
+  BoxFeedback get feedback => widget.model.boxFeedback.value;
   late PreparationPlan plan;
   @override
   void dispose() {
@@ -218,9 +207,11 @@ class _PreparationDialogState extends State<PreparationDialog> {
   void initState() {
     super.initState();
     rebuildPlan();
+    // 预览没有真实适配器，不能复用上次匹配当作本次已识别。测试从窗口外注入反馈。
     widget.model.boxFeedback.value = BoxFeedback.disconnected;
   }
 
+  /// 天数变化时创建新计划，不修改处方或已开始任务。起日固定为打开窗口时的日期。
   void rebuildPlan() {
     plan = PreparationPlan(
       widget.resident,
@@ -230,7 +221,7 @@ class _PreparationDialogState extends State<PreparationDialog> {
     );
   }
 
-  bool get matched => !opening && feedback == 'match';
+  bool get matched => feedback == BoxFeedback.match;
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<BoxFeedback>(
     valueListenable: widget.model.boxFeedback,
@@ -387,14 +378,18 @@ class _PreparationDialogState extends State<PreparationDialog> {
                       opening
                           ? '正在开仓…'
                           : switch (feedback) {
-                              'match' => '药盒匹配，已确认 ${widget.resident.name}',
-                              'other' => '请更换为${widget.resident.name}的药盒',
-                              'failed' => '开仓失败，请检查设备连接',
-                              'disconnected' => '摆药机未连接，请先连接设备',
-                              _ => '请放入${widget.resident.name}的药盒',
+                              BoxFeedback.match =>
+                                '药盒匹配，已确认 ${widget.resident.name}',
+                              BoxFeedback.other =>
+                                '请更换为${widget.resident.name}的药盒',
+                              BoxFeedback.failed => '开仓失败，请检查设备连接',
+                              BoxFeedback.disconnected => '摆药机未连接，请先连接设备',
+                              BoxFeedback.opening => '正在开仓…',
+                              BoxFeedback.waiting =>
+                                '请放入${widget.resident.name}的药盒',
                             },
                       style: TextStyle(
-                        color: feedback == 'other'
+                        color: feedback == BoxFeedback.other
                             ? Theme.of(context).colorScheme.error
                             : null,
                       ),
@@ -413,17 +408,9 @@ class _PreparationDialogState extends State<PreparationDialog> {
                   const SizedBox(width: 12),
                   FilledButton(
                     key: const ValueKey('confirm-dispense'),
-                    onPressed:
-                        matched &&
-                            plan.medicines.isNotEmpty &&
-                            plan.issue == null
+                    onPressed: matched && plan.canStart
                         ? () {
-                            if (widget.model.startPreparedTask(
-                              widget.resident,
-                              plan.medicines,
-                              end: plan.end,
-                              startDate: widget.start,
-                            )) {
+                            if (widget.model.startPreparedTask(plan)) {
                               Navigator.pop(context);
                             }
                           }
@@ -457,6 +444,8 @@ class _PreparationDialogState extends State<PreparationDialog> {
   );
 }
 
+/// 只读计划图。highlighted/detail 是展示状态，不参与任务、计数和覆盖。
+/// 点按药格显示精确文字数量；颜色只作为辅助识别。
 class PatternDialog extends StatefulWidget {
   const PatternDialog({super.key, required this.plan});
   final PreparationPlan plan;
@@ -465,6 +454,8 @@ class PatternDialog extends StatefulWidget {
 }
 
 class _PatternDialogState extends State<PatternDialog> {
+  // 这是显示预算，不是药盒容量。超过预算显示精确数量，绝不截断计划。
+  static const maxDotsPerCell = 24;
   int? highlighted;
   String? detail;
   static const colors = [
@@ -650,6 +641,8 @@ class _PatternDialogState extends State<PatternDialog> {
       ),
     ),
   );
+
+  /// 渲染一个日期/时段。圆点数量受显示预算限制，计划总数始终原样保留。
   Widget cell(int day, int slot) {
     final p = widget.plan;
     final date = DateTime(p.start.year, p.start.month, p.start.day + day);
@@ -657,6 +650,7 @@ class _PatternDialogState extends State<PatternDialog> {
       for (final m in p.medicines)
         day < p.days ? PreparationPlan.particles(m, slot, date) : 0,
     ];
+    final total = counts.fold(0, (sum, count) => sum + count);
     return Padding(
       padding: const EdgeInsets.all(3),
       child: InkWell(
@@ -675,15 +669,22 @@ class _PatternDialogState extends State<PatternDialog> {
             border: Border.all(color: const Color(0xffe5e5e5)),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Wrap(
-            spacing: 4,
-            runSpacing: 5,
-            alignment: WrapAlignment.center,
-            children: [
-              for (var i = 0; i < counts.length; i++)
-                for (var n = 0; n < counts[i]; n++) dot(i),
-            ],
-          ),
+          child: total > maxDotsPerCell
+              ? Text(
+                  '$total颗\n点击查看',
+                  key: ValueKey('pattern-count-$day-$slot'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12),
+                )
+              : Wrap(
+                  spacing: 4,
+                  runSpacing: 5,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    for (var i = 0; i < counts.length; i++)
+                      for (var n = 0; n < counts[i]; n++) dot(i),
+                  ],
+                ),
         ),
       ),
     );

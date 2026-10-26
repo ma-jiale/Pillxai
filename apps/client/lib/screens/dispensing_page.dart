@@ -6,9 +6,12 @@ import '../widgets/medicine_card_deck.dart';
 
 import '../models/demo_model.dart';
 import '../theme/app_page.dart';
+import '../theme/app_theme.dart';
 
 enum _SkipChoice { current, prepared, remaining }
 
+/// 执行状态的投影。只在 model.active 时使用；页面不拥有计时器或任务。
+/// 点击暂停等按钮调用模型方法，监听通知后重新描述当前画面。
 class DispensingPage extends StatelessWidget {
   const DispensingPage({super.key, required this.model});
   final DemoModel model;
@@ -69,7 +72,7 @@ class DispensingPage extends StatelessWidget {
           width: 6,
           height: 6,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
+            color: readableAccent(Theme.of(context).colorScheme.primary),
             shape: BoxShape.circle,
           ),
         ),
@@ -176,7 +179,7 @@ class DispensingPage extends StatelessWidget {
     final stageLabel = model.stageLabel;
     final completed = model.stage == DispenseStage.completed;
     final progress = count / medicine.target;
-    final accent = Theme.of(context).colorScheme.primary;
+    final accent = readableAccent(Theme.of(context).colorScheme.primary);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -282,26 +285,11 @@ class DispensingPage extends StatelessWidget {
   }
 
   Widget _actions(BuildContext context) {
-    final (label, icon, action) = switch (model.stage) {
-      DispenseStage.awaitingVerification => (
-        '等待药盒识别',
-        Icons.qr_code_scanner_rounded,
-        model.verifyBox,
-      ),
-      DispenseStage.ready => ('开始摆药', Icons.play_arrow_rounded, model.start),
-      DispenseStage.running => ('暂停', Icons.pause_rounded, model.pause),
-      DispenseStage.paused => ('继续摆药', Icons.play_arrow_rounded, model.start),
-      DispenseStage.completed => (
-        '重新准备',
-        Icons.replay_rounded,
-        model.resetDemo,
-      ),
-      DispenseStage.cancelled => (
-        '重新准备',
-        Icons.replay_rounded,
-        model.resetDemo,
-      ),
-    };
+    // 执行页仅在 active 时挂载；此处只需表达运行和暂停两个操作。
+    final running = model.stage == DispenseStage.running;
+    final label = running ? '暂停' : '继续摆药';
+    final icon = running ? Icons.pause_rounded : Icons.play_arrow_rounded;
+    final action = running ? model.pause : model.resume;
     return Wrap(
       spacing: 12,
       runSpacing: 12,
@@ -311,9 +299,7 @@ class DispensingPage extends StatelessWidget {
           width: 210,
           child: FilledButton(
             key: const ValueKey('dispense-primary'),
-            onPressed: model.stage == DispenseStage.awaitingVerification
-                ? null
-                : action,
+            onPressed: model.active ? action : null,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
@@ -362,6 +348,8 @@ class DispensingPage extends StatelessWidget {
     );
   }
 
+  /// 弹窗前暂停并记住任务/药物身份；await 后重新核对，避免操作过期对象。
+  /// 取消恢复打开前的运行状态；确认时把人工数量和原计数分别保存。
   Future<void> _skip(BuildContext context) async {
     if (!model.active) return;
     final task = model.taskMedicines;
@@ -442,7 +430,7 @@ class DispensingPage extends StatelessWidget {
             FilledButton(
               key: const ValueKey('skip-confirm'),
               style: FilledButton.styleFrom(
-                minimumSize: const Size(44, 44),
+                minimumSize: const Size(48, 48),
                 padding: const EdgeInsets.symmetric(horizontal: 12),
               ),
               onPressed: () => Navigator.pop(
@@ -462,7 +450,7 @@ class DispensingPage extends StatelessWidget {
       return;
     }
     if (choice == null) {
-      if (wasRunning) model.start();
+      if (wasRunning) model.resume();
       return;
     }
     if (choice == _SkipChoice.remaining) {
@@ -487,6 +475,7 @@ class DispensingPage extends StatelessWidget {
       );
   }
 
+  /// 调整会话模型中的开口比例。当前仅演示UI，不表示设备已执行该设置。
   Future<void> _adjustOpening(BuildContext context) => showDialog<void>(
     context: context,
     builder: (context) => ListenableBuilder(
@@ -583,6 +572,7 @@ class DispensingPage extends StatelessWidget {
     ),
   );
 
+  /// 结束确认也先暂停；拒绝结束时恢复原状态，确认后保留结果等待取盒。
   Future<void> _cancel(BuildContext context) async {
     final wasRunning = model.stage == DispenseStage.running;
     if (wasRunning) model.pause();
@@ -590,7 +580,9 @@ class DispensingPage extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('结束本次摆药？'),
-        content: const Text('已完成药物和已有计数会保留。当前药标为待核实，剩余药物标为未执行；结束后返回首页，结果保存在历史记录。'),
+        content: const Text(
+          '已完成药物和已有计数会保留。当前药标为待核实，剩余药物标为未执行；结束后返回首页，结果保存在历史记录。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -606,11 +598,12 @@ class DispensingPage extends StatelessWidget {
     if (confirmed == true) {
       model.cancel();
     } else if (wasRunning) {
-      model.start();
+      model.resume();
     }
   }
 }
 
+/// 药品图片只负责显示原图或缺图占位，不使用强调色给照片着色。
 class MedicinePhoto extends StatelessWidget {
   const MedicinePhoto({super.key, required this.medicine});
   final Medicine medicine;

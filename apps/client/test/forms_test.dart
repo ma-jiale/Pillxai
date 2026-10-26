@@ -1,3 +1,5 @@
+import 'support/tasks.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,11 +26,7 @@ void main() {
       2,
       model.residents.first.medicines.length,
     );
-    model.prepareTask(model.residents.first, notify: false);
-    if (page == 1) {
-      model.verifyBox();
-      model.start();
-    }
+    startTestTask(model);
     addTearDown(model.dispose);
     await tester.pumpWidget(PillxaiApp(model: model, initiallySignedIn: true));
     await tester.pumpAndSettle();
@@ -96,8 +94,6 @@ void main() {
 
   testWidgets('编辑药物只改变处方，已经创建的任务保留原始用药内容', (tester) async {
     final model = await openApp(tester);
-    model.verifyBox();
-    model.start();
     await tester.pumpAndSettle();
     final originalName = model.currentMedicine.name;
     final originalStrength = model.currentMedicine.strength;

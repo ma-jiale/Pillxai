@@ -220,34 +220,45 @@ class _Sidebar extends StatelessWidget {
       color: selected == 2 ? AppPage.navigationBackground : Colors.white,
       border: const Border(right: BorderSide(color: Color(0xffe5e5e5))),
     ),
-    child: Column(
-      children: [
-        Padding(
-          padding: EdgeInsets.symmetric(
-            vertical: compact ? 24 : 32,
-            horizontal: compact ? 10 : 32,
-          ),
-          child: SizedBox(
-            width: double.infinity,
-            child: Text(
-              'Pillxai',
-              textAlign: compact ? TextAlign.center : TextAlign.left,
-              style: TextStyle(
-                fontSize: compact ? 14 : 20,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -.8,
-              ),
+    // 正常高度保留底部账户区；短屏/软键盘/大字体时允许整条侧栏滚动。
+    // 子项很少，IntrinsicHeight 用于让 Spacer 在最小视口高度内分配余量。
+    child: LayoutBuilder(
+      builder: (context, bounds) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: bounds.maxHeight),
+          child: IntrinsicHeight(
+            child: Column(
+              children: [
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    vertical: compact ? 24 : 32,
+                    horizontal: compact ? 10 : 32,
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Text(
+                      'Pillxai',
+                      textAlign: compact ? TextAlign.center : TextAlign.left,
+                      style: TextStyle(
+                        fontSize: compact ? 14 : 20,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -.8,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 48),
+                _item(1, Icons.medication_outlined, '摆药'),
+                const SizedBox(height: 12),
+                _item(0, Icons.article_outlined, '处方管理'),
+                const Spacer(),
+                _item(2, Icons.settings_outlined, '设置'),
+                _accountMenu(),
+              ],
             ),
           ),
         ),
-        const SizedBox(height: 48),
-        _item(1, Icons.medication_outlined, '摆药'),
-        const SizedBox(height: 12),
-        _item(0, Icons.article_outlined, '处方管理'),
-        const Spacer(),
-        _item(2, Icons.settings_outlined, '设置'),
-        _accountMenu(),
-      ],
+      ),
     ),
   );
 
@@ -342,12 +353,13 @@ class _Sidebar extends StatelessWidget {
             overlayColor: const WidgetStatePropertyAll(Color(0x08000000)),
             onTap: () => onSelect(index),
             child: Container(
-              height: compact ? 72 : 56,
+              constraints: BoxConstraints(minHeight: compact ? 72 : 56),
               width: double.infinity,
               padding: compact
-                  ? EdgeInsets.zero
-                  : const EdgeInsets.symmetric(horizontal: 20),
+                  ? const EdgeInsets.symmetric(vertical: 8)
+                  : const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Flex(
+                mainAxisSize: MainAxisSize.min,
                 direction: compact ? Axis.vertical : Axis.horizontal,
                 mainAxisAlignment: compact
                     ? MainAxisAlignment.center
@@ -361,14 +373,28 @@ class _Sidebar extends StatelessWidget {
                   else
                     Icon(icon, size: 22, color: color),
                   SizedBox(height: compact ? 9 : 0, width: compact ? 0 : 14),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: compact ? 11 : 14,
-                      color: color,
-                      fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                  if (compact)
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: compact ? 11 : 14,
+                        color: color,
+                        fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: color,
+                          fontWeight: active
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),

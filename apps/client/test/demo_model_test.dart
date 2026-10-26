@@ -1,3 +1,5 @@
+import 'support/tasks.dart';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pillxai_client/models/demo_model.dart';
 
@@ -15,32 +17,36 @@ void main() {
   );
 
   void startShortTask() {
-    expect(model.prepareTask(shortTask()), isTrue);
-    model.verifyBox();
-    model.start();
+    expect(startTestTask(model, resident: shortTask(), counts: [2, 1]), isTrue);
   }
 
   setUp(() => model = DemoModel(autoTick: false));
   tearDown(() => model.dispose());
 
   test('未识别药盒时，开始和计数请求均不执行', () {
-    expect(model.stage, DispenseStage.awaitingVerification);
-
-    model.start();
+    expect(model.stage, DispenseStage.idle);
+    expect(
+      model.startPreparedTask(model.planFor(model.residents.first)),
+      isFalse,
+    );
+    model.resume();
     model.advance();
 
-    expect(model.stage, DispenseStage.awaitingVerification);
+    expect(model.stage, DispenseStage.idle);
     expect(model.count, 0);
     expect(model.medicineIndex, 0);
   });
 
   test('识别只允许开始，不会自行启动；暂停保留进度，继续后接着计数', () {
-    model.verifyBox();
-    expect(model.stage, DispenseStage.ready);
+    model.boxFeedback.value = BoxFeedback.match;
+    expect(model.stage, DispenseStage.idle);
     model.advance();
     expect(model.count, 0);
 
-    model.start();
+    expect(
+      model.startPreparedTask(model.planFor(model.residents.first)),
+      isTrue,
+    );
     model.advance();
     expect(model.stage, DispenseStage.running);
     expect(model.count, 1);
@@ -51,7 +57,7 @@ void main() {
     expect(model.stage, DispenseStage.paused);
     expect(model.count, 1);
 
-    model.start();
+    model.resume();
     model.advance();
     expect(model.stage, DispenseStage.running);
     expect(model.count, 2);
@@ -68,7 +74,7 @@ void main() {
     expect(model.nextMedicine, isNull);
     expect(model.count, 0);
     expect(model.opening, .70);
-    model.start();
+    model.resume();
     expect(model.stage, DispenseStage.running);
     expect(model.currentMedicine.id, 'second');
     expect(model.count, 0);
@@ -76,7 +82,7 @@ void main() {
     model.advance();
     expect(model.count, 0);
     expect(model.medicineIndex, 1);
-    model.start();
+    model.resume();
     model.advance();
     expect(model.stage, DispenseStage.completed);
     expect(model.count, 1);
@@ -86,10 +92,12 @@ void main() {
     final resident = model.residents.first;
     final end = DateTime(2026, 10, 29);
     expect(
-      model.startPreparedTask(resident, [
-        resident.medicines[0].copyWith(target: 1),
-        resident.medicines[1].copyWith(target: 2),
-      ], end: end),
+      startTestTask(
+        model,
+        resident: resident,
+        counts: [1, 2],
+        start: DateTime(2026, 10, 23),
+      ),
       isTrue,
     );
     model.advance();
@@ -109,7 +117,7 @@ void main() {
     startShortTask();
     model.advance();
     model.advance();
-    model.start();
+    model.resume();
     model.advance();
 
     expect(model.stage, DispenseStage.completed);
@@ -118,7 +126,7 @@ void main() {
     expect(model.active, isFalse);
 
     model.advance();
-    model.start();
+    model.resume();
     expect(model.stage, DispenseStage.completed);
     expect(model.count, 1);
     expect(model.medicineIndex, 1);
@@ -130,8 +138,7 @@ void main() {
     model.cancel();
 
     model.advance();
-    model.start();
-    model.verifyBox();
+    model.resume();
 
     expect(model.stage, DispenseStage.cancelled);
     expect(model.count, 1);
@@ -139,6 +146,7 @@ void main() {
   });
 
   test('保存和增删处方条目不会改写已经创建的任务快照', () {
+    startTestTask(model);
     final resident = model.residents.first;
     final originalFirst = resident.medicines.first;
     final originalIds = resident.medicines
@@ -174,7 +182,9 @@ void main() {
       final previousCount = model.count;
       final previousMedicine = model.currentMedicine.id;
 
-      final accepted = model.prepareTask(model.residents[1]);
+      final accepted = model.startPreparedTask(
+        model.planFor(model.residents[1]),
+      );
 
       expect(accepted, isFalse);
       expect(model.stage, blockedStage);
@@ -192,12 +202,10 @@ void main() {
       medicines: [],
     );
     final previousResident = model.taskResidentName;
-    final previousMedicine = model.currentMedicine.id;
-
-    expect(model.prepareTask(resident), isFalse);
+    expect(model.startPreparedTask(model.planFor(resident)), isFalse);
     expect(model.taskResidentName, previousResident);
-    expect(model.currentMedicine.id, previousMedicine);
-    expect(model.stage, DispenseStage.awaitingVerification);
+    expect(model.taskMedicines, isEmpty);
+    expect(model.stage, DispenseStage.idle);
   });
 
   test('准备演示排除停用、未生效及已结束药物，结束当天仍有效', () {
@@ -235,7 +243,10 @@ void main() {
         ),
       ],
     );
-    expect(model.prepareTask(resident), isTrue);
+    expect(
+      startTestTask(model, resident: resident, start: today, days: 1),
+      isTrue,
+    );
     expect(model.taskMedicines.map((medicine) => medicine.id), ['today']);
   });
 
@@ -253,14 +264,15 @@ void main() {
         ),
       ],
     );
-    expect(model.prepareTask(resident), isFalse);
-    expect(model.preparationIssue(resident), contains('睡前格'));
+    expect(startTestTask(model, resident: resident), isFalse);
+    expect(model.planFor(resident).issue, contains('睡前格'));
     model.saveSettings(days: 7, split: true, night: true, tomorrow: false);
-    expect(model.prepareTask(resident), isTrue);
+    expect(startTestTask(model, resident: resident), isTrue);
     expect(model.currentMedicine.doses.night, 1);
   });
 
   test('空床位不冲突，修改原资料保留身份及已登记床位', () {
+    startTestTask(model);
     expect(model.bedConflict(''), isNull);
     expect(model.bedConflict(' 208床 ')?.id, 'r1');
     expect(model.bedConflict('208 床', excludingId: 'r1'), isNull);

@@ -1,3 +1,5 @@
+import 'support/tasks.dart';
+
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -233,8 +235,7 @@ void main() {
     );
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
-    model.verifyBox();
-    model.start();
+    startTestTask(model);
     model.advance();
     await tap('device-status');
     await tap('disconnect-USB 串口设备');

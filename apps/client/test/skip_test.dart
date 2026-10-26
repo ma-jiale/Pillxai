@@ -1,3 +1,5 @@
+import 'support/tasks.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,11 +9,7 @@ import 'package:pillxai_client/models/demo_model.dart';
 void main() {
   DemoModel task() {
     final model = DemoModel(autoTick: false);
-    final resident = model.residents.first;
-    model.startPreparedTask(resident, [
-      for (final medicine in resident.medicines.take(3))
-        medicine.copyWith(target: 2),
-    ], end: DateTime(2026, 10, 29));
+    startTestTask(model, counts: [2, 2, 2], start: DateTime(2026, 10, 23));
     return model;
   }
 
@@ -92,9 +90,9 @@ void main() {
       boxOnTrack: false,
       trackReady: true,
     );
-    model.prepareTask(model.residents[1]);
+    startTestTask(model, resident: model.residents[1]);
     expect(model.medicineResults, isEmpty);
-    model.skipCurrent();
+    model.pause();
     expect(model.medicineResults, isEmpty);
   });
 

@@ -9,6 +9,7 @@ import '../theme/app_page.dart';
 import '../widgets/prescription_forms.dart';
 import '../widgets/profile_avatar.dart';
 
+/// 当前资料的浏览与编辑入口。搜索/滚动属于页面，长者与处方属于共享模型。
 class PrescriptionsPage extends StatefulWidget {
   const PrescriptionsPage({super.key, required this.model});
   final DemoModel model;
@@ -23,7 +24,13 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
     borderSide: BorderSide.none,
   );
   final _search = TextEditingController();
+  final _residentScroll = ScrollController();
+  final _detailsScroll = ScrollController();
+  final _pageScroll = ScrollController();
+  final _detailsKey = GlobalKey();
+  bool _narrow = false;
 
+  /// 纯查询：先规范化搜索文本，再筛姓名或床位，不改写原始资料。
   List<Resident> get _visibleResidents {
     final query = _search.text.trim().toLowerCase().replaceAll(' ', '');
     return widget.model.residents
@@ -38,7 +45,28 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
   @override
   void dispose() {
     _search.dispose();
+    _residentScroll.dispose();
+    _detailsScroll.dispose();
+    _pageScroll.dispose();
     super.dispose();
+  }
+
+  /// 选择只改变浏览对象。平板详情独立回到顶部；窄屏滚动到详情区域。
+  /// 布局坐标必须等这一帧重建后再读取，因此使用帧结束回调。
+  void _showDetails() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_narrow && _detailsKey.currentContext != null) {
+        Scrollable.ensureVisible(
+          _detailsKey.currentContext!,
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 220),
+        );
+      } else if (_detailsScroll.hasClients) {
+        _detailsScroll.jumpTo(0);
+      }
+    });
   }
 
   void _updateSelection() {
@@ -58,6 +86,8 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// 等待表单返回新资料；取消返回 null。await 期间页面可能销毁，先检查 mounted。
+  /// 只有这里把成功结果交给模型；表单内部的输入不会提前污染列表。
   Future<void> _editResident([Resident? resident]) async {
     final updated = await showDialog<Resident>(
       context: context,
@@ -68,9 +98,11 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
     if (!mounted || updated == null) return;
     _search.clear();
     widget.model.saveResident(updated);
+    _showDetails();
     _notify('已保存${updated.name}的资料');
   }
 
+  /// 编辑得到一个新 Medicine，再替换当前处方；执行中的快照不受影响。
   Future<void> _editMedicine(Resident resident, [Medicine? medicine]) async {
     final updated = await showDialog<Medicine>(
       context: context,
@@ -125,49 +157,67 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
       final selected = residents
           .where((resident) => resident.id == widget.model.selectedResidentId)
           .firstOrNull;
-      return SingleChildScrollView(
+      return Padding(
         padding: AppPage.insets(context),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final list = _residentList(residents);
-                final details = selected == null
-                    ? const Surface(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 76),
-                          child: Center(child: Text('未找到长者，请调整搜索内容。')),
-                        ),
-                      )
-                    : _residentDetails(selected);
-                if (constraints.maxWidth < 740) {
-                  return Column(
-                    children: [list, const SizedBox(height: 20), details],
-                  );
-                }
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            _narrow = constraints.maxWidth < 740 || constraints.maxHeight < 300;
+            final list = _residentList(residents);
+            final details = KeyedSubtree(
+              key: _detailsKey,
+              child: selected == null
+                  ? const Surface(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 76),
+                        child: Center(child: Text('未找到长者，请调整搜索内容。')),
+                      ),
+                    )
+                  : _residentDetails(selected),
+            );
+            if (_narrow) {
+              return SingleChildScrollView(
+                controller: _pageScroll,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                child: Column(
                   children: [
-                    SizedBox(
-                      width: constraints.maxWidth < 1000 ? 232 : 260,
-                      child: list,
-                    ),
-                    const SizedBox(width: 24),
-                    Expanded(child: details),
+                    SizedBox(height: 360, child: list),
+                    const SizedBox(height: 20),
+                    details,
                   ],
-                );
-              },
-            ),
-          ],
+                ),
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: constraints.maxWidth < 1000 ? 232 : 260,
+                  child: list,
+                ),
+                const SizedBox(width: 24),
+                Expanded(
+                  child: SingleChildScrollView(
+                    key: const ValueKey('resident-details-scroll'),
+                    controller: _detailsScroll,
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    child: details,
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       );
     },
   );
 
+  /// 搜索和添加固定在名单上下方，中间按需构建条目，避免200人名单推走操作。
   Widget _residentList(List<Resident> residents) => Surface(
     padding: const EdgeInsets.all(16),
     child: Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         TextField(
@@ -202,7 +252,22 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
             style: const TextStyle(fontSize: 12, color: Color(0xff858585)),
           ),
         ),
-        for (final resident in residents) _residentTile(resident),
+        if (residents.isNotEmpty)
+          Flexible(
+            child: Scrollbar(
+              controller: _residentScroll,
+              thumbVisibility: true,
+              child: ListView.builder(
+                key: const ValueKey('resident-list-scroll'),
+                controller: _residentScroll,
+                shrinkWrap: true,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                itemCount: residents.length,
+                itemBuilder: (_, index) => _residentTile(residents[index]),
+              ),
+            ),
+          ),
         if (residents.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 32),
@@ -231,7 +296,11 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => widget.model.selectResident(resident.id),
+          key: ValueKey('resident-${resident.id}'),
+          onTap: () {
+            widget.model.selectResident(resident.id);
+            _showDetails();
+          },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
             child: Row(

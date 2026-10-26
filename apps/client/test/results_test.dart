@@ -1,3 +1,5 @@
+import 'support/tasks.dart';
+
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -10,16 +12,7 @@ import 'package:pillxai_client/models/demo_model.dart';
 
 DemoModel runningTask() {
   final model = DemoModel(autoTick: false);
-  final resident = model.residents.first;
-  model.startPreparedTask(
-    resident,
-    [
-      for (var i = 0; i < 3; i++)
-        Medicine(id: 'result-$i', name: '测试药 $i', strength: '5 mg', target: 2),
-    ],
-    startDate: DateTime(2026, 10, 25),
-    end: DateTime(2026, 10, 31),
-  );
+  startTestTask(model, counts: [2, 2, 2], start: DateTime(2026, 10, 25));
   return model;
 }
 
@@ -42,11 +35,8 @@ void main() {
     model.cancel();
     model.skipRemaining();
     expect(model.records.length, 1);
-    expect(
-      model.startPreparedTask(model.residents[1], model.residents[1].medicines),
-      isFalse,
-    );
-    expect(model.prepareTask(model.residents[1]), isFalse);
+    expect(model.startPreparedTask(model.planFor(model.residents[1])), isFalse);
+    expect(model.startPreparedTask(model.planFor(model.residents[1])), isFalse);
     model.residents.first.name = '修改后的姓名';
     expect(snapshot.name, '王奶奶');
     model.updateCollectionFeedback(
@@ -77,7 +67,7 @@ void main() {
     );
     expect(model.busy, isFalse);
     expect(model.records.single.collection, CollectionStage.complete);
-    expect(model.prepareTask(model.residents[1]), isTrue);
+    expect(model.startPreparedTask(model.planFor(model.residents[1])), isTrue);
     expect(snapshot.medicines[1].result.confirmedParticles, 2);
     expect(model.records.length, 1);
   });

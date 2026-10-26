@@ -1,3 +1,5 @@
+import 'support/tasks.dart';
+
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -135,8 +137,7 @@ void main() {
         tester.getTopLeft(find.byKey(const ValueKey('page-title-settings'))),
         titleOrigin,
       );
-      model.verifyBox();
-      model.start();
+      startTestTask(model);
       await tester.tap(find.byKey(const ValueKey('nav-1')));
       await tester.pumpAndSettle();
       expect(
