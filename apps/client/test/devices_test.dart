@@ -7,8 +7,46 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pillxai_client/main.dart';
 import 'package:pillxai_client/models/demo_model.dart';
+import 'package:pillxai_client/models/device_preview_model.dart';
 
 void main() {
+  test('添加自动连接、失败可重试，移除中止未完成连接', () {
+    final devices = DevicePreviewModel();
+    addTearDown(devices.dispose);
+    devices.add('A');
+    expect(devices.connectingDevice, 'A');
+    expect(devices.connectedDevice, isNull);
+    devices.completeConnectionPreview();
+    expect(devices.connectedDevice, 'A');
+    devices.add('B');
+    devices.completeConnectionPreview(success: false);
+    expect(devices.failedDevice, 'B');
+    expect(devices.connectedDevice, 'A');
+    devices.connect('B');
+    devices.completeConnectionPreview();
+    expect(devices.connectedDevice, 'B');
+    devices.add('C');
+    devices.remove('C');
+    devices.completeConnectionPreview();
+    expect(devices.connectedDevice, 'B');
+    expect(devices.connectingDevice, isNull);
+  });
+
+  test('活跃任务阻止新增设备自动切换，也阻止延迟连接完成', () {
+    var busy = false;
+    final devices = DevicePreviewModel(canConnect: () => !busy);
+    addTearDown(devices.dispose);
+    devices.add('A');
+    devices.completeConnectionPreview();
+    devices.add('B');
+    busy = true;
+    devices.completeConnectionPreview();
+    devices.add('C');
+    expect(devices.connectedDevice, 'A');
+    expect(devices.devices, ['A', 'B']);
+    expect(devices.failedDevice, 'B');
+  });
+
   setUpAll(() async {
     await (FontLoader('NotoSansSC')
           ..addFont(rootBundle.load('assets/fonts/NotoSansCJKsc-Regular.otf')))
@@ -50,7 +88,7 @@ void main() {
           );
           final image = await boundary.toImage(pixelRatio: 1);
           final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-          final folder = Directory('../../.tools/ui-review')
+          final folder = Directory(const String.fromEnvironment('UI_CAPTURE'))
             ..createSync(recursive: true);
           File('${folder.path}/devices-${size.width.toInt()}-$stage.png')
               .writeAsBytesSync(bytes!.buffer.asUint8List());
@@ -85,7 +123,9 @@ void main() {
       await capture('results');
       await tapKey('add-PillDispenser01');
       await capture('added');
-      await tapKey('connect-PillDispenser01');
+      expect(find.text('正在连接… · 蓝牙串口'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
       expect(
         find.descendant(of: status, matching: find.text('已连接')),
         findsOneWidget,
@@ -173,7 +213,8 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       await tap('add-$name');
-      await tap('connect-$name');
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
     }
     expect(
       find.byKey(const ValueKey('connect-PillDispenser01')),

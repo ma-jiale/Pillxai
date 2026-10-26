@@ -31,7 +31,13 @@ class DeviceStatusButton extends StatelessWidget {
         ),
         onPressed: onPressed,
         icon: const DispenserIcon(size: 22),
-        label: Text(devices.connectedDevice == null ? '未连接' : '已连接'),
+        label: Text(
+          devices.connectingDevice != null
+              ? '连接中'
+              : devices.connectedDevice == null
+              ? '未连接'
+              : '已连接',
+        ),
       ),
     ),
   );
@@ -278,6 +284,8 @@ class _DevicesPageState extends State<DevicesPage> {
   Widget _row(String name, bool discovery) {
     final connected = widget.devices.connectedDevice == name;
     final added = widget.devices.devices.contains(name);
+    final connecting = widget.devices.connectingDevice == name;
+    final failed = widget.devices.failedDevice == name;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
       decoration: const BoxDecoration(
@@ -302,7 +310,13 @@ class _DevicesPageState extends State<DevicesPage> {
                 Text(
                   discovery
                       ? _transport(name)
-                      : '${connected ? '已连接' : '未连接'} · ${_transport(name)}',
+                      : '${connecting
+                            ? '正在连接…'
+                            : connected
+                            ? '已连接'
+                            : failed
+                            ? '连接失败，请重试'
+                            : '未连接'} · ${_transport(name)}',
                   style: const TextStyle(fontSize: 12, color: _muted),
                 ),
               ],
@@ -317,17 +331,27 @@ class _DevicesPageState extends State<DevicesPage> {
             onPressed: discovery
                 ? (added
                       ? null
-                      : () {
+                      : () => _change(() {
                           widget.devices.add(name);
                           _back();
-                        })
+                        }))
+                : connecting
+                ? null
                 : () => _change(
                     () => connected
                         ? widget.devices.disconnect()
                         : widget.devices.connect(name),
                   ),
             child: Text(
-              discovery ? (added ? '已添加' : '添加') : (connected ? '断开' : '连接'),
+              discovery
+                  ? (added ? '已添加' : '添加')
+                  : connecting
+                  ? '连接中'
+                  : connected
+                  ? '断开'
+                  : failed
+                  ? '重试'
+                  : '连接',
             ),
           ),
           if (!discovery)

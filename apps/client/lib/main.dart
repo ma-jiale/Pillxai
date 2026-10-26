@@ -27,7 +27,7 @@ class PillxaiApp extends StatefulWidget {
 
 class _PillxaiAppState extends State<PillxaiApp> {
   late final DemoModel model = widget.model ?? DemoModel();
-  final devices = DevicePreviewModel();
+  late final devices = DevicePreviewModel(canConnect: () => !model.busy);
   Color accent = const Color(0xff191919);
   int page = 1;
   late bool _signedIn = widget.initiallySignedIn;
