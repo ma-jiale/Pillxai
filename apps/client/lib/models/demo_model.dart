@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'dispense_record.dart';
+export 'dispense_record.dart';
+
 /// Prescription doses are expressed in the original unit, never machine counts.
 class DoseSchedule {
   const DoseSchedule({
@@ -123,29 +126,7 @@ enum DispenseStage {
   cancelled,
 }
 
-enum MedicineOutcome { completed, confirmedPrepared, skipped }
-
 enum BoxFeedback { disconnected, opening, waiting, match, other, failed }
-
-class MedicineResult {
-  const MedicineResult({
-    required this.outcome,
-    required this.countedParticles,
-    this.confirmedParticles,
-  });
-
-  final MedicineOutcome outcome;
-
-  /// Simulated counter observations are retained even after manual confirmation.
-  final int countedParticles;
-  final int? confirmedParticles;
-
-  String get label => switch (outcome) {
-    MedicineOutcome.completed => '已完成',
-    MedicineOutcome.confirmedPrepared => '人工标记已摆好',
-    MedicineOutcome.skipped => '已跳过',
-  };
-}
 
 /// In-memory preview data only. No network, hardware commands or actual records.
 class DemoModel extends ChangeNotifier {
@@ -259,6 +240,20 @@ class DemoModel extends ChangeNotifier {
   final boxFeedback = ValueNotifier(BoxFeedback.disconnected);
   String? _preparedResidentId;
   DateTime? _preparedEnd;
+  DateTime? _preparedStart;
+  DateTime? _startedAt;
+  String _taskDevice = '未连接设备';
+  final List<DispenseRecord> _records = [];
+  final List<RecordEvent> _taskEvents = [];
+  List<DispenseRecord> get records => List.unmodifiable(_records);
+  String? _currentRecordId;
+  DispenseRecord? get currentRecord =>
+      _records.where((r) => r.id == _currentRecordId).firstOrNull;
+  bool get awaitingCollection => currentRecord != null;
+  bool get busy => active || awaitingCollection;
+  Timer? _collectionTimer;
+  int _recordSequence = 0;
+  bool examplesLoaded = false;
   final Map<String, MedicineResult> _medicineResults = {};
   Map<String, MedicineResult> get medicineResults =>
       Map.unmodifiable(_medicineResults);
@@ -270,8 +265,10 @@ class DemoModel extends ChangeNotifier {
     Resident resident,
     List<Medicine> medicines, {
     DateTime? end,
+    DateTime? startDate,
+    String? device,
   }) {
-    if (active || medicines.isEmpty) return false;
+    if (busy || medicines.isEmpty) return false;
     taskResidentName = resident.name;
     taskResidentBed = resident.bed;
     taskResidentAvatar = resident.avatarAsset;
@@ -279,6 +276,12 @@ class DemoModel extends ChangeNotifier {
     _medicineResults.clear();
     _preparedResidentId = resident.id;
     _preparedEnd = end;
+    _preparedStart = startDate;
+    _startedAt = DateTime.now();
+    _taskDevice = device ?? '未连接设备';
+    _taskEvents
+      ..clear()
+      ..add(RecordEvent(_startedAt!, '开始摆药（演练）'));
     medicineIndex = 0;
     count = 0;
     opening = .70;
@@ -333,7 +336,7 @@ class DemoModel extends ChangeNotifier {
   }
 
   String? preparationIssue(Resident resident) {
-    if (active) return '当前任务尚未结束，请先完成或结束本次摆药。';
+    if (busy) return '当前任务尚未结束，请先完成摆药和取盒。';
     final medicines = resident.medicines
         .where((medicine) => medicine.isEffectiveOn(DateTime.now()))
         .toList();
@@ -357,8 +360,12 @@ class DemoModel extends ChangeNotifier {
 
   bool prepareTask(Resident resident, {bool notify = true}) {
     if (preparationIssue(resident) != null) return false;
-    _preparedResidentId = null;
+    _preparedResidentId = resident.id;
     _preparedEnd = null;
+    _preparedStart = null;
+    _startedAt = null;
+    _taskDevice = '未连接设备';
+    _taskEvents.clear();
     _medicineResults.clear();
     taskResidentName = resident.name;
     taskResidentBed = resident.bed;
@@ -385,6 +392,8 @@ class DemoModel extends ChangeNotifier {
       return;
     }
     stage = DispenseStage.running;
+    _startedAt ??= DateTime.now();
+    _taskEvents.add(RecordEvent(DateTime.now(), '开始或继续摆药（演练）'));
     notifyListeners();
   }
 
@@ -423,6 +432,9 @@ class DemoModel extends ChangeNotifier {
           _preparedEnd != null) {
         demoCoverage[_preparedResidentId!] = _preparedEnd!;
       }
+      _finishRecord(
+        hasSkippedMedicines ? TaskOutcome.partial : TaskOutcome.completed,
+      );
     }
   }
 
@@ -434,6 +446,12 @@ class DemoModel extends ChangeNotifier {
           : MedicineOutcome.skipped,
       countedParticles: count,
       confirmedParticles: markPrepared ? currentMedicine.target : null,
+    );
+    _taskEvents.add(
+      RecordEvent(
+        DateTime.now(),
+        '${currentMedicine.name}：${markPrepared ? '人工确认已摆好' : '跳过'}，保留原计数 $count 颗',
+      ),
     );
     _moveToNext(startNext: startNext);
     notifyListeners();
@@ -448,6 +466,8 @@ class DemoModel extends ChangeNotifier {
       );
     }
     stage = DispenseStage.completed;
+    _taskEvents.add(RecordEvent(DateTime.now(), '跳过当前及全部剩余药物'));
+    _finishRecord(TaskOutcome.partial);
     notifyListeners();
   }
 
@@ -457,11 +477,182 @@ class DemoModel extends ChangeNotifier {
   }
 
   void cancel() {
+    if (!active) return;
+    for (var index = medicineIndex; index < taskMedicines.length; index++) {
+      _medicineResults[taskMedicines[index].id] = MedicineResult(
+        outcome: index == medicineIndex
+            ? MedicineOutcome.unverified
+            : MedicineOutcome.notStarted,
+        countedParticles: index == medicineIndex ? count : 0,
+      );
+    }
     stage = DispenseStage.cancelled;
+    _taskEvents.add(RecordEvent(DateTime.now(), '人工结束本次摆药，当前药待核实，剩余药未执行'));
+    _finishRecord(TaskOutcome.cancelled);
+    notifyListeners();
+  }
+
+  void _finishRecord(TaskOutcome outcome) {
+    if (_currentRecordId != null) return;
+    final now = DateTime.now();
+    final record = DispenseRecord(
+      id: 'session-${++_recordSequence}',
+      residentId: _preparedResidentId ?? '',
+      name: taskResidentName,
+      bed: taskResidentBed,
+      avatar: taskResidentAvatar,
+      startedAt: _startedAt ?? now,
+      finishedAt: now,
+      coverageStart: _preparedStart,
+      coverageEnd: _preparedEnd,
+      outcome: outcome,
+      device: _taskDevice,
+      medicines: [
+        for (final medicine in taskMedicines)
+          RecordedMedicine(
+            id: medicine.id,
+            name: medicine.name,
+            strength: medicine.strength,
+            form: medicine.form,
+            schedule: medicine.schedule,
+            target: medicine.target,
+            result:
+                _medicineResults[medicine.id] ??
+                const MedicineResult(
+                  outcome: MedicineOutcome.unverified,
+                  countedParticles: 0,
+                ),
+          ),
+      ],
+      events: [..._taskEvents, RecordEvent(now, '摆药处理结束，等待取盒')],
+    );
+    _records.insert(0, record);
+    _currentRecordId = record.id;
+  }
+
+  /// UI-only feedback input. Null means unavailable, never a removed box.
+  /// Record identity prevents late feedback from releasing a different task.
+  void updateCollectionFeedback({
+    required String recordId,
+    required bool? boxOnTrack,
+    bool trackReady = false,
+    bool retractionFailed = false,
+  }) {
+    final record = currentRecord;
+    if (record == null || record.id != recordId) return;
+    final next = boxOnTrack == null
+        ? CollectionStage.detectionFailed
+        : boxOnTrack
+        ? CollectionStage.waiting
+        : retractionFailed
+        ? CollectionStage.retractionFailed
+        : trackReady
+        ? CollectionStage.complete
+        : CollectionStage.retracting;
+    if (record.collection == next) return;
+    final description = switch (next) {
+      CollectionStage.waiting => '演练反馈：药盒仍在轨道上',
+      CollectionStage.detectionFailed => '演练反馈暂不可用，保留结果等待恢复',
+      CollectionStage.retracting => '演练反馈：药盒已离轨，等待轨道就绪',
+      CollectionStage.retractionFailed => '演练反馈：轨道收回未确认',
+      CollectionStage.complete => '演练反馈：药盒已离轨且轨道就绪，取盒结束',
+    };
+    final index = _records.indexWhere((r) => r.id == recordId);
+    _records[index] = record.withCollection(
+      next,
+      RecordEvent(DateTime.now(), description),
+    );
+    if (next == CollectionStage.complete) {
+      _collectionTimer?.cancel();
+      _currentRecordId = null;
+    }
+    notifyListeners();
+  }
+
+  bool openExampleCollection(String recordId) {
+    if (busy) return false;
+    final record = _records.where((r) => r.id == recordId).firstOrNull;
+    if (record == null ||
+        !record.isExample ||
+        record.collection == CollectionStage.complete) {
+      return false;
+    }
+    _currentRecordId = recordId;
+    stage = DispenseStage.completed;
+    _collectionTimer?.cancel();
+    _collectionTimer = Timer(const Duration(seconds: 2), () {
+      updateCollectionFeedback(recordId: recordId, boxOnTrack: false);
+      _collectionTimer = Timer(const Duration(milliseconds: 900), () {
+        updateCollectionFeedback(
+          recordId: recordId,
+          boxOnTrack: false,
+          trackReady: true,
+        );
+      });
+    });
+    notifyListeners();
+    return true;
+  }
+
+  void loadExampleRecords() {
+    if (examplesLoaded) return;
+    examplesLoaded = true;
+    final today = DateTime.now();
+    for (var i = 0; i < 3; i++) {
+      final resident = residents[i];
+      final at = today.subtract(Duration(days: i, hours: 1));
+      _records.add(
+        DispenseRecord(
+          id: 'example-$i',
+          residentId: resident.id,
+          name: resident.name,
+          bed: resident.bed,
+          avatar: resident.avatarAsset,
+          startedAt: at.subtract(const Duration(minutes: 12)),
+          finishedAt: at,
+          coverageStart: DateTime(at.year, at.month, at.day),
+          coverageEnd: DateTime(at.year, at.month, at.day + 6),
+          outcome: TaskOutcome.values[i],
+          collection: i == 0
+              ? CollectionStage.waiting
+              : CollectionStage.complete,
+          device: '演练设备 ${i + 1}',
+          isExample: true,
+          medicines: [
+            for (var j = 0; j < resident.medicines.length; j++)
+              RecordedMedicine(
+                id: resident.medicines[j].id,
+                name: resident.medicines[j].name,
+                strength: resident.medicines[j].strength,
+                form: resident.medicines[j].form,
+                schedule: resident.medicines[j].schedule,
+                target: resident.medicines[j].target,
+                result: MedicineResult(
+                  outcome: i == 2
+                      ? MedicineOutcome.unverified
+                      : i == 1
+                      ? MedicineOutcome.skipped
+                      : j == 1
+                      ? MedicineOutcome.confirmedPrepared
+                      : MedicineOutcome.completed,
+                  countedParticles: i == 0
+                      ? (j == 1 ? 2 : resident.medicines[j].target)
+                      : 2,
+                  confirmedParticles: i == 0 && j == 1
+                      ? resident.medicines[j].target
+                      : null,
+                ),
+              ),
+          ],
+          events: [RecordEvent(at, '载入演练示例，仅供界面体验')],
+        ),
+      );
+    }
     notifyListeners();
   }
 
   void resetDemo() {
+    if (busy) return;
     stage = DispenseStage.cancelled;
     final candidate = residents
         .where((resident) => preparationIssue(resident) == null)
@@ -491,6 +682,7 @@ class DemoModel extends ChangeNotifier {
   @override
   void dispose() {
     _ticker?.cancel();
+    _collectionTimer?.cancel();
     boxFeedback.dispose();
     super.dispose();
   }

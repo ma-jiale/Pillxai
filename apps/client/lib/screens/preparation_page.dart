@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../models/demo_model.dart';
 import '../models/preparation_plan.dart';
 import 'dispensing_page.dart';
+import 'history_page.dart';
+import 'results_page.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/app_menu.dart';
 import '../theme/app_page.dart';
@@ -17,6 +19,7 @@ class PreparationPage extends StatefulWidget {
 
 class _PreparationPageState extends State<PreparationPage> {
   bool early = false;
+  bool history = false;
   DateTime get today {
     final n = DateTime.now();
     return DateTime(n.year, n.month, n.day);
@@ -38,6 +41,12 @@ class _PreparationPageState extends State<PreparationPage> {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.model,
     builder: (context, _) {
+      if (history) {
+        return HistoryPage(
+          model: widget.model,
+          onClose: () => setState(() => history = false),
+        );
+      }
       if (widget.model.active) return DispensingPage(model: widget.model);
       final residents = widget.model.residents
           .where(
@@ -74,9 +83,19 @@ class _PreparationPageState extends State<PreparationPage> {
                       '${value ? '提前准备' : '待准备'} ${residents.where((r) => isEarly(r) == value).length}',
                     ),
                   ),
+                TextButton.icon(
+                  key: const ValueKey('open-history'),
+                  onPressed: () => setState(() => history = true),
+                  icon: const Icon(Icons.history_rounded, size: 18),
+                  label: const Text('历史记录'),
+                ),
               ],
             ),
             const SizedBox(height: 16),
+            if (widget.model.awaitingCollection) ...[
+              CollectionStatusBanner(model: widget.model),
+              const SizedBox(height: 16),
+            ],
             Expanded(
               child: visible.isEmpty
                   ? const Center(child: Text('暂无需要准备的长者'))
@@ -403,6 +422,7 @@ class _PreparationDialogState extends State<PreparationDialog> {
                               widget.resident,
                               plan.medicines,
                               end: plan.end,
+                              startDate: widget.start,
                             )) {
                               Navigator.pop(context);
                             }

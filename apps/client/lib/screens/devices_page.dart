@@ -89,8 +89,12 @@ class _DevicesPageState extends State<DevicesPage> {
   }
 
   void _change(VoidCallback action) {
-    if (widget.taskModel.active) {
-      setState(() => _notice = '请先完成或结束当前摆药，再更改设备连接。');
+    if (widget.taskModel.busy) {
+      setState(
+        () => _notice = widget.taskModel.awaitingCollection
+            ? '请先完成取盒，再更改设备连接。'
+            : '请先完成或结束当前摆药，再更改设备连接。',
+      );
       return;
     }
     setState(() => _notice = null);
@@ -98,7 +102,7 @@ class _DevicesPageState extends State<DevicesPage> {
   }
 
   Future<void> _remove(String name) async {
-    if (widget.taskModel.active) {
+    if (widget.taskModel.busy) {
       _change(() {});
       return;
     }

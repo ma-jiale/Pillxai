@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../widgets/app_menu.dart';
+import 'history_page.dart';
 
 import '../models/demo_model.dart';
 import '../theme/app_theme.dart';
@@ -276,12 +277,36 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
                 size: 44,
                 nameSize: 18,
               );
-              final edit = TextButton.icon(
-                onPressed: () => _editResident(resident),
-                icon: const Icon(Icons.edit_outlined, size: 16),
-                label: const Text('编辑资料'),
+              final edit = Wrap(
+                spacing: 8,
+                children: [
+                  TextButton.icon(
+                    key: ValueKey('resident-history-${resident.id}'),
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (context) => Dialog(
+                        insetPadding: const EdgeInsets.all(16),
+                        child: SizedBox(
+                          width: 1000,
+                          child: HistoryPage(
+                            model: widget.model,
+                            residentId: resident.id,
+                            onClose: () => Navigator.pop(context),
+                          ),
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.history_rounded, size: 16),
+                    label: const Text('摆药记录'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _editResident(resident),
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('编辑资料'),
+                  ),
+                ],
               );
-              if (constraints.maxWidth < 420) {
+              if (constraints.maxWidth < 560) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

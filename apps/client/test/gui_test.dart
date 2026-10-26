@@ -121,6 +121,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(model.stage, DispenseStage.completed);
     expect(find.byKey(const ValueKey('prepare-r1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('collection-status')), findsOneWidget);
+    expect(find.byKey(const ValueKey('confirm-removal')), findsNothing);
     expect(find.text('开始本药'), findsNothing);
     expect(model.count, 1);
     expect(tester.takeException(), isNull);

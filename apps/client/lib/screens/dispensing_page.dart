@@ -590,11 +590,13 @@ class DispensingPage extends StatelessWidget {
   );
 
   Future<void> _cancel(BuildContext context) async {
+    final wasRunning = model.stage == DispenseStage.running;
+    if (wasRunning) model.pause();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('结束本次摆药？'),
-        content: const Text('当前进度会保留为已取消，不会显示为完成。'),
+        content: const Text('已完成药物和已有计数会保留。当前药标为待核实，剩余药物标为未执行；结束后返回首页，结果保存在历史记录。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -607,7 +609,11 @@ class DispensingPage extends StatelessWidget {
         ],
       ),
     );
-    if (confirmed == true) model.cancel();
+    if (confirmed == true) {
+      model.cancel();
+    } else if (wasRunning) {
+      model.start();
+    }
   }
 }
 

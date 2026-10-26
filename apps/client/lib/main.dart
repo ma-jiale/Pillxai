@@ -138,7 +138,7 @@ class _PillxaiAppState extends State<PillxaiApp> {
                             ListenableBuilder(
                               listenable: model,
                               builder: (context, _) {
-                                if (page == 1 || !model.active) {
+                                if (page == 1 || !model.busy) {
                                   return const SizedBox.shrink();
                                 }
                                 return InkWell(
@@ -158,7 +158,9 @@ class _PillxaiAppState extends State<PillxaiApp> {
                                       ),
                                     ),
                                     child: Text(
-                                      '${model.taskResidentName} · ${model.currentMedicine.name}  ${model.count} / ${model.currentMedicine.target}  · ${model.stageLabel}   ↗',
+                                      model.awaitingCollection
+                                          ? '${model.currentRecord!.name} · ${model.currentRecord!.collectionLabel}   ↗'
+                                          : '${model.taskResidentName} · ${model.currentMedicine.name}  ${model.count} / ${model.currentMedicine.target}  · ${model.stageLabel}   ↗',
                                       style: const TextStyle(fontSize: 12),
                                     ),
                                   ),
@@ -185,9 +187,14 @@ class _PillxaiAppState extends State<PillxaiApp> {
   );
 
   void _signOut(BuildContext context) {
-    if (model.active) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('请先完成或结束当前摆药，再退出账户。')));
+    if (model.busy) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            model.awaitingCollection ? '请先完成取盒，再退出账户。' : '请先完成或结束当前摆药，再退出账户。',
+          ),
+        ),
+      );
       return;
     }
     setState(() => _signedIn = false);

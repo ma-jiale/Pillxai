@@ -87,6 +87,11 @@ void main() {
     model.advance();
     expect(model.count, 0);
     model.skipRemaining();
+    model.updateCollectionFeedback(
+      recordId: model.currentRecord!.id,
+      boxOnTrack: false,
+      trackReady: true,
+    );
     model.prepareTask(model.residents[1]);
     expect(model.medicineResults, isEmpty);
     model.skipCurrent();
@@ -166,6 +171,8 @@ void main() {
       );
       expect(model.demoCoverage['r1'], isNull);
       expect(find.byKey(const ValueKey('prepare-r1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('confirm-removal')), findsNothing);
+      expect(model.awaitingCollection, isTrue);
       expect(tester.takeException(), isNull);
     });
   }
