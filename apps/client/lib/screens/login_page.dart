@@ -53,7 +53,7 @@ class _LoginPageState extends State<LoginPage> {
                     const Row(
                       children: [
                         Text(
-                          'Pillxa',
+                          'Pillxai',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w600,
@@ -87,7 +87,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               const SizedBox(height: 8),
                               const Text(
-                                '登录 Pillxa，开始今天的工作。',
+                                '登录 Pillxai，开始今天的工作。',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: Color(0xff777777),

@@ -435,7 +435,7 @@ class _SettingsPageState extends State<SettingsPage> {
     const _SettingItem(
       _Category.about,
       '应用信息',
-      'Pillxa',
+      'Pillxai',
       '处方管理与摆药',
       Text('0.1.0', style: TextStyle(fontSize: 13, color: Color(0xff737373))),
     ),

@@ -41,7 +41,7 @@ class _PillxaiAppState extends State<PillxaiApp> {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'Pillxa',
+    title: 'Pillxai',
     debugShowCheckedModeBanner: false,
     locale: const Locale('zh', 'CN'),
     supportedLocales: const [Locale('zh', 'CN')],
@@ -230,7 +230,7 @@ class _Sidebar extends StatelessWidget {
           child: SizedBox(
             width: double.infinity,
             child: Text(
-              'Pillxa',
+              'Pillxai',
               textAlign: compact ? TextAlign.center : TextAlign.left,
               style: TextStyle(
                 fontSize: compact ? 14 : 20,
