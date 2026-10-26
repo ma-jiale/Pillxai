@@ -1,11 +1,13 @@
-# Pillxai Dispenser
+<h1 align="center">Pillxai Dispenser</h1>
 
-[![Flutter](https://img.shields.io/badge/Flutter-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
-[![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![License: Source Available](https://img.shields.io/badge/License-Source%20Available-orange)](LICENSE)
-[![Status: In Development](https://img.shields.io/badge/Status-In%20Development-yellow)](#开发进展)
+<p align="center">
+  <a href="https://flutter.dev"><img src="https://img.shields.io/badge/Flutter-02569B?logo=flutter&amp;logoColor=white" alt="Flutter"></a>
+  <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&amp;logoColor=white" alt="FastAPI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Source%20Available-orange" alt="License: Source Available"></a>
+  <a href="#开发进展"><img src="https://img.shields.io/badge/Status-In%20Development-yellow" alt="Status: In Development"></a>
+</p>
 
-**面向养老院与社区护理场景的智能摆药系统。**
+<p align="center"><strong>面向养老院与社区护理场景的智能摆药系统。</strong></p>
 
 Pillxai 由 STM32 驱动的摆药机、Pillxai 应用和服务器后端组成，帮助护士与护工根据长者的用药安排，为未来多天准备多种药物。工作人员按提示投入当前药物，机器完成计数与分格摆放，多余药片从回收口返回。
 
