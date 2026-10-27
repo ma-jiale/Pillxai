@@ -1,4 +1,4 @@
-<h1 align="center">Pillxai Dispenser</h1>
+<h1 align="center">Pillxai</h1>
 
 <p align="center">
   <a href="https://flutter.dev"><img src="https://img.shields.io/badge/Flutter-02569B?logo=flutter&amp;logoColor=white" alt="Flutter"></a>
