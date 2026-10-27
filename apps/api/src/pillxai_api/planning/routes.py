@@ -9,13 +9,14 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from ..app_settings import AppSettings, read_settings
 from ..contracts import ApiError
-from ..database import metadata, not_found
+from ..database import BusinessError, metadata, not_found
 from ..identity.service import AccountDep, ConnectionDep
 from ..prescriptions.service import current_prescriptions
 from ..residents.service import resident_row
+from ..residents.tables import residents
 from ..tasks.coverage import completed_until
 from .engine import calculate
-from .models import PlanPreview, PlanSnapshot, PreviewRequest
+from .models import PlanPreview, PlanSnapshot, PreparationItem, PreviewRequest
 
 previews = Table(
     "plan_previews",
@@ -29,6 +30,44 @@ previews = Table(
 router = APIRouter(
     tags=["planning"], responses={code: {"model": ApiError} for code in (401, 404, 422)}
 )
+
+
+@router.get("/preparation", operation_id="list_preparation", response_model=list[PreparationItem])
+def list_preparation(account: AccountDep, connection: ConnectionDep):
+    configuration = AppSettings.model_validate(read_settings(connection))
+    today = datetime.now(ZoneInfo(configuration.timezone)).date()
+    result = []
+    for resident in connection.execute(select(residents).order_by(residents.c.name)).mappings():
+        sources = current_prescriptions(connection, resident["id"])
+        coverage = completed_until(connection, resident["id"])
+        issue = None
+        try:
+            dates, trays = calculate(
+                sources,
+                configuration,
+                today,
+                configuration.preparation_days,
+                configuration.split_meals,
+                coverage,
+            )
+            count = sum(len(tray.medicines) for tray in trays)
+        except BusinessError as error:
+            if error.code == "no_demand":
+                continue
+            dates, count, issue = [], len(sources), error.message
+        result.append(
+            PreparationItem(
+                resident_id=resident["id"],
+                name=resident["name"],
+                bed=resident["bed"],
+                early=coverage is not None and (coverage - today).days + 1 > 2,
+                medicine_count=count,
+                dates=dates,
+                coverage_through=coverage,
+                issue=issue,
+            )
+        )
+    return result
 
 
 @router.post(
@@ -88,8 +127,10 @@ def get_preview(plan_id: Uuid, account: AccountDep, connection: ConnectionDep):
     configuration = AppSettings.model_validate(read_settings(connection, lock=True))
     resident = resident_row(connection, snapshot.resident_id, lock=True)
     sources = current_prescriptions(connection, snapshot.resident_id)
+
     def versions(rows):
         return {(str(row.id), row.revision) for row in rows}
+
     current = (
         configuration.revision == snapshot.settings.revision
         and resident["revision"] == snapshot.resident_revision

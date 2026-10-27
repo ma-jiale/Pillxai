@@ -5,6 +5,7 @@ import '../data/backend_connection.dart';
 import '../data/settings_controller.dart';
 import '../data/terminal_controller.dart';
 import 'prepare_execution_dialog.dart';
+import 'terminal_device_dialog.dart';
 import '../models/prescription_controller.dart';
 import '../models/prescription_store.dart';
 import '../theme/app_page.dart';
@@ -14,8 +15,8 @@ import '../widgets/profile_avatar.dart';
 import '../widgets/prescription_forms.dart' show formatDate;
 import '../widgets/server_plan_pattern.dart';
 
-/// Uses server snapshots only; there is no local schedule calculation or machine action.
-class PlanPreviewPage extends StatelessWidget {
+/// Queue classification is supplied by the server, including actual coverage.
+class PlanPreviewPage extends StatefulWidget {
   const PlanPreviewPage({
     super.key,
     required this.backend,
@@ -27,73 +28,214 @@ class PlanPreviewPage extends StatelessWidget {
   final PrescriptionController residents;
   final SettingsController settings;
   final TerminalController? terminal;
+  @override
+  State<PlanPreviewPage> createState() => _PlanPreviewPageState();
+}
+
+class _PlanPreviewPageState extends State<PlanPreviewPage>
+    with WidgetsBindingObserver {
+  List<api.PreparationItem> items = [];
+  bool loading = true;
+  bool early = false;
+  String query = '';
+  String? error;
+  int generation = 0;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    widget.residents.addListener(reload);
+    widget.settings.addListener(reload);
+    reload();
+  }
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: residents,
-    builder: (context, _) => Padding(
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    widget.residents.removeListener(reload);
+    widget.settings.removeListener(reload);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) reload();
+  }
+
+  Future<void> reload() async {
+    final request = ++generation;
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      final result = await widget.backend.request(
+        api.PlanningApi(widget.backend.client).listPreparation(),
+      );
+      if (result == null) throw const SaveFailure('待摆清单读取失败，请重试。');
+      if (mounted && request == generation) setState(() => items = result);
+    } catch (failure) {
+      if (mounted && request == generation) {
+        setState(() => error = failure.toString());
+      }
+    } finally {
+      if (mounted && request == generation) setState(() => loading = false);
+    }
+  }
+
+  Future<void> prepare(api.PreparationItem item) async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => ServerPlanDialog(
+        backend: widget.backend,
+        resident: Resident(
+          id: item.residentId,
+          name: item.name,
+          bed: item.bed,
+          medicines: [],
+        ),
+        residents: widget.residents,
+        settings: widget.settings,
+        terminal: widget.terminal,
+      ),
+    );
+    if (mounted) reload();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = items
+        .where(
+          (item) =>
+              item.early == early &&
+              ('${item.name} ${item.bed}').toLowerCase().contains(
+                query.toLowerCase(),
+              ),
+        )
+        .toList();
+    return Padding(
       padding: AppPage.insets(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (residents.loading) const LinearProgressIndicator(),
-          if (residents.error != null) Text(residents.error!),
-          if (residents.residents.isEmpty && !residents.loading)
-            const Expanded(child: Center(child: Text('请先在处方管理添加长者与用药。')))
-          else
-            Expanded(
-              child: Surface(
-                child: ListView.separated(
-                  itemCount: residents.residents.length,
-                  separatorBuilder: (_, _) => const Divider(height: 32),
-                  itemBuilder: (context, index) {
-                    final resident = residents.residents[index];
-                    return LayoutBuilder(
-                      builder: (context, bounds) {
-                        final identity = ResidentIdentity(
-                          name: resident.name,
-                          bed: resident.bed,
-                          asset: resident.avatarAsset,
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              for (final value in [false, true])
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xff232323),
+                    backgroundColor: early == value
+                        ? const Color(0xffefeff1)
+                        : Colors.transparent,
+                  ),
+                  onPressed: () => setState(() => early = value),
+                  child: Text(
+                    '${value ? "提前准备" : "待准备"}${loading || error != null ? "" : " ${items.where((item) => item.early == value).length}"}',
+                  ),
+                ),
+              IconButton(
+                tooltip: '刷新待摆清单',
+                onPressed: loading ? null : reload,
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            onChanged: (value) => setState(() => query = value.trim()),
+            decoration: const InputDecoration(
+              hintText: '搜索姓名或床位',
+              prefixIcon: Icon(Icons.search_rounded),
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (loading) const LinearProgressIndicator(),
+          Expanded(
+            child: error != null
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(error!, textAlign: TextAlign.center),
+                        TextButton(
+                          onPressed: reload,
+                          child: const Text('重新加载'),
+                        ),
+                      ],
+                    ),
+                  )
+                : loading
+                ? const SizedBox()
+                : visible.isEmpty
+                ? Center(
+                    child: Text(
+                      query.isEmpty
+                          ? '暂无需要${early ? "提前" : ""}准备的长者'
+                          : '没有找到匹配的长者',
+                    ),
+                  )
+                : Surface(
+                    child: ListView.separated(
+                      itemCount: visible.length,
+                      separatorBuilder: (_, _) => const Divider(height: 36),
+                      itemBuilder: (context, index) {
+                        final item = visible[index];
+                        final detail =
+                            item.issue ??
+                            '${item.medicineCount} 种药'
+                                '${item.dates.isEmpty ? "" : " · ${formatDate(item.dates.first)} — ${formatDate(item.dates.last)}"}';
+                        final identity = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ResidentIdentity(name: item.name, bed: item.bed),
+                            const SizedBox(height: 12),
+                            Text(
+                              detail,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: item.issue == null
+                                    ? const Color(0xff777777)
+                                    : Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                          ],
                         );
                         final action = OutlinedButton(
-                          key: ValueKey('preview-${resident.id}'),
-                          onPressed: () => showDialog<void>(
-                            context: context,
-                            builder: (_) => ServerPlanDialog(
-                              backend: backend,
-                              resident: resident,
-                              residents: residents,
-                              settings: settings,
-                              terminal: terminal,
-                            ),
-                          ),
-                          child: const Text('预览计划'),
+                          key: ValueKey('preview-${item.residentId}'),
+                          onPressed: widget.terminal?.active == true
+                              ? null
+                              : () => prepare(item),
+                          child: const Text('开始摆药'),
                         );
-                        return bounds.maxWidth < 420
-                            ? Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  identity,
-                                  const SizedBox(height: 12),
-                                  action,
-                                ],
-                              )
-                            : Row(
-                                children: [
-                                  Expanded(child: identity),
-                                  action,
-                                ],
-                              );
+                        return LayoutBuilder(
+                          builder: (context, bounds) => bounds.maxWidth < 450
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    identity,
+                                    const SizedBox(height: 16),
+                                    action,
+                                  ],
+                                )
+                              : Row(
+                                  children: [
+                                    Expanded(child: identity),
+                                    const SizedBox(width: 24),
+                                    action,
+                                  ],
+                                ),
+                        );
                       },
-                    );
-                  },
-                ),
-              ),
-            ),
+                    ),
+                  ),
+          ),
         ],
       ),
-    ),
-  );
+    );
+  }
 }
 
 class ServerPlanDialog extends StatefulWidget {
@@ -227,7 +369,7 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('摆药计划', style: TextStyle(fontSize: 20)),
+              const Text('确认摆药信息', style: TextStyle(fontSize: 20)),
               const SizedBox(height: 12),
               Text(
                 '${snapshot?.residentName ?? widget.resident.name} · ${snapshot?.bed ?? widget.resident.bed}',
@@ -286,10 +428,7 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
                   '${formatDate(snapshot.dates.first)} — ${formatDate(snapshot.dates.last)}',
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  preview!.message,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
+                if (!preview!.current) Text(preview!.message),
                 const SizedBox(height: 16),
                 Flexible(
                   child: SingleChildScrollView(
@@ -349,24 +488,60 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
                               if (!await _checkVersion() || !context.mounted) {
                                 return;
                               }
+                              final terminal = widget.terminal!;
+                              if (!terminal.connected) {
+                                await showDialog<void>(
+                                  context: context,
+                                  builder: (_) =>
+                                      TerminalDeviceDialog(terminal: terminal),
+                                );
+                                return;
+                              }
+                              setState(() => loading = true);
+                              await terminal.claim(preview!.snapshot);
+                              if (!context.mounted) return;
+                              if (terminal.task != null) {
+                                Navigator.pop(context);
+                              } else {
+                                setState(() {
+                                  loading = false;
+                                  error = terminal.error;
+                                });
+                              }
+                            },
+                      child: const Text('开仓放入药盒'),
+                    ),
+                  if (widget.terminal?.supported == true &&
+                      widget.terminal!.canMaintain)
+                    TextButton(
+                      onPressed:
+                          snapshot == null ||
+                              loading ||
+                              !preview!.current ||
+                              widget.terminal!.active
+                          ? null
+                          : () async {
+                              if (!await _checkVersion() || !context.mounted) {
+                                return;
+                              }
                               final claimed = await showDialog<bool>(
                                 context: context,
                                 builder: (_) => PrepareExecutionDialog(
-                                  plan: preview!.snapshot,
                                   terminal: widget.terminal!,
+                                  plan: preview!.snapshot,
                                 ),
                               );
                               if (claimed == true && context.mounted) {
                                 Navigator.pop(context);
                               }
                             },
-                      child: const Text('上机准备'),
+                      child: const Text('药盒与出药设置'),
                     ),
                   OutlinedButton(
                     onPressed: loading ? null : _generate,
-                    child: const Text('重新生成'),
+                    child: const Text('刷新计划'),
                   ),
-                  FilledButton(
+                  OutlinedButton(
                     onPressed: snapshot == null || !preview!.current || loading
                         ? null
                         : () async {

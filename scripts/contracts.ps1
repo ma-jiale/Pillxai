@@ -32,6 +32,16 @@ foreach ($model in Get-ChildItem (Join-Path $target 'lib/model') -Filter '*.dart
     }
     if ($fixed -ne $source) { [IO.File]::WriteAllText($model.FullName, $fixed, [Text.UTF8Encoding]::new($false)) }
 }
+# Generator 7.26 loses the nullable response cast for ParameterView. A new
+# prescription legitimately returns JSON null until its parameters are saved.
+# Keep this correction in generation so --Check also detects regressions.
+$executionApiPath = Join-Path $target 'lib/api/execution_api.dart'
+$executionApiSource = [IO.File]::ReadAllText($executionApiPath)
+$parameterCast = "deserializeAsync(await _decodeBodyBytes(response), 'ParameterView',) as ParameterView;"
+if (-not $executionApiSource.Contains($parameterCast)) { throw 'Review nullable ParameterView normalization after generator changes.' }
+$executionApiSource = $executionApiSource.Replace($parameterCast, "deserializeAsync(await _decodeBodyBytes(response), 'ParameterView',) as ParameterView?;")
+[IO.File]::WriteAllText($executionApiPath, $executionApiSource, [Text.UTF8Encoding]::new($false))
+
 # This generator emits legacy publishing helpers; they are not part of our SDK.
 foreach ($artifact in @('git_push.sh', '.travis.yml')) {
     $artifactPath = Join-Path $target $artifact

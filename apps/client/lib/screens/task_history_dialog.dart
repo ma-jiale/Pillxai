@@ -66,6 +66,18 @@ class _TaskHistoryDialogState extends State<TaskHistoryDialog> {
                                     '计划 ${batch.total} 颗 · 反馈 ${task.counts[batch.index]} 颗 · ${task.completedBatches.contains(batch.index) ? "收到完成反馈" : "未确认完成"}',
                                   ),
                                 ),
+                              for (final result in task.learningResults)
+                                ListTile(
+                                  title: Text(
+                                    '${task.batches[result.batch].name} · 参数学习',
+                                  ),
+                                  subtitle: Text(result.message),
+                                  trailing: result.gate == null
+                                      ? null
+                                      : Text(
+                                          '初速度 ${result.turntable!.toStringAsFixed(3)} · 舵机 ${result.gate!.toStringAsFixed(4)}',
+                                        ),
+                                ),
                             ],
                           ),
                         )

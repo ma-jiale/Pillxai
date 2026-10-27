@@ -24,6 +24,8 @@ class BatchPlan {
     required this.total,
     this.matrix = const [],
     required this.parameters,
+    this.learningEnabled = false,
+    this.hadValidHistory = false,
   });
 
   final int index;
@@ -48,6 +50,10 @@ class BatchPlan {
 
   final ParameterView parameters;
 
+  final bool learningEnabled;
+
+  final bool hadValidHistory;
+
   @override
   bool operator ==(Object other) => identical(this, other) || other is BatchPlan &&
     other.index == index &&
@@ -60,7 +66,9 @@ class BatchPlan {
     other.purpose == purpose &&
     other.total == total &&
     _deepEquality.equals(other.matrix, matrix) &&
-    other.parameters == parameters;
+    other.parameters == parameters &&
+    other.learningEnabled == learningEnabled &&
+    other.hadValidHistory == hadValidHistory;
 
   @override
   int get hashCode =>
@@ -75,10 +83,12 @@ class BatchPlan {
     (purpose.hashCode) +
     (total.hashCode) +
     (matrix.hashCode) +
-    (parameters.hashCode);
+    (parameters.hashCode) +
+    (learningEnabled.hashCode) +
+    (hadValidHistory.hashCode);
 
   @override
-  String toString() => 'BatchPlan[index=$index, tray=$tray, prescriptionId=$prescriptionId, medicineId=$medicineId, name=$name, strength=$strength, feedForm=$feedForm, purpose=$purpose, total=$total, matrix=$matrix, parameters=$parameters]';
+  String toString() => 'BatchPlan[index=$index, tray=$tray, prescriptionId=$prescriptionId, medicineId=$medicineId, name=$name, strength=$strength, feedForm=$feedForm, purpose=$purpose, total=$total, matrix=$matrix, parameters=$parameters, learningEnabled=$learningEnabled, hadValidHistory=$hadValidHistory]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -93,6 +103,8 @@ class BatchPlan {
       json[r'total'] = this.total;
       json[r'matrix'] = this.matrix;
       json[r'parameters'] = this.parameters;
+      json[r'learning_enabled'] = this.learningEnabled;
+      json[r'had_valid_history'] = this.hadValidHistory;
     return json;
   }
 
@@ -110,6 +122,8 @@ class BatchPlan {
     int? total,
     List<List<int>>? matrix,
     ParameterView? parameters,
+    bool? learningEnabled,
+    bool? hadValidHistory,
   }) => BatchPlan(
     index: index ?? this.index,
     tray: tray ?? this.tray,
@@ -122,6 +136,8 @@ class BatchPlan {
     total: total ?? this.total,
     matrix: matrix ?? this.matrix,
     parameters: parameters ?? this.parameters,
+    learningEnabled: learningEnabled ?? this.learningEnabled,
+    hadValidHistory: hadValidHistory ?? this.hadValidHistory,
   );
 
   /// Returns a new [BatchPlan] instance and imports its values from
@@ -176,6 +192,8 @@ class BatchPlan {
             ).toList()
           :  const [],
         parameters: ParameterView.fromJson(json[r'parameters'])!,
+        learningEnabled: mapValueOfType<bool>(json, r'learning_enabled') ?? false,
+        hadValidHistory: mapValueOfType<bool>(json, r'had_valid_history') ?? false,
       );
     }
     return null;

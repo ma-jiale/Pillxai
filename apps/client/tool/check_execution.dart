@@ -24,7 +24,11 @@ Future<void> main() async {
   ) as Map;
   final credentials = (credentialsFile['accounts'] as List)
       .cast<Map>()
-      .firstWhere((r) => r['username'] == 'local-admin');
+      .firstWhere(
+        (r) =>
+            r['username'] ==
+            (credentialsFile['administrator_username'] ?? 'local-admin'),
+      );
   final client = ApiClient(basePath: 'http://127.0.0.1:8000');
   final run = newId();
   final journal = ExecutionJournal(
@@ -56,7 +60,7 @@ Future<void> main() async {
     );
     for (final before in [true, false]) {
       final prescriptionId = newId();
-      final prescription = (await PrescriptionsApi(client).savePrescription(
+      await PrescriptionsApi(client).savePrescription(
         run,
         prescriptionId,
         SavePrescription(
@@ -76,17 +80,6 @@ Future<void> main() async {
             startDate: DateTime(2026, 10, 26),
             endDate: null,
           ),
-        ),
-      ))!;
-      await execution.saveParameters(
-        run,
-        prescriptionId,
-        MedicationParameters(
-          expectedRevision: 0,
-          medicineId: prescription.medicineId,
-          turntable: 1,
-          gate: .5,
-          simulationOnly: true,
         ),
       );
     }
@@ -110,7 +103,7 @@ Future<void> main() async {
       ),
     ))!;
     final preview = (await PlanningApi(client)
-        .createPlanPreview(run, PreviewRequest(days: 2, splitMeals: true)))!;
+        .createPlanPreview(run, PreviewRequest(days: 7, splitMeals: true)))!;
     final claimed = (await execution.claimTask(
       newId(),
       ClaimTask(
@@ -137,7 +130,10 @@ Future<void> main() async {
                 .toList(),
           ),
         ))!;
-        engine.acknowledge(saved.sequence);
+        engine.acknowledge(
+          saved.sequence,
+          learningResults: saved.learningResults,
+        );
       }
       return saved ?? (await execution.getTask(claimed.id))!;
     }
@@ -188,11 +184,27 @@ Future<void> main() async {
       'Completion did not release both owners',
     );
     check(
+      completed.learningResults.length == 2,
+      'Missing batch learning records',
+    );
+    for (final result in completed.learningResults) {
+      check(
+        result.status == 'simulated',
+        'Simulation learning failed: ${result.message}',
+      );
+      check((result.gate! - 0.305).abs() < 0.000001, 'Unexpected learned gate');
+      check(
+        (result.turntable! - 0.30).abs() < 0.000001,
+        'Unexpected learned speed',
+      );
+      check(result.evidence.validSamples == 14, 'Pulse sample count mismatch');
+    }
+    check(
       machine.writes.where((b) => b[2] == 5).length == 2,
       'Matrix replayed',
     );
     final next = (await PlanningApi(client)
-        .createPlanPreview(run, PreviewRequest(days: 2, splitMeals: true)))!;
+        .createPlanPreview(run, PreviewRequest(days: 7, splitMeals: true)))!;
     check(
       next.snapshot.dates.first == preview.snapshot.dates.first,
       'Simulation advanced real coverage',
@@ -216,6 +228,8 @@ Future<void> main() async {
         'collection_ready',
         'idempotent_upload',
         'simulation_no_coverage',
+        'batch_learning_pulse_evidence',
+        'simulated_learning_does_not_modify_hardware_parameters',
       ],
     };
     await File('../../.var/execution-check/latest.json')

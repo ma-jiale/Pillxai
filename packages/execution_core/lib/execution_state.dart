@@ -29,6 +29,8 @@ class ExecutionState {
   String message = '';
   String? uid;
   DateTime? uidAt;
+  String? barcode;
+  DateTime? barcodeAt;
   bool permitted = false;
   bool matrixIssued = false;
   bool cancelRequested = false;
@@ -56,6 +58,8 @@ class ExecutionState {
     'message': message,
     'uid': uid,
     'uid_at': uidAt?.toUtc().toIso8601String(),
+    'barcode': barcode,
+    'barcode_at': barcodeAt?.toUtc().toIso8601String(),
     'permitted': permitted,
     'matrix_issued': matrixIssued,
     'cancel_requested': cancelRequested,
@@ -79,6 +83,8 @@ class ExecutionState {
     ..message = json['message'] as String
     ..uid = json['uid'] as String?
     ..uidAt = DateTime.tryParse(json['uid_at'] as String? ?? '')
+    ..barcode = json['barcode'] as String?
+    ..barcodeAt = DateTime.tryParse(json['barcode_at'] as String? ?? '')
     ..permitted = json['permitted'] as bool
     ..matrixIssued = json['matrix_issued'] as bool? ?? false
     ..cancelRequested = json['cancel_requested'] as bool? ?? false

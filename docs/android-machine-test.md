@@ -21,6 +21,17 @@
 
 同机后端按 `apps/api/README.md` 启动。USB reverse 需要保持 USB 调试连接；实际断网验收使用平板可达的服务器地址。Debug/Profile 允许开发 HTTP；Release 禁止明文 HTTP，须配置 HTTPS。当前 Release 签名仍沿用开发密钥，正式签名与发布尚未交付。
 
+电脑和平板连接同一手机热点时，本机已配置的 WSL 镜像网络可直接提供 API。先停止已有 API 进程，再执行：
+
+```powershell
+.\scripts\backend.ps1 db-start
+.\scripts\backend.ps1 serve -ApiHost 0.0.0.0
+# 在另一个终端构建；地址应替换为当次电脑 WLAN IPv4
+.\scripts\run-android.ps1 -ApiUrl http://192.168.26.246:8000 -DeviceId <adb设备编号>
+```
+
+此方式不使用 `-ReverseLocalApi`。用平板浏览器打开同一地址的 `/health/ready`，并核对服务端来自平板 IP 的 200 响应，才能确认局域网连通；仅 IP 同网段不能代替验证。热点地址改变后需要重新构建安装。API 进程和电脑须保持运行。
+
 ## 首次连接 HC-06
 
 1. 在 Android 系统蓝牙设置中配对已确认的机器。应用只列出已配对设备，不扫描附近设备、不猜测 PIN 或自动选择机器。

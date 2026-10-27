@@ -20,7 +20,8 @@ Future<void> main() async {
     await File('../../.var/local-login.json').readAsString(),
   ) as Map;
   final credentials = (file['accounts'] as List).cast<Map>().firstWhere(
-    (row) => row['username'] == 'local-admin',
+    (row) =>
+        row['username'] == (file['administrator_username'] ?? 'local-admin'),
   );
   final client = ApiClient(basePath: 'http://127.0.0.1:8000');
   AppSettings? original;

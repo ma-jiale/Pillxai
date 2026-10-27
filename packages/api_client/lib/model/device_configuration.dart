@@ -24,6 +24,7 @@ class DeviceConfiguration {
     this.trayAbsentLine = '',
     this.readyLine = '',
     this.feedbackVerified = false,
+    this.barcodeRemovalCloses = false,
   });
 
   final String name;
@@ -48,6 +49,8 @@ class DeviceConfiguration {
 
   final bool feedbackVerified;
 
+  final bool barcodeRemovalCloses;
+
   @override
   bool operator ==(Object other) => identical(this, other) || other is DeviceConfiguration &&
     other.name == name &&
@@ -60,7 +63,8 @@ class DeviceConfiguration {
     other.trayPresentLine == trayPresentLine &&
     other.trayAbsentLine == trayAbsentLine &&
     other.readyLine == readyLine &&
-    other.feedbackVerified == feedbackVerified;
+    other.feedbackVerified == feedbackVerified &&
+    other.barcodeRemovalCloses == barcodeRemovalCloses;
 
   @override
   int get hashCode =>
@@ -75,10 +79,11 @@ class DeviceConfiguration {
     (trayPresentLine.hashCode) +
     (trayAbsentLine.hashCode) +
     (readyLine.hashCode) +
-    (feedbackVerified.hashCode);
+    (feedbackVerified.hashCode) +
+    (barcodeRemovalCloses.hashCode);
 
   @override
-  String toString() => 'DeviceConfiguration[name=$name, identity=$identity, terminalId=$terminalId, mode=$mode, rows=$rows, reverseColumns=$reverseColumns, positionsVerified=$positionsVerified, trayPresentLine=$trayPresentLine, trayAbsentLine=$trayAbsentLine, readyLine=$readyLine, feedbackVerified=$feedbackVerified]';
+  String toString() => 'DeviceConfiguration[name=$name, identity=$identity, terminalId=$terminalId, mode=$mode, rows=$rows, reverseColumns=$reverseColumns, positionsVerified=$positionsVerified, trayPresentLine=$trayPresentLine, trayAbsentLine=$trayAbsentLine, readyLine=$readyLine, feedbackVerified=$feedbackVerified, barcodeRemovalCloses=$barcodeRemovalCloses]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -93,6 +98,7 @@ class DeviceConfiguration {
       json[r'tray_absent_line'] = this.trayAbsentLine;
       json[r'ready_line'] = this.readyLine;
       json[r'feedback_verified'] = this.feedbackVerified;
+      json[r'barcode_removal_closes'] = this.barcodeRemovalCloses;
     return json;
   }
 
@@ -110,6 +116,7 @@ class DeviceConfiguration {
     String? trayAbsentLine,
     String? readyLine,
     bool? feedbackVerified,
+    bool? barcodeRemovalCloses,
   }) => DeviceConfiguration(
     name: name ?? this.name,
     identity: identity ?? this.identity,
@@ -122,6 +129,7 @@ class DeviceConfiguration {
     trayAbsentLine: trayAbsentLine ?? this.trayAbsentLine,
     readyLine: readyLine ?? this.readyLine,
     feedbackVerified: feedbackVerified ?? this.feedbackVerified,
+    barcodeRemovalCloses: barcodeRemovalCloses ?? this.barcodeRemovalCloses,
   );
 
   /// Returns a new [DeviceConfiguration] instance and imports its values from
@@ -162,6 +170,7 @@ class DeviceConfiguration {
         trayAbsentLine: mapValueOfType<String>(json, r'tray_absent_line') ?? '',
         readyLine: mapValueOfType<String>(json, r'ready_line') ?? '',
         feedbackVerified: mapValueOfType<bool>(json, r'feedback_verified') ?? false,
+        barcodeRemovalCloses: mapValueOfType<bool>(json, r'barcode_removal_closes') ?? false,
       );
     }
     return null;

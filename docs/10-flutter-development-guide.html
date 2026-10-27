@@ -305,7 +305,7 @@
           <tr><td>计划冻结</td><td>未开始时处方或布局变化使计划失效；任一药开始后整个任务沿用完整快照，不能悄悄替换后续药矩阵。变更信息和人员处理另留记录。</td><td>R04、A17、A81</td></tr>
           <tr><td>任务归属</td><td>中央事务防止同长者同日期时段重复安排，以及一机同时领多个任务。未开始可取消；已开始、暂停、失联均不释放成可抢占任务。</td><td>R05、A36–A41、A74</td></tr>
           <tr><td>参数归属</td><td>以稳定的处方药物条目为边界。新增或复制条目从设备默认值起；同条目普通日期修改可延续经验；药物、规格或整半片形态变化重新调整。</td><td>R14、A64–A69、A75</td></tr>
-          <tr><td>参数回传</td><td>记录实际使用值及版本。基础版本或形态改变时，过时回传只存历史，不覆盖当前值。当前批次临时调节不等于显式保存处方参数。</td><td>R14、A76–A77</td></tr>
+          <tr><td>参数回传</td><td>记录实际使用值及版本。基础版本或形态改变时，过时回传只存历史，不覆盖当前值。当前批次手动调节不立即覆盖处方参数；正常完成后的学习按 <a href="04-device-contract.md#新参数与学习策略">04 的当前参数规则</a>执行。</td><td>R14、A76–A77</td></tr>
           <tr><td>完成与覆盖</td><td>设备完成反馈与人工完成分别保存；跳过和未知不产生覆盖。只有累计量的部分批次不能推断哪些格完成；摆药完成不代表服药完成。</td><td>03 数量与时间、R01</td></tr>
           <tr><td>长期历史</td><td>业务版本、计划、原始反馈、采样、附件长期保留；未知值不写成零。一般更正追加关系，不改写原事实。异常“结束不记录”的已确认例外见下一节。</td><td>03 历史和更正、长期留存</td></tr>
           <tr><td>长者与标签</td><td>稳定长者身份不等于床位；床位可空，同院所有已登记长者的完整床位去首尾空格查重。一人可绑定多个 RFID，一个有效标签在本院只属一人；不增加独立盒号。</td><td>B09、F03–F04、R06</td></tr>
@@ -375,7 +375,7 @@
           <li>真实适配器与模拟器共用语义入口；模拟事件始终带演练标记，不能混入实际覆盖和统计。</li>
         </ul>
         <h3>已确认的正常命令顺序</h3>
-        <p><strong>开仓放盒 → 自动核验长者 → 保存启动 → 本药转盘/舵机参数 → 本药矩阵 → 累计反馈及完成 → 下一药或开仓换盘 → 实际取盒 → 收轨道。</strong>首次矩阵前不额外关仓；暂停恢复不重发矩阵；换盘须重新识别通过，确认后不再重复要求一次开始操作。</p>
+        <p><strong>开仓放盒 → 自动核验长者 → 保存启动 → 本药转盘初速度/舵机参数 → 本药矩阵 → 累计反馈及完成 → 下一药或开仓换盘 → 实际取盒 → 收轨道。</strong>首次矩阵前不额外关仓；暂停恢复不重发矩阵；换盘须重新识别通过，确认后不再重复要求一次开始操作。</p>
         <p>异常跳过按“停转并等 ACK → 退出本药并等 ACK、DONE → 才能进入下一药或开仓”。等待超时进入可解释的核对状态，不用固定延迟猜测机械动作已经完成。</p>
         <p>舵机调节沿用 04 / P07 的 <code>0–1</code> 设备刻度、<code>0.01</code> 步长；数值越小开口越大。连续拖动只保留最新待发值，约 400 ms 防抖，结束操作可立即提交；初次显示、重连和页面重建不自动发送初值。批次改变时取消旧待发调整。</p>
         <div class="note"><p><strong>首阶段就做硬件可行性验证。</strong>先测目标平板上的连接、读写、前后台与恢复，再扩展完整界面。如果需要保留现场电脑或增加网关，它会改变终端归属和使用方式，应先由用户确认；不能在后期把这一变化当成普通实现细节。</p></div>
@@ -383,7 +383,8 @@
         <p>Android 执行任务从可见界面启动 <a href="https://developer.android.com/develop/background-work/services/fgs/service-types#connected-device">connectedDevice 前台服务</a>，保留运行通知并持续保存事实。前台服务本身不保证 CPU 一直运行；按实际执行阶段评估有界 partial wake lock，任务结束即释放，见 <a href="https://developer.android.com/develop/background-work/background-tasks/awake">Android 保持唤醒说明</a>。不能依靠屏幕常亮完成锁屏验收。</p>
         <p>应用内“停止并退出”可执行停机握手。最近任务划走可接入 <a href="https://developer.android.com/reference/android/app/Service#onTaskRemoved(android.content.Intent)">onTaskRemoved</a>，但需真机验证，不能把 stopWithTask 属性当成已发送停机。Android 的 <a href="https://developer.android.com/develop/background-work/services/fgs/handle-user-stopping">活动应用 / Task Manager 停止</a>会结束应用且不发回调；强行停止、崩溃、断电也不能保证最终命令。HC-06 失联时机器如何停止，仍需实际设备事实。</p>
         <p>iPad / iPhone 属于后续阶段，其实际构建、签名与真机测试需要 macOS、Xcode 和 Apple 签名配置。当前 Windows 主机不能代替该验证，见 <a href="https://docs.flutter.dev/platform-integration/ios/setup">Flutter iOS 开发设置</a>。</p>
-        <p>新参数初值与学习策略基于本次实测设计，不继承旧公式或旧参数经验；配置允许打开学习不等于公式已经可用于生产。原始脉宽保存原值与质量，单位未经确认不换算；样本不足、异常或版本过时不生成新的有效学习结果。</p>
+        <p>2026-10-27 用户确认：STM32 在单次分药过程中自动调速，上位机只设置本药的转盘初速度。当前参数与学习逻辑暂沿用 V1 Home 基线：默认开启学习，无可用历史时初速度 <code>0.2</code>、舵机 <code>0.7</code>；样本筛选、公式和人工调整权重暂保持 V1，后续再改。完整规则统一见 <a href="04-device-contract.md#新参数与学习策略">04：新参数与学习策略</a>，该节为当前唯一权威定义。</p>
+        <p>每份处方药物条目的独立归属、版本保护和形态变化处理继续按 R14，不迁移旧学习数据。原始脉宽保存原值与质量，单位未经确认不换算。上述内容是当前目标规则，本轮只更新文档，未修改代码；当前准备入口仍需逐药输入参数，自动学习接入状态及实机结果以<a href="validation/2026-10-26-execution.md">执行验证报告</a>等实际验证记录为准。</p>
       </section>
 
       <section class="chapter" id="contracts">
@@ -478,7 +479,7 @@ def particle_count(dose: Decimal, form: FeedForm) -&gt; int:
           <div class="milestone"><div class="mile-label">M0</div><div class="mile-content"><h3>完善统一界面，验证 Android 技术路径</h3><p>已建立 Flutter 工程与统一极简界面，保留精简信息、三入口侧栏、平板比例和 Pillxai 品牌区；当前按同一风格完善处方管理及其余页面的状态与操作。当前 Material 3 加小型自定义设计层使用内存演示数据，运行和验证结果见<a href="../apps/client/README.md">客户端说明</a>。接下来验证 FastAPI 健康接口、契约生成、本地 SQLite 事务与模拟设备入口，并在目标 Android 平板验证 HC-06 连接、前台服务、切后台和锁屏。</p><div class="gate"><strong>通过门槛：</strong>统一极简风格已获用户确认，处方流程与各页状态仍需完善和验证；Dart 与 Python 解释同一固定样例；本地重启读取可复现；目标平板连接与后台执行有真实测试结果，未通过的物理停止能力明确列出。当前 GUI 预览不代表本阶段全部通过。</div></div></div>
           <div class="milestone"><div class="mile-label">M1</div><div class="mile-content"><h3>贯通一个最小工作人员流程</h3><p>按选定风格，用虚构新资料完成登录 → 建长者与一种药 → 预览 → 领取 → 模拟识别 → 开始本药 → 反馈及完成 → 检测取盒与收回 → 记录查询。前端、服务、本地持久化和补传使用真实实现；机器是明确标记的模拟器。同步加入单任务断网续摆、重复补传、取消不计覆盖，以及发送后未确认即重启的固定故障样例。</p><div class="gate"><strong>通过门槛：</strong>一次操作能追到同一机构、任务、批次和结果；切页不丢状态；重复点击不产生第二次启动；补传不重复结果；异常重启后进入核对，已取消任务不自动恢复执行。</div></div></div>
           <div class="milestone"><div class="mile-label">M2</div><div class="mile-content"><h3>把业务规则与现场处理补齐</h3><p>加入多药、半片、分盘、睡前、疗程、覆盖、权限、处方独立参数、人工处理和删除例外。完善平板触控与表单体验；记录查询与新标签 PDF 同步进入完整流程。</p><div class="gate"><strong>通过门槛：</strong>相关 A01–A95 案例有明确自动化或人工验证结果；异常不伪造成功；已确认规则未丢失；用户能独立操作主要页面。</div></div></div>
-          <div class="milestone"><div class="mile-label">M3</div><div class="mile-content"><h3>完成首发平板与真实机器闭环</h3><p>直连 HC-06，验证行列、序号、ACK/DONE/FINISH、暂停与跳过；每次换盘识别通过才能继续，稳定检测取盒后自动收回，失败人工确认。验证长任务切后台与锁屏、受控退出停机及取消、断连和系统强杀后的真实机器行为。新参数初值与学习策略只采用本次实测依据。</p><div class="gate"><strong>通过门槛：</strong>真实流程完成；后台与锁屏仍正确执行；退出后的软件状态和物理状态均有证据。不能可靠停机的情形明确整改，不宣称已满足退出要求。</div></div></div>
+          <div class="milestone"><div class="mile-label">M3</div><div class="mile-content"><h3>完成首发平板与真实机器闭环</h3><p>直连 HC-06，验证行列、序号、ACK/DONE/FINISH、暂停与跳过；每次换盘识别通过才能继续，稳定检测取盒后自动收回，失败人工确认。验证长任务切后台与锁屏、受控退出停机及取消、断连和系统强杀后的真实机器行为。按 <a href="04-device-contract.md#新参数与学习策略">04 的当前参数基线</a>验证初速度下发、STM32 单次内自动调速与沿用 V1 的批次后学习；记录实际接入与实测结果。</p><div class="gate"><strong>通过门槛：</strong>真实流程完成；后台与锁屏仍正确执行；退出后的软件状态和物理状态均有证据。不能可靠停机的情形明确整改，不宣称已满足退出要求。</div></div></div>
           <div class="milestone"><div class="mile-label">M4</div><div class="mile-content"><h3>验证多院多机、离线和长期数据</h3><p>覆盖并发领取、数据隔离、24 会话、8 小时运行、重复补传、过时参数回传、长期查询和大导出。穿插网络断开、磁盘错误、服务重启和删除中断。</p><div class="gate"><strong>通过门槛：</strong>任务与记录不串线，重复不增加动作或覆盖；失去的尾部信息可解释；目标性能在记录的实际环境下达标或明确整改。</div></div></div>
           <div class="milestone"><div class="mile-label">M5</div><div class="mile-content"><h3>交给普通工作人员使用</h3><p>由开发者下载安装包并手动安装到机构平板，验证首次配置、账号管理、连续摆药、诊断导出、同签名包升级与数据保留。统一公网服务完成备份恢复演练，本机未上传事实另做恢复验证。</p><div class="gate"><strong>通过门槛：</strong>工作人员无需开发者终端即可完成日常任务；开发者可完成安装、备份与恢复；交付报告列出已通过、未通过、未实测项。</div></div></div>
           <div class="milestone"><div class="mile-label">后续</div><div class="mile-content"><h3>扩展其他设备与平台</h3><p>逐个平台验收布局、输入、设备能力、生命周期、保存、签名和发布。手机可先从管理与查询能力切入；是否控制机器按实际场景确定。Windows、iOS/iPadOS 和网页端的顺序由用户优先级决定。</p><div class="gate"><strong>通过门槛：</strong>共享业务结果一致，平台能力有独立证据；没有连接能力的端不开放虚假的执行入口。</div></div></div>
@@ -518,7 +519,7 @@ def particle_count(dose: Decimal, form: FeedForm) -&gt; int:
         <p>首发由开发者下载已签名 APK，手动安装到机构统一管理的平板；同一应用标识和签名用于后续升级，签名密钥由开发者妥善保管。升级安排在任务结束、取盒完成且本机空闲后，先验证数据与待传项保留。首发不要求自动更新或商店发布。发布资料包含版本、最低系统要求、接口兼容范围、完整性校验与已知限制；Windows 和 iOS 的分发在对应阶段确定。</p>
         <h3>备份、留存与迁移</h3>
         <p>沿用中央每日备份、RPO 24 小时 / RTO 4 小时的设计目标，覆盖数据库与附件，实际恢复演练后才报告达标。中央备份不包含尚未上传的本机事实；本机重启和补传单独演练。新系统业务与原始采样长期留存，不自动按年龄删除；显式“不记录”删除例外按第 07 节处理。</p>
-        <p><strong>新版从新数据开始，不迁移或兼容旧资料。</strong>旧长者资料、处方、RFID 绑定、药品图片、历史结果和参数经验均不导入，也不沿用旧参数公式作为默认。新系统重新建立资料、标签和绑定；真实 HC-06 的通信仍需独立验证和适配。开发样例使用明确的虚构新数据；“不做旧数据迁移”不免除新版自身后续升级的数据迁移与备份恢复。</p>
+        <p><strong>新版从新数据开始，不迁移或兼容旧资料。</strong>旧长者资料、处方、RFID 绑定、药品图片、历史结果和已学习参数数据均不导入；参数初值与学习逻辑按 <a href="04-device-contract.md#新参数与学习策略">04 的当前规则</a>暂沿用 V1。新系统重新建立资料、标签和绑定；真实 HC-06 的通信仍需独立验证和适配。开发样例使用明确的虚构新数据；“不做旧数据迁移”不免除新版自身后续升级的数据迁移与备份恢复。</p>
         <h3>交付完成的判断</h3>
         <ul>
           <li>普通工作人员能完成多长者、多药、多盘的连续工作，处理暂停、断网、异常和取盒。</li>
@@ -560,7 +561,7 @@ def particle_count(dose: Decimal, form: FeedForm) -&gt; int:
           <li><a href="https://developer.apple.com/documentation/corebluetooth/">Apple Core Bluetooth</a>、<a href="https://developer.apple.com/videos/play/wwdc2019/901/">Core Bluetooth 的 Classic/GATT 说明</a>、<a href="https://developer.apple.com/documentation/externalaccessory/">External Accessory</a>：没有据此确认现有 HC-06 的通用 SPP 直连。</li>
           <li><a href="https://fastapi.tiangolo.com/">FastAPI 官方文档</a>、<a href="https://spec.openapis.org/oas/latest.html">OpenAPI 规范</a>：公开模型、接口描述及客户端生成的依据。</li>
         </ol>
-        <p>本次未读取 legacy 源码、其他旧实现、90/91 历史附录或本地旧版运行记录；机器事实仅采用当前允许阅读的业务与设备文档。需要补证的内容向用户提问或安排实机验证。</p>
+        <p>本文依据当前业务与设备文档维护。2026-10-27 用户专项授权核对 V1 参数规则，并确认当前暂沿用其参数与学习逻辑；当前规则以 <a href="04-device-contract.md#新参数与学习策略">04：新参数与学习策略</a>为准，来源细节见其引用的 V1 规则参考。该授权不涉及迁移旧业务数据或复制旧实现；需要补证的设备事实向用户提问或安排实机验证。</p>
       </section>
 
       <section class="chapter" id="questions">
@@ -570,7 +571,7 @@ def particle_count(dose: Decimal, form: FeedForm) -&gt; int:
         <div class="question"><h3>Q2 · 首台 Android 平板的型号、系统版本与识别设备是什么？</h3><p>请提供型号、Android 版本，以及主要横屏还是竖屏。条码用平板内置摄像头、外接摄像头，还是机器端设备读取？RFID 是否仍由机器回传？</p><p class="answer-line">用于确定摄像头使用位置、蓝牙权限和后台实测环境。Android 平台与直连 HC-06 的方向无需再次确认。</p></div>
         <div class="question"><h3>Q3 · “关闭软件”包括哪些动作？</h3><p>除应用内明确的退出操作外，是否也包括从最近应用列表划掉，以及系统设置中的强制停止？切到其他应用和锁屏已明确为继续执行，不属于退出。</p><p class="answer-line">应用内退出可以执行停机和取消流程；系统强制停止可能没有回调。该场景能否立即物理停机，须检查机器在蓝牙断开后的行为，不能只靠关闭页面实现。</p></div>
         <div class="question"><h3>Q4 · 关闭后的“这次任务不算”，记录希望怎样处理？</h3><p>已明确不计完成、不产生有效覆盖。还需确定：保留一条“已取消”及其执行事实供核对，还是彻底删除本次任务、反馈与结果？</p><p class="answer-line">答复前按取消且保留恢复证据处理，不自动彻底删除。现有明确选择“结束此次分药（不记录）”的删除入口仍按原规则独立处理。</p></div>
-        <div class="question"><h3>Q5 · 机器断连后的行为，有哪些可以先确认？</h3><p>摆药时蓝牙断开或平板被关闭后，机器会立即停止、继续当前动作，还是继续整批？是否有已验证的停止反馈？其余实体行列方向、第四行、光耦序号、ACK/DONE/FINISH 和 RFID 无卡反馈可以在真机联调中观察。</p><p class="answer-line">如果尚不清楚就记录“待实测”；提供现场操作和观察即可，无需提供旧源码。自动取盒检测的稳定窗口与新参数初值也通过新测试确定。</p></div>
+        <div class="question"><h3>Q5 · 机器断连后的行为，有哪些可以先确认？</h3><p>摆药时蓝牙断开或平板被关闭后，机器会立即停止、继续当前动作，还是继续整批？是否有已验证的停止反馈？其余实体行列方向、第四行、光耦序号、ACK/DONE/FINISH 和 RFID 无卡反馈可以在真机联调中观察。</p><p class="answer-line">如果尚不清楚就记录“待实测”；提供现场操作和观察即可，无需提供旧源码。自动取盒检测的稳定窗口通过实测确定；参数初值与学习逻辑已按 <a href="04-device-contract.md#新参数与学习策略">04</a>确认暂沿用 V1，实机验证记录其实际表现。</p></div>
         <div class="closing">答复后直接修订本指南、受影响的现行规则与验收案例。当前已有统一极简界面和三个模块的内存演示交互，重点完善处方管理；实际检查与构建记录见客户端说明。FastAPI、HC-06、后台生命周期与生产持久化仍未实现，真实平板和机器能力尚需验收。</div>
       </section>
     </main>

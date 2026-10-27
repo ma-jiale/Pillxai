@@ -24,10 +24,12 @@ class SettingsPage extends StatefulWidget {
     required this.model,
     required this.accent,
     required this.onAccentChanged,
+    this.onConfigureMapping,
   });
   final SettingsStore model;
   final Color accent;
   final ValueChanged<Color> onAccentChanged;
+  final VoidCallback? onConfigureMapping;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -49,7 +51,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late final _hexController = TextEditingController(text: _hex(widget.accent));
   _Category _category = _Category.general;
   String? _colorError;
-  bool _autoUpdate = true;
+  late bool _autoUpdate = !widget.model.persistent;
   bool _saving = false;
   String? _saveError;
   String? _saveStatus;
@@ -483,6 +485,17 @@ class _SettingsPageState extends State<SettingsPage> {
             : null,
       ),
     ),
+    if (widget.onConfigureMapping != null)
+      _SettingItem(
+        _Category.general,
+        '药盒布局',
+        '实体位置映射',
+        '设置当前机器的时段行位置和日期列方向。',
+        OutlinedButton(
+          onPressed: widget.onConfigureMapping,
+          child: const Text('设置映射'),
+        ),
+      ),
     _SettingItem(
       _Category.appearance,
       '界面颜色',
@@ -552,11 +565,13 @@ class _SettingsPageState extends State<SettingsPage> {
       _Category.about,
       '软件更新',
       '自动更新',
-      '有新版本时，在空闲状态下自动下载并安装；摆药期间不安装。',
+      widget.model.persistent ? '当前由维护人员安装更新。' : '有新版本时，在空闲状态下自动下载并安装；摆药期间不安装。',
       Switch(
         key: const ValueKey('auto-update'),
         value: _autoUpdate,
-        onChanged: (value) => setState(() => _autoUpdate = value),
+        onChanged: widget.model.persistent
+            ? null
+            : (value) => setState(() => _autoUpdate = value),
       ),
     ),
   ];

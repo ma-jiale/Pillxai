@@ -228,7 +228,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('已摆 7 / 14 颗'), findsOneWidget);
+      expect(find.bySemanticsLabel('已摆 7 / 14 颗'), findsOneWidget);
+      await tester.ensureVisible(find.text('暂停'));
       await tester.tap(find.text('暂停'));
       await tester.pumpAndSettle();
       expect(host.operations, contains('pause'));
@@ -236,7 +237,8 @@ void main() {
       await tester.tap(find.text('继续'));
       await tester.pumpAndSettle();
       expect(host.operations, contains('resume'));
-      await tester.tap(find.text('设备与反馈'));
+      await tester.ensureVisible(find.text('查看设备'));
+      await tester.tap(find.text('查看设备'));
       await tester.pumpAndSettle();
       expect(find.byType(TerminalDeviceDialog), findsOneWidget);
       expect(
@@ -330,6 +332,8 @@ void main() {
             home: Scaffold(body: TerminalDeviceDialog(terminal: terminal)),
           ),
         );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('添加或配置设备'));
         await tester.pumpAndSettle();
         expect(find.text('Android 蓝牙 HC-06'), findsOneWidget);
         expect(find.text('已配对设备的蓝牙地址'), findsOneWidget);

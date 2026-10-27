@@ -21,6 +21,8 @@ class ExecutionEngine {
       state.connected = false;
       state.uid = null;
       state.uidAt = null;
+      state.barcode = null;
+      state.barcodeAt = null;
       state.pending = null;
       if (state.active && state.phase != ExecutionPhase.deleting) {
         state.phase = ExecutionPhase.recovery;
@@ -46,12 +48,42 @@ class ExecutionEngine {
 
   api.BatchPlan get batch => task!.batches[state.batch];
   bool get active => task != null;
-  bool get recognized =>
-      state.uid != null &&
-      state.uidAt != null &&
-      DateTime.now().toUtc().difference(state.uidAt!) <
-          const Duration(seconds: 30) &&
-      task!.labels.contains(state.uid);
+  String? _owner(String source, String? value) {
+    if (task == null || value == null) return null;
+    for (final binding in task!.recognitionBindings) {
+      if (binding.source_.toJson() == source && binding.value == value) {
+        return binding.residentId;
+      }
+    }
+    if (source == 'rfid' && task!.labels.contains(value)) {
+      return task!.plan.residentId;
+    }
+    return null;
+  }
+
+  bool get recognitionConflict {
+    final rfid = _owner('rfid', state.uid);
+    final barcode = _owner('barcode', state.barcode);
+    return rfid != null && barcode != null && rfid != barcode;
+  }
+
+  String? get recognitionSource {
+    if (!state.connected || task == null || recognitionConflict) return null;
+    if (_owner('barcode', state.barcode) == task!.plan.residentId) {
+      return 'barcode';
+    }
+    if (_owner('rfid', state.uid) == task!.plan.residentId) return 'rfid';
+    return null;
+  }
+
+  bool get recognized => recognitionSource != null;
+
+  void _clearRecognition() {
+    state.uid = null;
+    state.uidAt = null;
+    state.barcode = null;
+    state.barcodeAt = null;
+  }
 
   Map<String, dynamic> view() => {
     'terminal_id': journal.terminalId,
@@ -62,9 +94,21 @@ class ExecutionEngine {
     'raw_lines': rawLines,
     'pending_count': task == null ? 0 : journal.pendingCount(task!.id),
     'recognized': task != null && recognized,
+    'recognition_source': recognitionSource,
+    'recognition_value': recognitionSource == 'barcode'
+        ? state.barcode
+        : state.uid,
+    'recognition_at':
+        (recognitionSource == 'barcode' ? state.barcodeAt : state.uidAt)
+            ?.toIso8601String(),
+    'recognition_conflict': recognitionConflict,
     'storage_failed': storageFailed,
     'configuration': journal.setting('connection'),
     'claim_intent': journal.setting('claim_intent'),
+    'learning_results':
+        task?.learningResults.map((r) => r.toJson()).toList() ??
+        journal.setting('latest_learning_results') ??
+        [],
   };
 
   void _save(String kind, [Map<String, dynamic>? detail]) {
@@ -86,6 +130,13 @@ class ExecutionEngine {
 
   Future<void> connect(DeviceTransport next) async {
     if (state.connected) throw StateError('请先断开当前连接。');
+    if (active &&
+        [
+          ExecutionPhase.completed,
+          ExecutionPhase.cancelled,
+        ].contains(state.phase)) {
+      throw StateError('任务结果尚未同步，请先等待同步完成。');
+    }
     if (state.phase == ExecutionPhase.deleting) {
       throw StateError('任务正在删除，不能连接设备。');
     }
@@ -97,6 +148,8 @@ class ExecutionEngine {
     observedAt = null;
     state.uid = null;
     state.uidAt = null;
+    state.barcode = null;
+    state.barcodeAt = null;
     if (!active) {
       state.phase = ExecutionPhase.idle;
       state.pending = null;
@@ -116,7 +169,15 @@ class ExecutionEngine {
   Future<void> disconnect() async {
     await transport?.close();
     state.connected = false;
-    if (active && state.phase != ExecutionPhase.deleting) {
+    _clearRecognition();
+    observedUid = null;
+    observedAt = null;
+    if (active &&
+        ![
+          ExecutionPhase.deleting,
+          ExecutionPhase.completed,
+          ExecutionPhase.cancelled,
+        ].contains(state.phase)) {
       _fault('设备连接已断开，请核对现场。');
     }
   }
@@ -133,6 +194,7 @@ class ExecutionEngine {
       throw StateError('任务归属或阶段不正确。');
     }
     task = claimed;
+    journal.setSetting('latest_learning_results', null);
     state = ExecutionState()
       ..connected = true
       ..phase = ExecutionPhase.opening;
@@ -174,7 +236,7 @@ class ExecutionEngine {
   Future<void> _beginBatch() async {
     state.phase = ExecutionPhase.starting;
     state.count = 0;
-    state.gate = batch.parameters.gate.toDouble();
+    state.gate ??= batch.parameters.gate.toDouble();
     state.matrixIssued = false;
     state.message = '正在下发当前药物参数';
     await _send('turntable');
@@ -208,6 +270,7 @@ class ExecutionEngine {
 
   Future<void> setGate(double value) async {
     if (![
+      ExecutionPhase.ready,
       ExecutionPhase.running,
       ExecutionPhase.paused,
     ].contains(state.phase)) {
@@ -264,8 +327,25 @@ class ExecutionEngine {
     rawLines.clear();
   }
 
-  void acknowledge(int sequence) {
+  void acknowledge(
+    int sequence, {
+    List<api.LearningResult>? learningResults,
+    api.TaskState? taskState,
+  }) {
     if (task == null) return;
+    // A cancelled server receipt can settle an older client's spurious recovery,
+    // only after every local event has been accepted. Never discard pending work.
+    if (taskState == api.TaskState.cancelled && sequence >= state.sequence) {
+      state.phase = ExecutionPhase.cancelled;
+    }
+    if (learningResults != null) {
+      task = task!.copyWith(learningResults: learningResults);
+      journal.save(task!, state);
+      journal.setSetting(
+        'latest_learning_results',
+        learningResults.map((r) => r.toJson()).toList(),
+      );
+    }
     journal.acknowledge(task!.id, sequence);
     if ([
           ExecutionPhase.completed,
@@ -285,6 +365,7 @@ class ExecutionEngine {
   }
 
   void _fault(String message) {
+    _clearRecognition();
     state.phase = ExecutionPhase.recovery;
     state.pending = null;
     _nextCommand = null;
@@ -322,8 +403,8 @@ class ExecutionEngine {
       }
       if (state.phase == ExecutionPhase.ready && !recognized) {
         state.phase = ExecutionPhase.recognizing;
-        state.message = '识别已过期，等待新的药盒反馈。';
-        _save('recognition_expired');
+        state.message = '等待新的药盒识别。';
+        _save('recognition_lost');
       }
       if (state.phase == ExecutionPhase.collecting &&
           !state.trayPresent &&
@@ -343,6 +424,9 @@ class ExecutionEngine {
     } catch (error) {
       if (!storageFailed) {
         state.connected = false;
+        _clearRecognition();
+        observedUid = null;
+        observedAt = null;
         _fault('设备通信失败：$error');
         await transport?.close();
       }
@@ -361,7 +445,8 @@ class ExecutionEngine {
       observedAt = null;
     }
     if (!active) {
-      if (event.kind == DeviceEventKind.acknowledged && state.pending == 'open') {
+      if (event.kind == DeviceEventKind.acknowledged &&
+          state.pending == 'open') {
         state.acknowledged = true;
       }
       if (event.kind == DeviceEventKind.actionDone &&
@@ -373,8 +458,24 @@ class ExecutionEngine {
       }
       return;
     }
-    _save('feedback', event.toJson());
+    // Opening-related stalls are diagnostic only by the current device policy.
+    // Keep raw evidence; parameters, dispensing and closing still fault.
+    final ignoredOpeningStall =
+        event.kind == DeviceEventKind.stalled &&
+        [
+          ExecutionPhase.opening,
+          ExecutionPhase.changingTray,
+          ExecutionPhase.recognizing,
+          ExecutionPhase.ready,
+          ExecutionPhase.collecting,
+        ].contains(state.phase);
+    _save('feedback', {
+      ...event.toJson(),
+      if (ignoredOpeningStall) 'ignored_reason': 'opening_phase',
+    });
+    if (ignoredOpeningStall) return;
     if (event.kind == DeviceEventKind.initialized) {
+      _clearRecognition();
       state.resetObserved = true;
       _fault('机器报告重新初始化，原批次进度不能直接恢复。');
       return;
@@ -388,7 +489,35 @@ class ExecutionEngine {
       return;
     }
     final config = task!.device.configuration;
-    if (config.feedbackVerified) {
+    final collectionCodes = task!.recognitionBindings.where(
+      (binding) =>
+          binding.source_ == api.RecognitionBindingSource_Enum.barcode &&
+          binding.residentId == task!.plan.residentId,
+    );
+    final collectionCode = collectionCodes.length == 1
+        ? collectionCodes.single.value
+        : null;
+    if (config.barcodeRemovalCloses) {
+      if (state.phase == ExecutionPhase.closing &&
+          event.kind == DeviceEventKind.barcodeAppeared) {
+        _fault('收仓期间再次识别到药盒，请核对现场。');
+        return;
+      }
+      if (state.phase == ExecutionPhase.collecting &&
+          !state.cancelRequested &&
+          state.pending == null &&
+          collectionCode != null &&
+          event.kind == DeviceEventKind.barcodeDisappeared &&
+          event.barcode == collectionCode) {
+        state.trayPresent = false;
+        state.absentAt = DateTime.now().toUtc();
+        state.phase = ExecutionPhase.closing;
+        state.closeDone = false;
+        state.readyObserved = false;
+        state.message = '药盒已取出，正在收回轨道。';
+        await _send('close');
+      }
+    } else if (config.feedbackVerified) {
       if (event.raw.trim() == config.trayPresentLine) {
         state.trayPresent = true;
         state.absentAt = null;
@@ -403,7 +532,7 @@ class ExecutionEngine {
           state.absentAt ??= DateTime.now().toUtc();
         }
         if (state.phase == ExecutionPhase.ready) {
-          state.uid = null;
+          _clearRecognition();
           state.phase = ExecutionPhase.recognizing;
         }
       }
@@ -415,25 +544,53 @@ class ExecutionEngine {
     if ([
       ExecutionPhase.recognizing,
       ExecutionPhase.ready,
+      ExecutionPhase.starting,
+      ExecutionPhase.running,
+      ExecutionPhase.paused,
+      ExecutionPhase.pausing,
+      ExecutionPhase.resuming,
     ].contains(state.phase)) {
+      var recognitionChanged = false;
       if (event.kind == DeviceEventKind.rfid) {
         state.uid = event.uid;
         state.uidAt = DateTime.now().toUtc();
-        state.phase = task!.labels.contains(event.uid)
-            ? ExecutionPhase.ready
-            : ExecutionPhase.recognizing;
-        state.message = state.phase == ExecutionPhase.ready
-            ? '药盒识别通过，请核对并开始。'
-            : '当前药盒不属于这位长者。';
-        _save('recognition', {
-          'uid': event.uid,
-          'matched': state.phase == ExecutionPhase.ready,
-        });
+        recognitionChanged = true;
       } else if (event.kind == DeviceEventKind.noCard) {
         state.uid = null;
         state.uidAt = null;
-        state.phase = ExecutionPhase.recognizing;
-        _save('recognition_lost');
+        recognitionChanged = true;
+      } else if (event.kind == DeviceEventKind.barcodeAppeared) {
+        state.barcode = event.barcode;
+        state.barcodeAt = DateTime.now().toUtc();
+        recognitionChanged = true;
+      } else if (event.kind == DeviceEventKind.barcodeDisappeared &&
+          state.barcode == event.barcode) {
+        state.barcode = null;
+        state.barcodeAt = null;
+        recognitionChanged = true;
+      }
+      if (recognitionChanged) {
+        if ([
+          ExecutionPhase.recognizing,
+          ExecutionPhase.ready,
+        ].contains(state.phase)) {
+          state.phase = recognized
+              ? ExecutionPhase.ready
+              : ExecutionPhase.recognizing;
+          state.message = recognitionConflict
+              ? 'RFID 与条码归属不一致，请核对药盒。'
+              : recognized
+              ? '已识别：${task!.plan.residentName}，请核对并开始。'
+              : state.uid == null && state.barcode == null
+              ? '请放入药盒，等待识别。'
+              : '当前药盒未匹配这位长者。';
+        }
+        _save(recognized ? 'recognition' : 'recognition_lost', {
+          'source': event.barcode != null ? 'barcode' : 'rfid',
+          'value': event.barcode ?? event.uid,
+          'matched': recognized,
+          'conflict': recognitionConflict,
+        });
       }
     }
     if (event.kind == DeviceEventKind.acknowledged &&
@@ -489,6 +646,7 @@ class ExecutionEngine {
         final previousTray = batch.tray;
         state.batch++;
         state.count = 0;
+        state.gate = null;
         if (batch.tray != previousTray) {
           state.openPurpose = 'change';
           state.phase = ExecutionPhase.changingTray;
@@ -518,8 +676,11 @@ class ExecutionEngine {
       state.phase = ExecutionPhase.completed;
       state.message = '本次已完成，药盒已离轨、设备已就绪。';
       _save('collection_ready', {
-        'absent': config.trayAbsentLine,
-        'ready': config.readyLine,
+        if (config.barcodeRemovalCloses) 'source': 'barcode',
+        'absent': config.barcodeRemovalCloses
+            ? 'DISAPPEARED,$collectionCode'
+            : config.trayAbsentLine,
+        'ready': config.barcodeRemovalCloses ? 'ACK,DONE' : config.readyLine,
       });
     }
   }
@@ -535,13 +696,14 @@ class ExecutionEngine {
     }
     switch (command) {
       case 'open':
-        state.uid = null;
-        state.uidAt = null;
+        _clearRecognition();
         state.absentAt = null;
         if (state.openPurpose == 'collect') {
           state.phase = ExecutionPhase.collecting;
           state.trayPresent = true;
-          state.message = '药物处理结束，请取出药盒。等待有效离轨及就绪反馈。';
+          state.message = task!.device.configuration.barcodeRemovalCloses
+              ? '本次药物已摆完，请取出药盒，轨道将自动收回。'
+              : '药物处理结束，请取出药盒。等待有效离轨及就绪反馈。';
         } else {
           state.phase = ExecutionPhase.recognizing;
           state.message = state.openPurpose == 'change'
@@ -566,6 +728,8 @@ class ExecutionEngine {
         state.message = '已收到停转确认，请核对机器、药盒和药物后结束。';
       case 'close':
         state.closeDone = true;
+        if (task!.device.configuration.barcodeRemovalCloses)
+          state.readyObserved = true;
       case 'manual_gate':
         state.message = '开口设置已下发，请核对现场。';
     }
@@ -573,6 +737,10 @@ class ExecutionEngine {
   }
 
   Future<void> _send(String command, {double? gate}) async {
+    if (command == 'matrix' && !recognized) {
+      _fault('下发矩阵前药盒识别已失效，请核对现场。');
+      return;
+    }
     if (storageFailed || !state.connected || state.pending != null) {
       throw StateError('设备未连接、命令未确认或保存失败。');
     }
@@ -582,7 +750,9 @@ class ExecutionEngine {
       'turntable' => Stm32Commands.setTurntable(
         batch.parameters.turntable.toDouble(),
       ),
-      'gate' => Stm32Commands.setGate(batch.parameters.gate.toDouble()),
+      'gate' => Stm32Commands.setGate(
+        state.gate ?? batch.parameters.gate.toDouble(),
+      ),
       'matrix' => Stm32Commands.matrix(batch.matrix),
       'pause' || 'stop_cancel' => Stm32Commands.stop(),
       'resume' => Stm32Commands.resume(),
@@ -591,7 +761,6 @@ class ExecutionEngine {
       _ => throw ArgumentError(command),
     };
     state.pending = command;
-    if (command == 'manual_gate') state.gate = gate;
     state.acknowledged = false;
     if (command == 'matrix') state.matrixIssued = true;
     _deadline = DateTime.now().add(commandTimeout);
@@ -603,6 +772,17 @@ class ExecutionEngine {
     try {
       await transport!.write(bytes);
       _save('written', {'command': command});
+      if (command == 'manual_gate') {
+        state.gate = gate;
+        _save('manual_gate_written', {'gate': gate});
+      }
+      if (command == 'matrix') {
+        _save('batch_started', {
+          'gate': state.gate ?? batch.parameters.gate.toDouble(),
+          'turntable': batch.parameters.turntable,
+          'parameter_revision': batch.parameters.revision,
+        });
+      }
     } catch (error) {
       _fault('写出结果未知：$error');
       rethrow;

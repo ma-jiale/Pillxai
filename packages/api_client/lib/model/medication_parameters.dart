@@ -18,6 +18,8 @@ class MedicationParameters {
     required this.turntable,
     required this.gate,
     this.simulationOnly = false,
+    this.learningEnabled = true,
+    this.hasValues = true,
   });
 
   /// Minimum value: 0
@@ -34,13 +36,19 @@ class MedicationParameters {
 
   final bool simulationOnly;
 
+  final bool learningEnabled;
+
+  final bool hasValues;
+
   @override
   bool operator ==(Object other) => identical(this, other) || other is MedicationParameters &&
     other.expectedRevision == expectedRevision &&
     other.medicineId == medicineId &&
     other.turntable == turntable &&
     other.gate == gate &&
-    other.simulationOnly == simulationOnly;
+    other.simulationOnly == simulationOnly &&
+    other.learningEnabled == learningEnabled &&
+    other.hasValues == hasValues;
 
   @override
   int get hashCode =>
@@ -49,10 +57,12 @@ class MedicationParameters {
     (medicineId.hashCode) +
     (turntable.hashCode) +
     (gate.hashCode) +
-    (simulationOnly.hashCode);
+    (simulationOnly.hashCode) +
+    (learningEnabled.hashCode) +
+    (hasValues.hashCode);
 
   @override
-  String toString() => 'MedicationParameters[expectedRevision=$expectedRevision, medicineId=$medicineId, turntable=$turntable, gate=$gate, simulationOnly=$simulationOnly]';
+  String toString() => 'MedicationParameters[expectedRevision=$expectedRevision, medicineId=$medicineId, turntable=$turntable, gate=$gate, simulationOnly=$simulationOnly, learningEnabled=$learningEnabled, hasValues=$hasValues]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -61,6 +71,8 @@ class MedicationParameters {
       json[r'turntable'] = this.turntable;
       json[r'gate'] = this.gate;
       json[r'simulation_only'] = this.simulationOnly;
+      json[r'learning_enabled'] = this.learningEnabled;
+      json[r'has_values'] = this.hasValues;
     return json;
   }
 
@@ -72,12 +84,16 @@ class MedicationParameters {
     num? turntable,
     num? gate,
     bool? simulationOnly,
+    bool? learningEnabled,
+    bool? hasValues,
   }) => MedicationParameters(
     expectedRevision: expectedRevision ?? this.expectedRevision,
     medicineId: medicineId ?? this.medicineId,
     turntable: turntable ?? this.turntable,
     gate: gate ?? this.gate,
     simulationOnly: simulationOnly ?? this.simulationOnly,
+    learningEnabled: learningEnabled ?? this.learningEnabled,
+    hasValues: hasValues ?? this.hasValues,
   );
 
   /// Returns a new [MedicationParameters] instance and imports its values from
@@ -108,6 +124,8 @@ class MedicationParameters {
         turntable: num.parse('${json[r'turntable']}'),
         gate: num.parse('${json[r'gate']}'),
         simulationOnly: mapValueOfType<bool>(json, r'simulation_only') ?? false,
+        learningEnabled: mapValueOfType<bool>(json, r'learning_enabled') ?? true,
+        hasValues: mapValueOfType<bool>(json, r'has_values') ?? true,
       );
     }
     return null;

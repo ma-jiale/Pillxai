@@ -15,8 +15,10 @@ class StartTask {
   StartTask({
     required this.terminalId,
     required this.expectedRevision,
-    required this.uid,
+    this.uid,
+    this.barcode,
     required this.observedAt,
+    this.checkedAt,
   });
 
   final String terminalId;
@@ -24,34 +26,56 @@ class StartTask {
   /// Minimum value: 1
   final int expectedRevision;
 
-  final String uid;
+  final String? uid;
+
+  final String? barcode;
 
   final DateTime observedAt;
+
+  final DateTime? checkedAt;
 
   @override
   bool operator ==(Object other) => identical(this, other) || other is StartTask &&
     other.terminalId == terminalId &&
     other.expectedRevision == expectedRevision &&
     other.uid == uid &&
-    other.observedAt == observedAt;
+    other.barcode == barcode &&
+    other.observedAt == observedAt &&
+    other.checkedAt == checkedAt;
 
   @override
   int get hashCode =>
     // ignore: unnecessary_parenthesis
     (terminalId.hashCode) +
     (expectedRevision.hashCode) +
-    (uid.hashCode) +
-    (observedAt.hashCode);
+    (uid == null ? 0 : uid!.hashCode) +
+    (barcode == null ? 0 : barcode!.hashCode) +
+    (observedAt.hashCode) +
+    (checkedAt == null ? 0 : checkedAt!.hashCode);
 
   @override
-  String toString() => 'StartTask[terminalId=$terminalId, expectedRevision=$expectedRevision, uid=$uid, observedAt=$observedAt]';
+  String toString() => 'StartTask[terminalId=$terminalId, expectedRevision=$expectedRevision, uid=$uid, barcode=$barcode, observedAt=$observedAt, checkedAt=$checkedAt]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
       json[r'terminal_id'] = this.terminalId;
       json[r'expected_revision'] = this.expectedRevision;
+    if (this.uid != null) {
       json[r'uid'] = this.uid;
+    } else {
+      json[r'uid'] = null;
+    }
+    if (this.barcode != null) {
+      json[r'barcode'] = this.barcode;
+    } else {
+      json[r'barcode'] = null;
+    }
       json[r'observed_at'] = this.observedAt.toUtc().toIso8601String();
+    if (this.checkedAt != null) {
+      json[r'checked_at'] = this.checkedAt!.toUtc().toIso8601String();
+    } else {
+      json[r'checked_at'] = null;
+    }
     return json;
   }
 
@@ -61,12 +85,19 @@ class StartTask {
     String? terminalId,
     int? expectedRevision,
     String? uid,
+    bool uidSetToNull = false,
+    String? barcode,
+    bool barcodeSetToNull = false,
     DateTime? observedAt,
+    DateTime? checkedAt,
+    bool checkedAtSetToNull = false,
   }) => StartTask(
     terminalId: terminalId ?? this.terminalId,
     expectedRevision: expectedRevision ?? this.expectedRevision,
-    uid: uid ?? this.uid,
+    uid: uidSetToNull ? null : uid ?? this.uid,
+    barcode: barcodeSetToNull ? null : barcode ?? this.barcode,
     observedAt: observedAt ?? this.observedAt,
+    checkedAt: checkedAtSetToNull ? null : checkedAt ?? this.checkedAt,
   );
 
   /// Returns a new [StartTask] instance and imports its values from
@@ -84,8 +115,6 @@ class StartTask {
         assert(json[r'terminal_id'] != null, 'Required key "StartTask[terminal_id]" has a null value in JSON.');
         assert(json.containsKey(r'expected_revision'), 'Required key "StartTask[expected_revision]" is missing from JSON.');
         assert(json[r'expected_revision'] != null, 'Required key "StartTask[expected_revision]" has a null value in JSON.');
-        assert(json.containsKey(r'uid'), 'Required key "StartTask[uid]" is missing from JSON.');
-        assert(json[r'uid'] != null, 'Required key "StartTask[uid]" has a null value in JSON.');
         assert(json.containsKey(r'observed_at'), 'Required key "StartTask[observed_at]" is missing from JSON.');
         assert(json[r'observed_at'] != null, 'Required key "StartTask[observed_at]" has a null value in JSON.');
         return true;
@@ -94,8 +123,10 @@ class StartTask {
       return StartTask(
         terminalId: mapValueOfType<String>(json, r'terminal_id')!,
         expectedRevision: mapValueOfType<int>(json, r'expected_revision')!,
-        uid: mapValueOfType<String>(json, r'uid')!,
+        uid: mapValueOfType<String>(json, r'uid'),
+        barcode: mapValueOfType<String>(json, r'barcode'),
         observedAt: mapDateTime(json, r'observed_at', r'')!,
+        checkedAt: mapDateTime(json, r'checked_at', r''),
       );
     }
     return null;
@@ -145,7 +176,6 @@ class StartTask {
   static const requiredKeys = <String>{
     'terminal_id',
     'expected_revision',
-    'uid',
     'observed_at',
   };
 }

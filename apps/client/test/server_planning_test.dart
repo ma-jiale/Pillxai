@@ -160,6 +160,18 @@ void main() {
       final requests = <Map<String, dynamic>>[];
       var failed = false;
       final backend = connection((request) async {
+        if (request.url.path == '/preparation') {
+          return jsonResponse([
+            {
+              'resident_id': residentId,
+              'name': '服务端长者',
+              'bed': 'A-1',
+              'early': false,
+              'medicine_count': 1,
+              'dates': ['2026-10-26'],
+            },
+          ]);
+        }
         if (request.method == 'POST') {
           requests.add(jsonDecode(request.body) as Map<String, dynamic>);
           if (failed) {
@@ -196,10 +208,14 @@ void main() {
           ),
         ),
       );
-      await tester.tap(find.text('预览计划'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('开始摆药'));
       await tester.pumpAndSettle();
       expect(find.textContaining('25 颗 · 原片／粒等价量 12.5'), findsOneWidget);
-      expect(find.text('开始摆药'), findsNothing);
+      expect(
+        find.text('准备药盒'),
+        findsNothing,
+      ); // Web preview has no machine controls.
       await tester.tap(find.text('预览摆药图案'));
       await tester.pumpAndSettle();
       expect(find.text('25颗\n点击查看'), findsOneWidget);
@@ -216,12 +232,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         tester
-            .widget<FilledButton>(find.widgetWithText(FilledButton, '预览摆药图案'))
+            .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '预览摆药图案'))
             .onPressed,
         isNull,
       );
       failed = true;
-      await tester.tap(find.text('重新生成'));
+      await tester.tap(find.text('刷新计划'));
       await tester.pumpAndSettle();
       expect(find.text('当前没有需要准备的用药。'), findsOneWidget);
       expect(tester.takeException(), isNull);

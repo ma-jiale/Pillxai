@@ -8,6 +8,8 @@ from ..identity.service import require_maintain
 from ..planning.routes import get_preview, previews
 from ..prescriptions.service import prescription_row
 from ..residents.service import resident_row
+from ..residents.tables import residents
+from .learning import evaluate_batch, select_parameters
 from .models import BatchPlan, DeviceMode, DeviceView, ParameterView, TaskState, TaskView
 from .tables import devices, events, labels, parameters, tasks, tombstones
 
@@ -64,6 +66,9 @@ def save_parameters(connection, account, resident_id, prescription_id, request):
         turntable=request.turntable,
         gate=request.gate,
         simulation_only=request.simulation_only,
+        learning_enabled=request.learning_enabled,
+        has_values=request.has_values,
+        feed_form=source["data"]["feed_form"],
     )
     connection.execute(
         insert(parameters).values(**result.model_dump(), actor_id=account.id, at=datetime.now(UTC))
@@ -144,14 +149,14 @@ def make_batches(connection, task_id, plan, device):
     batches = []
     for tray_index, tray in enumerate(plan.trays):
         for medicine in tray.medicines:
-            parameter = latest_parameters(connection, medicine.prescription.id)
-            if parameter is None or parameter.medicine_id != medicine.prescription.medicine_id:
-                reject(
-                    f"请先保存“{medicine.prescription.data.medicine_name}”当前形态的独立出药参数。",
-                    "parameters_required",
-                )
-            if device.configuration.mode == DeviceMode.hardware and parameter.simulation_only:
-                reject("模拟参数不能用于实机，请逐药保存现场确认的参数。", "parameters_required")
+            previous = latest_parameters(connection, medicine.prescription.id)
+            parameter, had_history = select_parameters(
+                previous,
+                medicine.prescription.id,
+                medicine.prescription.medicine_id,
+                medicine.prescription.data.feed_form.value,
+                simulation=device.configuration.mode == DeviceMode.simulator,
+            )
             matrix = [[0] * 7 for _ in range(4)]
             for day, amounts in enumerate(medicine.particles):
                 column = 6 - day if device.configuration.reverse_columns else day
@@ -170,6 +175,8 @@ def make_batches(connection, task_id, plan, device):
                     total=medicine.total_particles,
                     matrix=matrix,
                     parameters=parameter,
+                    learning_enabled=parameter.learning_enabled,
+                    had_valid_history=had_history,
                 )
             )
     return batches
@@ -216,7 +223,21 @@ def claim(connection, account, task_id, request):
             select(labels.c.uid).where(labels.c.resident_id == preview.snapshot.resident_id)
         ).scalars()
     )
-    if not bound:
+    barcode_rows = (
+        connection.execute(
+            select(residents.c.id, residents.c.barcode).where(residents.c.barcode != "")
+        )
+        .mappings()
+        .all()
+    )
+    bindings = [
+        dict(source="barcode", value=r["barcode"], resident_id=r["id"]) for r in barcode_rows
+    ]
+    bindings += [
+        dict(source="rfid", value=r["uid"], resident_id=r["resident_id"])
+        for r in connection.execute(select(labels)).mappings()
+    ]
+    if not bound and not any(r["id"] == preview.snapshot.resident_id for r in barcode_rows):
         reject("请先为这位长者绑定新系统的药盒标签。", "label_required")
     now = datetime.now(UTC)
     task = TaskView(
@@ -230,6 +251,7 @@ def claim(connection, account, task_id, request):
         plan=preview.snapshot,
         device=device,
         labels=bound,
+        recognition_bindings=bindings,
         batches=make_batches(connection, task_id, preview.snapshot, device),
         sequence=0,
         completed_batches=[],
@@ -271,12 +293,31 @@ def start(connection, account, task_id, request):
     if not preview.current:
         reject(preview.message, "stale_plan")
     observed = request.observed_at
-    if observed.tzinfo is None or not -5 <= (datetime.now(UTC) - observed).total_seconds() <= 30:
+    checked = request.checked_at or observed
+    if (
+        observed.tzinfo is None
+        or checked.tzinfo is None
+        or not -5 <= (datetime.now(UTC) - checked).total_seconds() <= 30
+        or observed > checked
+        or observed < task.plan.created_at
+    ):
         reject("药盒识别已过期，请等待本次新反馈。", "stale_recognition")
-    bound = connection.execute(
-        select(labels.c.resident_id).where(labels.c.uid == request.uid)
-    ).scalar()
-    if bound != task.plan.resident_id or request.uid not in task.labels:
+    if request.barcode is not None:
+        bound = connection.execute(
+            select(residents.c.id).where(residents.c.barcode == request.barcode)
+        ).scalar()
+        in_snapshot = any(
+            b.source == "barcode"
+            and b.value == request.barcode
+            and b.resident_id == task.plan.resident_id
+            for b in task.recognition_bindings
+        )
+    else:
+        bound = connection.execute(
+            select(labels.c.resident_id).where(labels.c.uid == request.uid)
+        ).scalar()
+        in_snapshot = request.uid in task.labels
+    if bound != task.plan.resident_id or not in_snapshot:
         reject("当前药盒不属于这位长者。", "wrong_resident")
     task.state = TaskState.started
     task.started_at = datetime.now(UTC)
@@ -300,7 +341,20 @@ def sync(connection, account, task_id, request):
             reject("事件序号不连续，请先补传前面的记录。", "event_gap")
         if event.batch >= len(task.batches) or event.at.tzinfo is None:
             reject("批次或事件时间无效。")
-        if task.state in (TaskState.completed, TaskState.cancelled):
+        # Older Android builds could reconnect or enter recovery after cancellation.
+        # Retain these diagnostics without reopening the task or accepting controls.
+        late_idle_connection = event.kind == "connected" and event.detail == {}
+        late_cancel_diagnostic = task.state == TaskState.cancelled and (
+            (event.kind == "recovered" and event.detail == {})
+            or (
+                event.kind == "recovery"
+                and set(event.detail) == {"message"}
+                and isinstance(event.detail["message"], str)
+            )
+        )
+        if task.state in (TaskState.completed, TaskState.cancelled) and not (
+            late_idle_connection or late_cancel_diagnostic
+        ):
             reject("任务已结束，不接受新的执行事件。")
         if (
             event.kind in ("count", "batch_finished", "collection_ready")
@@ -327,12 +381,13 @@ def sync(connection, account, task_id, request):
             if len(task.completed_batches) == len(task.batches):
                 task.state = TaskState.awaiting_collection
         if event.kind == "collection_ready":
-            if (
-                task.state != TaskState.awaiting_collection
-                or not task.device.configuration.feedback_verified
-            ):
+            config = task.device.configuration
+            if task.state != TaskState.awaiting_collection:
                 reject("取盒与就绪依据不完整，不能释放任务。")
-            if (
+            if config.barcode_removal_closes:
+                if not barcode_collection_confirmed(connection, task, event.detail):
+                    reject("缺少当前条码消失及收仓 ACK/DONE，不能释放任务。")
+            elif not config.feedback_verified or (
                 event.detail.get("absent") != task.device.configuration.tray_absent_line
                 or event.detail.get("ready") != task.device.configuration.ready_line
             ):
@@ -350,8 +405,93 @@ def sync(connection, account, task_id, request):
                 received_at=datetime.now(UTC),
             )
         )
+        if event.kind in ("batch_finished", "cancelled"):
+            finish_learning(connection, account, task, event.batch)
         task.sequence = event.sequence
     return persist_task(connection, task)
+
+
+def barcode_collection_confirmed(connection, task, detail):
+    codes = {
+        b.value
+        for b in task.recognition_bindings
+        if b.source == "barcode" and b.resident_id == task.plan.resident_id
+    }
+    if len(codes) != 1:
+        return False
+    absent = "DISAPPEARED," + next(iter(codes))
+    if detail != dict(source="barcode", absent=absent, ready="ACK,DONE"):
+        return False
+    stage = 0
+    for record in connection.execute(
+        select(events.c.data).where(events.c.task_id == task.id).order_by(events.c.sequence)
+    ).scalars():
+        kind, data = record["kind"], record["detail"]
+        if kind in ("cancel_intent", "recovery", "recovered"):
+            stage = 0
+        elif kind == "batch_finished" and record["batch"] == len(task.batches) - 1:
+            stage = 1
+        elif stage == 1 and kind == "command_done" and data.get("command") == "open":
+            stage = 2
+        elif stage >= 3 and kind == "feedback" and data.get("kind") == "barcodeAppeared":
+            stage = 0
+        elif stage == 2 and kind == "feedback" and data.get("raw") == absent:
+            stage = 3
+        elif stage == 3 and kind == "written" and data.get("command") == "close":
+            stage = 4
+        elif stage == 4 and kind == "ack" and data.get("command") == "close":
+            stage = 5
+        elif stage == 5 and kind == "command_done" and data.get("command") == "close":
+            stage = 6
+    return stage == 6
+
+
+def finish_learning(connection, account, task, batch_index):
+    if any(result.batch == batch_index for result in task.learning_results):
+        return
+    batch = task.batches[batch_index]
+    records = connection.execute(
+        select(events.c.data).where(events.c.task_id == task.id).order_by(events.c.sequence)
+    ).scalars()
+    result = evaluate_batch(batch, records)
+    if result.status == "calculated" and task.device.configuration.mode == DeviceMode.simulator:
+        result.status = "simulated"
+        result.message = "模拟学习结果已记录，不更新实机参数。"
+    if result.status == "calculated":
+        # owned_task holds the resident lock, also used by manual parameter/shape updates.
+        source = prescription_row(connection, task.plan.resident_id, batch.prescription_id)
+        latest = latest_parameters(connection, batch.prescription_id)
+        current_revision = latest.revision if latest else 0
+        if (
+            current_revision != batch.parameters.revision
+            or source["medicine_id"] != batch.medicine_id
+            or source["data"]["feed_form"] != batch.feed_form
+        ):
+            result.status = "conflict"
+            result.message = "参数已变化，请刷新后重新调整；本批计算保留为历史，未覆盖当前参数。"
+        else:
+            learned = ParameterView(
+                prescription_id=batch.prescription_id,
+                medicine_id=batch.medicine_id,
+                revision=current_revision + 1,
+                turntable=result.turntable,
+                gate=result.gate,
+                simulation_only=task.device.configuration.mode == DeviceMode.simulator,
+                learning_enabled=True,
+                has_values=True,
+                source_task_id=task.id,
+                source_batch=batch.index,
+                feed_form=batch.feed_form,
+            )
+            connection.execute(
+                insert(parameters).values(
+                    **learned.model_dump(), actor_id=account.id, at=datetime.now(UTC)
+                )
+            )
+            result.applied_revision = learned.revision
+            result.status = "saved"
+            result.message = "已保存本条目下次参数。"
+    task.learning_results.append(result)
 
 
 def cancel_unstarted(connection, account, task_id, request):
@@ -373,5 +513,6 @@ def discard(connection, account, task_id, request):
     if task.state in (TaskState.completed, TaskState.cancelled) or not request.physical_scene_safe:
         reject("仅允许在现场已安全处理后删除当前未结束任务。")
     connection.execute(insert(tombstones).values(id=task_id))
+    connection.execute(delete(parameters).where(parameters.c.source_task_id == task_id))
     connection.execute(delete(tasks).where(tasks.c.id == task_id))
     connection.execute(delete(previews).where(previews.c.id == task.plan_id))

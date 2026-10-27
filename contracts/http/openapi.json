@@ -824,6 +824,66 @@
         ]
       }
     },
+    "/preparation": {
+      "get": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "List Preparation",
+        "operationId": "list_preparation",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PreparationItem"
+                  },
+                  "type": "array",
+                  "title": "Response List Preparation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/residents/{resident_id}/plans/preview": {
       "post": {
         "tags": [
@@ -1021,6 +1081,24 @@
               "maxLength": 80,
               "default": "",
               "title": "Query"
+            }
+          },
+          {
+            "name": "barcode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Barcode"
             }
           }
         ],
@@ -3327,6 +3405,16 @@
           },
           "parameters": {
             "$ref": "#/components/schemas/ParameterView"
+          },
+          "learning_enabled": {
+            "type": "boolean",
+            "title": "Learning Enabled",
+            "default": false
+          },
+          "had_valid_history": {
+            "type": "boolean",
+            "title": "Had Valid History",
+            "default": false
           }
         },
         "type": "object",
@@ -3589,6 +3677,11 @@
             "type": "boolean",
             "title": "Feedback Verified",
             "default": false
+          },
+          "barcode_removal_closes": {
+            "type": "boolean",
+            "title": "Barcode Removal Closes",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -3778,6 +3871,199 @@
         ],
         "title": "LabelView"
       },
+      "LearningAdjustment": {
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "applied_to_learning": {
+            "type": "boolean",
+            "title": "Applied To Learning"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sequence",
+          "applied_to_learning"
+        ],
+        "title": "LearningAdjustment"
+      },
+      "LearningEvidence": {
+        "properties": {
+          "initial_gate": {
+            "type": "number",
+            "title": "Initial Gate"
+          },
+          "had_valid_history": {
+            "type": "boolean",
+            "title": "Had Valid History"
+          },
+          "manual_gate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manual Gate"
+          },
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/LearningSample"
+            },
+            "type": "array",
+            "title": "Samples"
+          },
+          "adjustments": {
+            "items": {
+              "$ref": "#/components/schemas/LearningAdjustment"
+            },
+            "type": "array",
+            "title": "Adjustments"
+          },
+          "valid_samples": {
+            "type": "integer",
+            "title": "Valid Samples"
+          }
+        },
+        "type": "object",
+        "required": [
+          "initial_gate",
+          "had_valid_history",
+          "valid_samples"
+        ],
+        "title": "LearningEvidence"
+      },
+      "LearningResult": {
+        "properties": {
+          "batch": {
+            "type": "integer",
+            "title": "Batch"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "base_revision": {
+            "type": "integer",
+            "title": "Base Revision"
+          },
+          "applied_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied Revision"
+          },
+          "median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          },
+          "turntable": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turntable"
+          },
+          "gate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gate"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/LearningEvidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "batch",
+          "status",
+          "message",
+          "base_revision",
+          "evidence"
+        ],
+        "title": "LearningResult"
+      },
+      "LearningSample": {
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "raw_width": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Width"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sequence",
+          "reason"
+        ],
+        "title": "LearningSample"
+      },
       "Login": {
         "properties": {
           "username": {
@@ -3860,6 +4146,16 @@
             "type": "boolean",
             "title": "Simulation Only",
             "default": false
+          },
+          "learning_enabled": {
+            "type": "boolean",
+            "title": "Learning Enabled",
+            "default": true
+          },
+          "has_values": {
+            "type": "boolean",
+            "title": "Has Values",
+            "default": true
           }
         },
         "additionalProperties": false,
@@ -3900,6 +4196,50 @@
             "type": "boolean",
             "title": "Simulation Only",
             "default": false
+          },
+          "learning_enabled": {
+            "type": "boolean",
+            "title": "Learning Enabled",
+            "default": true
+          },
+          "has_values": {
+            "type": "boolean",
+            "title": "Has Values",
+            "default": true
+          },
+          "source_task_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Task Id"
+          },
+          "source_batch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Batch"
+          },
+          "feed_form": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feed Form"
           }
         },
         "type": "object",
@@ -4094,6 +4434,72 @@
         ],
         "title": "PlanTray"
       },
+      "PreparationItem": {
+        "properties": {
+          "resident_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resident Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "bed": {
+            "type": "string",
+            "title": "Bed"
+          },
+          "early": {
+            "type": "boolean",
+            "title": "Early"
+          },
+          "medicine_count": {
+            "type": "integer",
+            "title": "Medicine Count"
+          },
+          "dates": {
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "type": "array",
+            "title": "Dates"
+          },
+          "coverage_through": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Through"
+          },
+          "issue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resident_id",
+          "name",
+          "bed",
+          "early",
+          "medicine_count",
+          "dates"
+        ],
+        "title": "PreparationItem"
+      },
       "PrescriptionData": {
         "properties": {
           "medicine_name": {
@@ -4235,6 +4641,34 @@
         "type": "object",
         "title": "PreviewRequest"
       },
+      "RecognitionBinding": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "rfid",
+              "barcode"
+            ],
+            "title": "Source"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "resident_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resident Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "value",
+          "resident_id"
+        ],
+        "title": "RecognitionBinding"
+      },
       "ResetPassword": {
         "properties": {
           "password": {
@@ -4264,6 +4698,18 @@
             "maxLength": 40,
             "title": "Bed",
             "default": ""
+          },
+          "barcode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Barcode"
           }
         },
         "additionalProperties": false,
@@ -4488,14 +4934,46 @@
             "title": "Expected Revision"
           },
           "uid": {
-            "type": "string",
-            "pattern": "^[0-9A-F]{1,64}$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9A-F]{1,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Uid"
+          },
+          "barcode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Barcode"
           },
           "observed_at": {
             "type": "string",
             "format": "date-time",
             "title": "Observed At"
+          },
+          "checked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
           }
         },
         "additionalProperties": false,
@@ -4503,7 +4981,6 @@
         "required": [
           "terminal_id",
           "expected_revision",
-          "uid",
           "observed_at"
         ],
         "title": "StartTask"
@@ -4655,6 +5132,13 @@
             "type": "array",
             "title": "Labels"
           },
+          "recognition_bindings": {
+            "items": {
+              "$ref": "#/components/schemas/RecognitionBinding"
+            },
+            "type": "array",
+            "title": "Recognition Bindings"
+          },
           "batches": {
             "items": {
               "$ref": "#/components/schemas/BatchPlan"
@@ -4696,6 +5180,13 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "learning_results": {
+            "items": {
+              "$ref": "#/components/schemas/LearningResult"
+            },
+            "type": "array",
+            "title": "Learning Results"
           }
         },
         "type": "object",

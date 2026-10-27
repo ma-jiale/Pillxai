@@ -36,7 +36,9 @@
 
 账号会话有效 12 小时，令牌在服务端只存摘要；停用、改密与重置密码撤销会话。当前仅本机开发验证，生产 HTTPS、登录限流/安全加固及完整备份恢复仍待验收。开发 serve 显式允许 localhost/127.0.0.1 的 5180 预览来源；默认应用配置不开启 CORS 或 `/dev` 路由。
 
-开发 API 监听 `127.0.0.1:8000`，PostgreSQL 监听 `127.0.0.1:5432`。Windows 本机转发已实测；平板和局域网未实测。数据库口令自动创建，保存在未入库的 `.var/backend-password`，本地目录指针在 `.var/backend-pgdata.txt`。这些仅用于开发，正式部署需要独立配置和凭据管理。
+开发 API 默认监听 `127.0.0.1:8000`；在已配置的 WSL 镜像网络中，可使用 `scripts/backend.ps1 serve -ApiHost 0.0.0.0` 开放开发局域网访问。电脑和平板须连接同一网络，并以电脑的 WLAN IPv4 地址构建 Android 客户端；热点重连后须重新核对地址。2026-10-27 已验证实体平板通过手机热点访问 WSL 健康检查，证据见 [Android 报告](../../docs/validation/2026-10-27-android.md)。此参数不修改防火墙或 WSL 系统配置；需要新增系统规则时须单独获得授权。
+
+PostgreSQL 继续只监听 `127.0.0.1:5432`。数据库口令自动创建，保存在未入库的 `.var/backend-password`，本地目录指针在 `.var/backend-pgdata.txt`。这些仅用于开发，正式部署需要独立配置和凭据管理。
 
 Conda 前缀为仓库 `.tools/conda/backend`；环境和下载缓存不入库、不更改全局 PATH。`conda-linux-64.lock` 固定底层工具包，`requirements.lock` 固定 Python 包；重复 bootstrap 使用锁文件，不升级其他项目环境。WSL 发行版可由 PowerShell 的 `-Distribution` 参数指定；Conda 可通过进程变量 `PILLXAI_CONDA` 指定。
 

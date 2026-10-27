@@ -113,6 +113,10 @@ Future<void> runTerminalService() async {
                 session.engine.state.phase != ExecutionPhase.deleting) {
               await session.command('acknowledge', {
                 'sequence': receipt.sequence,
+                'task_state': receipt.state.toJson(),
+                'learning_results': receipt.learningResults
+                    .map((r) => r.toJson())
+                    .toList(),
               });
             }
           }

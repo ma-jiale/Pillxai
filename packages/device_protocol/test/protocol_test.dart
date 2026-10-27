@@ -5,6 +5,29 @@ import 'package:pillxai_execution_core/execution_core.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('camera capture preserves leading zeros across every split', () {
+    final bytes = utf8.encode('APPEARED,000010\r\nDISAPPEARED,000010\r\n');
+    for (var split = 0; split <= bytes.length; split++) {
+      final decoder = FeedbackDecoder();
+      final events = [
+        ...decoder.add(bytes.sublist(0, split)),
+        ...decoder.add(bytes.sublist(split)),
+      ];
+      expect(events.map((e) => e.kind), [
+        DeviceEventKind.barcodeAppeared,
+        DeviceEventKind.barcodeDisappeared,
+      ]);
+      expect(events.map((e) => e.barcode), ['000010', '000010']);
+      expect(events.every((e) => e.uid == null), isTrue);
+    }
+    for (final raw in [
+      'APPEARED,',
+      'DISAPPEARED,000010,extra',
+      'APPEARED,000 010',
+    ]) {
+      expect(parseFeedback(raw).kind, DeviceEventKind.unknown);
+    }
+  });
   test('confirmed gate and close-tray byte fixtures', () {
     expect(Stm32Commands.setGate(0.7), [
       0xaa,

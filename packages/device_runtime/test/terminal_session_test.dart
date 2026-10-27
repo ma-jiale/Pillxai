@@ -4,11 +4,84 @@ import 'dart:io';
 
 import 'package:pillxai_api_client/api.dart' as api;
 import 'package:pillxai_device_runtime/device_runtime.dart';
+import 'package:pillxai_execution_core/execution_core.dart';
 import 'package:test/test.dart';
 
 import 'support/task_fixture.dart';
 
 void main() {
+  for (final recovered in [false, true]) {
+    test(
+      'cancelled task acknowledges nested SDK learning results (recovery=$recovered)',
+      () async {
+        final dir = Directory.systemTemp.createTempSync(
+          'pillxai-learning-receipt-',
+        );
+        final journal = ExecutionJournal('${dir.path}/execution.sqlite');
+        final task = fixture(journal.terminalId);
+        final state = ExecutionState()..phase = ExecutionPhase.cancelled;
+        journal.save(
+          task,
+          state,
+          kind: 'cancelled',
+          detail: {'physical_scene_safe': true},
+        );
+        if (recovered) {
+          state.phase = ExecutionPhase.recovery;
+          journal.save(
+            task,
+            state,
+            kind: 'recovery',
+            detail: {'message': '设备连接已断开。'},
+          );
+        }
+        final session = TerminalSession(
+          journal: journal,
+          platform: 'android',
+          ports: () => [],
+          publish: (_) {},
+          hardwareTransport: (_) => throw UnimplementedError(),
+        );
+        final result = api.LearningResult(
+          batch: 0,
+          status: 'skipped',
+          message: '本次已取消，不更新参数。',
+          baseRevision: 1,
+          evidence: api.LearningEvidence(
+            initialGate: 0.7,
+            hadValidHistory: false,
+            validSamples: 0,
+          ),
+        );
+        try {
+          final sequence = session.engine.state.sequence;
+          await session.command('acknowledge', {
+            'sequence': sequence - 1,
+            'task_state': 'cancelled',
+          });
+          expect(journal.active(), isNotNull);
+          if (recovered)
+            expect(session.engine.state.phase, ExecutionPhase.recovery);
+          // Android invokes this directly; SDK toJson keeps nested model objects.
+          await session.command('acknowledge', {
+            'sequence': sequence,
+            'task_state': 'cancelled',
+            'learning_results': [result.toJson()],
+          });
+          expect(journal.pendingCount(task.id), 0);
+          expect(journal.active(), isNull);
+          expect(session.engine.task, isNull);
+          final saved = journal.setting('latest_learning_results') as List;
+          expect(saved.single['evidence']['initial_gate'], 0.7);
+          expect(saved.single['status'], 'skipped');
+        } finally {
+          journal.close();
+          dir.deleteSync(recursive: true);
+        }
+      },
+    );
+  }
+
   test('shared host persists configuration, protects ambiguous claim and survives rejected commands', () async {
     final dir = Directory.systemTemp.createTempSync('pillxai-session-');
     final journal = ExecutionJournal('${dir.path}/execution.sqlite');

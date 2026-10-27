@@ -13,4 +13,6 @@
 
 计划快照新增日期数组。7.26.0 对数组产生不存在的 `DateTime.listFromJson` 调用，`scripts/contracts.ps1` 在生成流程内统一转换为逐项 DateTime.parse，漂移检查执行相同修正；不手工修改 SDK。真实 SDK 往返与页面测试均覆盖此路径。
 
+首次上机的处方尚无独立参数时，参数查询按契约返回 JSON `null`。7.26.0 为 `ParameterView` 生成了不可空的响应转换，导致上机准备误报连接失败；生成脚本统一修正该响应转换为可空类型。`test/prepare_execution_test.dart` 覆盖无参数及已有参数的 SDK 响应，以及首次上机加载、保留空参数和绑定标签、不发送机器动作的页面流程。
+
 共享输入在 `tests/fixtures/contract-sample.json`。Flutter 的 `test/api_contract_test.dart` 验证本地序列化，`tool/check_backend.dart` 使用生成 SDK 真实调用 WSL 服务和 PostgreSQL。开发样例 API 不代表处方、任务或设备启动许可；生产业务将在后续阶段使用同一生成链添加。

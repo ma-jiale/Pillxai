@@ -20,9 +20,13 @@ residents = Table(
     Column("revision", Integer, nullable=False),
     Column("name", String(30), nullable=False),
     Column("bed", String(40), nullable=False),
+    Column("barcode", String(128), nullable=False, server_default=""),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     Column("updated_by", UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False),
     CheckConstraint("revision > 0"),
+    Index(
+        "residents_barcode_unique", "barcode", unique=True, postgresql_where=text("barcode <> ''")
+    ),
     Index(
         "residents_bed_unique",
         "bed",

@@ -8,7 +8,7 @@ from test_business import prescription, resident, world  # noqa: F401
 from pillxai_api.app import create_app
 
 
-def setup(client, token, *, mode="simulator"):
+def setup(client, token, *, mode="simulator", with_parameters=True, days=2):
     rid = resident(client, token).json()["id"]
     pid, device, terminal = map(str, (uuid4(), uuid4(), uuid4()))
     source = client.put(
@@ -18,16 +18,8 @@ def setup(client, token, *, mode="simulator"):
             expected_revision=0, data=prescription() | dict(start_date="2026-01-01", end_date=None)
         ),
     ).json()
-    assert (
-        client.put(
-            f"/residents/{rid}/prescriptions/{pid}/parameters",
-            headers=token,
-            json=dict(
-                expected_revision=0, medicine_id=source["medicine_id"], turntable=1, gate=0.5
-            ),
-        ).status_code
-        == 200
-    )
+    if with_parameters:
+        save_initial_parameters(client, token, rid, pid, source)
     config = dict(
         name="测试设备",
         identity=str(uuid4()),
@@ -54,7 +46,7 @@ def setup(client, token, *, mode="simulator"):
         == 200
     )
     preview = client.post(
-        f"/residents/{rid}/plans/preview", headers=token, json=dict(days=2)
+        f"/residents/{rid}/plans/preview", headers=token, json=dict(days=days)
     ).json()
     return dict(
         rid=rid,
@@ -64,6 +56,19 @@ def setup(client, token, *, mode="simulator"):
         config=config,
         uid=uid,
         plan=preview["snapshot"],
+    )
+
+
+def save_initial_parameters(client, token, rid, pid, source):
+    assert (
+        client.put(
+            f"/residents/{rid}/prescriptions/{pid}/parameters",
+            headers=token,
+            json=dict(
+                expected_revision=0, medicine_id=source["medicine_id"], turntable=1, gate=0.5
+            ),
+        ).status_code
+        == 200
     )
 
 
@@ -107,21 +112,26 @@ def upload(client, token, fixture, task, values):
     )
 
 
-def test_hardware_rejects_simulation_parameters_and_stale_start(world):  # noqa: F811
+def test_hardware_parameters_and_stale_start(world):  # noqa: F811
     client, tokens, _, _ = world
     token = tokens["admin"]
     f = setup(client, token, mode="hardware")
     path = f"/residents/{f['rid']}/prescriptions/{f['pid']}/parameters"
     params = client.get(path, headers=token).json()
-    body = dict(expected_revision=params["revision"], medicine_id=params["medicine_id"],
-                turntable=1, gate=0.5, simulation_only=True)
+    body = dict(
+        expected_revision=params["revision"],
+        medicine_id=params["medicine_id"],
+        turntable=1,
+        gate=0.5,
+        simulation_only=True,
+    )
     assert client.put(path, headers=token, json=body).status_code == 200
-    assert claim(client, token, f).status_code == 409
     body.update(expected_revision=2, simulation_only=False)
     assert client.put(path, headers=token, json=body).status_code == 200
     task = claim(client, token, f).json()
     changed = client.put(
-        f"/residents/{f['rid']}", headers=token,
+        f"/residents/{f['rid']}",
+        headers=token,
         json=dict(expected_revision=1, data=dict(name="版本已变长者", bed="")),
     )
     assert changed.status_code == 200
@@ -220,6 +230,39 @@ def test_result_deduplication_collection_and_coverage(world):  # noqa: F811
     assert len(client.get(f"/tasks/{task['id']}/events", headers=tokens["admin"]).json()) == 3
 
 
+def test_late_idle_connection_does_not_block_cancelled_task_sync(world):  # noqa: F811
+    client, tokens, _, _ = world
+    f = setup(client, tokens["admin"])
+    task = claim(client, tokens["admin"], f).json()
+    cancelled = event(1, "cancelled", {"physical_scene_safe": True})
+    assert upload(client, tokens["admin"], f, task, [cancelled]).json()["state"] == "cancelled"
+    connected = event(2, "connected")
+    replay = upload(client, tokens["admin"], f, task, [cancelled, connected])
+    assert replay.status_code == 200 and replay.json()["sequence"] == 2
+    assert (
+        upload(client, tokens["admin"], f, task, [event(3, "count", {"count": 1})]).status_code
+        == 409
+    )
+    assert (
+        upload(
+            client, tokens["admin"], f, task, [event(3, "connected", {"data": "unexpected"})]
+        ).status_code
+        == 409
+    )
+    diagnostics = [
+        event(3, "recovery", {"message": "设备连接已断开，请核对现场。"}),
+        event(4, "recovered"),
+    ]
+    settled = upload(client, tokens["admin"], f, task, diagnostics)
+    assert settled.status_code == 200
+    assert settled.json()["state"] == "cancelled"
+    assert settled.json()["sequence"] == 4
+    assert upload(client, tokens["admin"], f, task, diagnostics).status_code == 200
+    assert upload(
+        client, tokens["admin"], f, task, [event(5, "write_intent", {"command": "open"})]
+    ).status_code == 409
+
+
 def test_simulator_discard_tombstone_and_parameter_identity(world):  # noqa: F811
     client, tokens, _, _ = world
     f = setup(client, tokens["admin"])
@@ -276,4 +319,6 @@ def test_simulator_discard_tombstone_and_parameter_identity(world):  # noqa: F81
     f["plan"] = client.post(
         f"/residents/{f['rid']}/plans/preview", headers=tokens["admin"], json={}
     ).json()["snapshot"]
-    assert claim(client, tokens["admin"], f).json()["code"] == "parameters_required"
+    next_task = claim(client, tokens["admin"], f).json()
+    assert next_task["batches"][0]["parameters"]["gate"] == 0.7
+    assert not next_task["batches"][0]["had_valid_history"]

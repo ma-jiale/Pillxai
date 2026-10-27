@@ -40,12 +40,7 @@ class TerminalController extends ChangeNotifier {
   int get pending => view['pending_count'] as int? ?? 0;
   String get terminalId => view['terminal_id'] as String? ?? '';
   String? get observedUid {
-    final at = DateTime.tryParse(view['observed_at'] as String? ?? '');
-    if (at == null ||
-        DateTime.now().toUtc().difference(at) > const Duration(seconds: 30)) {
-      return null;
-    }
-    return view['observed_uid'] as String?;
+    return connected ? view['observed_uid'] as String? : null;
   }
 
   api.BatchPlan? get batch =>
@@ -181,6 +176,41 @@ class TerminalController extends ChangeNotifier {
     await refreshDevices();
   }
 
+  Future<void> savePositionMapping(
+    api.DeviceView original, {
+    required List<int> rows,
+    required bool reverseColumns,
+    required bool verified,
+  }) async {
+    if (!canMaintain || active || device?.id != original.id) {
+      throw const SaveFailure('当前设备或任务状态已变化，请关闭后重新核对。');
+    }
+    if (rows.length != 4 ||
+        rows.toSet().length != 4 ||
+        rows.any((row) => row < 0 || row > 3)) {
+      throw const SaveFailure('四个时段须分别对应不同的机器行。');
+    }
+    final result = await backend.request(
+      execution.saveDevice(
+        original.id,
+        api.SaveDevice(
+          expectedRevision: original.revision,
+          configuration: original.configuration.copyWith(
+            rows: List<int>.of(rows),
+            reverseColumns: reverseColumns,
+            positionsVerified: verified,
+          ),
+        ),
+      ),
+    );
+    if (result == null) throw const SaveFailure('映射保存未确认，请重新加载核对。');
+    devices = [
+      for (final item in devices)
+        if (item.id == result.id) result else item,
+    ];
+    if (!_disposed) notifyListeners();
+  }
+
   Future<void> action(
     String operation, [
     Map<String, dynamic> data = const {},
@@ -251,15 +281,23 @@ class TerminalController extends ChangeNotifier {
     await synchronize();
     final latest = await backend.request(execution.getTask(task!.id));
     if (latest == null) throw const SaveFailure('任务读取失败。');
-    final observed = DateTime.parse(state['uid_at'] as String);
+    if (!recognized) throw const SaveFailure('药盒识别已变化，请重新核对。');
+    final source = view['recognition_source'] as String? ?? 'rfid';
+    final value =
+        view['recognition_value'] as String? ?? state['uid'] as String;
+    final observed = DateTime.parse(
+      view['recognition_at'] as String? ?? state['uid_at'] as String,
+    );
     final allowed = await backend.request(
       execution.startTask(
         latest.id,
         api.StartTask(
           terminalId: terminalId,
           expectedRevision: latest.revision,
-          uid: state['uid'] as String,
+          uid: source == 'rfid' ? value : null,
+          barcode: source == 'barcode' ? value : null,
           observedAt: observed,
+          checkedAt: DateTime.now().toUtc(),
         ),
       ),
     );
@@ -307,7 +345,13 @@ class TerminalController extends ChangeNotifier {
             ),
           );
           if (result == null) throw const SaveFailure('同步结果未确认。');
-          await host.command('acknowledge', {'sequence': result.sequence});
+          await host.command('acknowledge', {
+            'sequence': result.sequence,
+            'task_state': result.state.toJson(),
+            'learning_results': result.learningResults
+                .map((r) => r.toJson())
+                .toList(),
+          });
         }
       }
       syncError = null;

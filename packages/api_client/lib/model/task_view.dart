@@ -23,12 +23,14 @@ class TaskView {
     required this.plan,
     required this.device,
     this.labels = const [],
+    this.recognitionBindings = const [],
     this.batches = const [],
     required this.sequence,
     this.completedBatches = const [],
     this.counts = const [],
     required this.startedAt,
     required this.updatedAt,
+    this.learningResults = const [],
   });
 
   final String id;
@@ -51,6 +53,8 @@ class TaskView {
 
   final List<String> labels;
 
+  final List<RecognitionBinding> recognitionBindings;
+
   final List<BatchPlan> batches;
 
   final int sequence;
@@ -62,6 +66,8 @@ class TaskView {
   final DateTime? startedAt;
 
   final DateTime updatedAt;
+
+  final List<LearningResult> learningResults;
 
   @override
   bool operator ==(Object other) => identical(this, other) || other is TaskView &&
@@ -75,12 +81,14 @@ class TaskView {
     other.plan == plan &&
     other.device == device &&
     _deepEquality.equals(other.labels, labels) &&
+    _deepEquality.equals(other.recognitionBindings, recognitionBindings) &&
     _deepEquality.equals(other.batches, batches) &&
     other.sequence == sequence &&
     _deepEquality.equals(other.completedBatches, completedBatches) &&
     _deepEquality.equals(other.counts, counts) &&
     other.startedAt == startedAt &&
-    other.updatedAt == updatedAt;
+    other.updatedAt == updatedAt &&
+    _deepEquality.equals(other.learningResults, learningResults);
 
   @override
   int get hashCode =>
@@ -95,15 +103,17 @@ class TaskView {
     (plan.hashCode) +
     (device.hashCode) +
     (labels.hashCode) +
+    (recognitionBindings.hashCode) +
     (batches.hashCode) +
     (sequence.hashCode) +
     (completedBatches.hashCode) +
     (counts.hashCode) +
     (startedAt == null ? 0 : startedAt!.hashCode) +
-    (updatedAt.hashCode);
+    (updatedAt.hashCode) +
+    (learningResults.hashCode);
 
   @override
-  String toString() => 'TaskView[id=$id, planId=$planId, deviceId=$deviceId, terminalId=$terminalId, ownerId=$ownerId, revision=$revision, state=$state, plan=$plan, device=$device, labels=$labels, batches=$batches, sequence=$sequence, completedBatches=$completedBatches, counts=$counts, startedAt=$startedAt, updatedAt=$updatedAt]';
+  String toString() => 'TaskView[id=$id, planId=$planId, deviceId=$deviceId, terminalId=$terminalId, ownerId=$ownerId, revision=$revision, state=$state, plan=$plan, device=$device, labels=$labels, recognitionBindings=$recognitionBindings, batches=$batches, sequence=$sequence, completedBatches=$completedBatches, counts=$counts, startedAt=$startedAt, updatedAt=$updatedAt, learningResults=$learningResults]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -117,6 +127,7 @@ class TaskView {
       json[r'plan'] = this.plan;
       json[r'device'] = this.device;
       json[r'labels'] = this.labels;
+      json[r'recognition_bindings'] = this.recognitionBindings;
       json[r'batches'] = this.batches;
       json[r'sequence'] = this.sequence;
       json[r'completed_batches'] = this.completedBatches;
@@ -127,6 +138,7 @@ class TaskView {
       json[r'started_at'] = null;
     }
       json[r'updated_at'] = this.updatedAt.toUtc().toIso8601String();
+      json[r'learning_results'] = this.learningResults;
     return json;
   }
 
@@ -143,6 +155,7 @@ class TaskView {
     PlanSnapshot? plan,
     DeviceView? device,
     List<String>? labels,
+    List<RecognitionBinding>? recognitionBindings,
     List<BatchPlan>? batches,
     int? sequence,
     List<int>? completedBatches,
@@ -150,6 +163,7 @@ class TaskView {
     DateTime? startedAt,
     bool startedAtSetToNull = false,
     DateTime? updatedAt,
+    List<LearningResult>? learningResults,
   }) => TaskView(
     id: id ?? this.id,
     planId: planId ?? this.planId,
@@ -161,12 +175,14 @@ class TaskView {
     plan: plan ?? this.plan,
     device: device ?? this.device,
     labels: labels ?? this.labels,
+    recognitionBindings: recognitionBindings ?? this.recognitionBindings,
     batches: batches ?? this.batches,
     sequence: sequence ?? this.sequence,
     completedBatches: completedBatches ?? this.completedBatches,
     counts: counts ?? this.counts,
     startedAt: startedAtSetToNull ? null : startedAt ?? this.startedAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    learningResults: learningResults ?? this.learningResults,
   );
 
   /// Returns a new [TaskView] instance and imports its values from
@@ -227,6 +243,7 @@ class TaskView {
         labels: json[r'labels'] is Iterable
             ? (json[r'labels'] as Iterable).cast<String>().toList(growable: false)
             : const [],
+        recognitionBindings: RecognitionBinding.listFromJson(json[r'recognition_bindings']),
         batches: BatchPlan.listFromJson(json[r'batches']),
         sequence: mapValueOfType<int>(json, r'sequence')!,
         completedBatches: json[r'completed_batches'] is Iterable
@@ -237,6 +254,7 @@ class TaskView {
             : const [],
         startedAt: mapDateTime(json, r'started_at', r''),
         updatedAt: mapDateTime(json, r'updated_at', r'')!,
+        learningResults: LearningResult.listFromJson(json[r'learning_results']),
       );
     }
     return null;

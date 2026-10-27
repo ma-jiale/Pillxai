@@ -20,6 +20,7 @@ import 'prescriptions_page.dart';
 import 'settings_page.dart';
 import 'plan_preview_page.dart';
 import 'terminal_device_dialog.dart';
+import 'device_mapping_dialog.dart';
 import 'terminal_execution_panel.dart';
 import 'task_history_dialog.dart';
 
@@ -46,7 +47,7 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
   SettingsController? settings;
   TerminalController? terminal;
   static const window = MethodChannel('pillxai/window');
-  int page = 0;
+  int page = 1;
   bool signingOut = false;
 
   @override
@@ -118,7 +119,7 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
         onSaved: () =>
             controller?.updateBedtime(backend.settings!.bedtimeEnabled),
       );
-      page = 0;
+      page = 1;
       terminal ??= TerminalController(
         backend,
         widget.terminalHost ?? createTerminalHost(),
@@ -214,7 +215,21 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
                         child: Row(
                           children: [
                             Expanded(
-                              child: PageTitle(['处方管理', '摆药', '设置'][page]),
+                              child: ListenableBuilder(
+                                listenable: terminal!,
+                                builder: (context, _) => PageTitle(
+                                  page == 1 &&
+                                          terminal!.active &&
+                                          ![
+                                            'collecting',
+                                            'closing',
+                                            'completed',
+                                            'cancelled',
+                                          ].contains(terminal!.phase)
+                                      ? '正在分药'
+                                      : ['处方管理', '摆药', '设置'][page],
+                                ),
+                              ),
                             ),
                             if (page == 0 && controller != null)
                               IconButton(
@@ -232,13 +247,19 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
                                       TaskHistoryDialog(terminal: terminal!),
                                 ),
                               ),
-                              IconButton(
-                                tooltip: '连接设备',
-                                icon: const DispenserIcon(size: 22),
-                                onPressed: () => showDialog<void>(
-                                  context: context,
-                                  builder: (_) =>
-                                      TerminalDeviceDialog(terminal: terminal!),
+                              ListenableBuilder(
+                                listenable: terminal!,
+                                builder: (context, _) => OutlinedButton.icon(
+                                  label: Text(
+                                    terminal!.connected ? '已连接' : '未连接',
+                                  ),
+                                  icon: const DispenserIcon(size: 22),
+                                  onPressed: () => showDialog<void>(
+                                    context: context,
+                                    builder: (_) => TerminalDeviceDialog(
+                                      terminal: terminal!,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
@@ -255,6 +276,11 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
                             model: settings!,
                             accent: widget.accent,
                             onAccentChanged: widget.onAccentChanged,
+                            onConfigureMapping: () => showDialog<void>(
+                              context: context,
+                              builder: (_) =>
+                                  DeviceMappingDialog(terminal: terminal!),
+                            ),
                           ),
                         ],
                       ),

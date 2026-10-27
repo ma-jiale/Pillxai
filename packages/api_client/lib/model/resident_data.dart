@@ -15,30 +15,40 @@ class ResidentData {
   ResidentData({
     required this.name,
     this.bed = '',
+    this.barcode,
   });
 
   final String name;
 
   final String bed;
 
+  final String? barcode;
+
   @override
   bool operator ==(Object other) => identical(this, other) || other is ResidentData &&
     other.name == name &&
-    other.bed == bed;
+    other.bed == bed &&
+    other.barcode == barcode;
 
   @override
   int get hashCode =>
     // ignore: unnecessary_parenthesis
     (name.hashCode) +
-    (bed.hashCode);
+    (bed.hashCode) +
+    (barcode == null ? 0 : barcode!.hashCode);
 
   @override
-  String toString() => 'ResidentData[name=$name, bed=$bed]';
+  String toString() => 'ResidentData[name=$name, bed=$bed, barcode=$barcode]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
       json[r'name'] = this.name;
       json[r'bed'] = this.bed;
+    if (this.barcode != null) {
+      json[r'barcode'] = this.barcode;
+    } else {
+      json[r'barcode'] = null;
+    }
     return json;
   }
 
@@ -47,9 +57,12 @@ class ResidentData {
   ResidentData copyWith({
     String? name,
     String? bed,
+    String? barcode,
+    bool barcodeSetToNull = false,
   }) => ResidentData(
     name: name ?? this.name,
     bed: bed ?? this.bed,
+    barcode: barcodeSetToNull ? null : barcode ?? this.barcode,
   );
 
   /// Returns a new [ResidentData] instance and imports its values from
@@ -71,6 +84,7 @@ class ResidentData {
       return ResidentData(
         name: mapValueOfType<String>(json, r'name')!,
         bed: mapValueOfType<String>(json, r'bed') ?? '',
+        barcode: mapValueOfType<String>(json, r'barcode'),
       );
     }
     return null;

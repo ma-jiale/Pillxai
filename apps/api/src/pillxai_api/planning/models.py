@@ -49,3 +49,14 @@ class PlanPreview(BaseModel):
     snapshot: PlanSnapshot
     current: bool
     message: str
+
+
+class PreparationItem(BaseModel):
+    resident_id: UUID
+    name: str
+    bed: str
+    early: bool
+    medicine_count: int
+    dates: list[date]
+    coverage_through: date | None = None
+    issue: str | None = None

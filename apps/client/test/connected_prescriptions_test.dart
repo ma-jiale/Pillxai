@@ -161,6 +161,18 @@ void main() {
           });
         }
         expect(request.headers['Authorization'], 'Bearer fixture-token');
+        if (request.url.path == '/preparation') {
+          return jsonResponse([
+            {
+              'resident_id': residentId,
+              'name': '服务端长者',
+              'bed': 'A-1',
+              'early': false,
+              'medicine_count': 1,
+              'dates': ['2026-10-27'],
+            },
+          ]);
+        }
         if (request.url.path == '/settings') {
           return jsonResponse({
             'timezone': 'Asia/Shanghai',
@@ -204,13 +216,15 @@ void main() {
       expect(find.text('服务端长者'), findsWidgets);
       expect(find.text('当前机构'), findsNothing);
       expect(find.text('王奶奶'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('nav-0')));
+      await tester.pumpAndSettle();
       final add = tester.widget<OutlinedButton>(
         find.widgetWithText(OutlinedButton, '添加长者'),
       );
       expect(add.onPressed, isNull);
       await tester.tap(find.byKey(const ValueKey('nav-1')));
       await tester.pumpAndSettle();
-      expect(find.text('预览计划'), findsOneWidget);
+      expect(find.text('开始摆药'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('nav-2')));
       await tester.pumpAndSettle();
       expect(find.text('创建机构'), findsNothing);
@@ -221,6 +235,8 @@ void main() {
       expect(find.byKey(const ValueKey('settings-search')), findsOneWidget);
       expect(find.text('准备周期'), findsOneWidget);
       expect(find.text('药盒布局'), findsOneWidget);
+      expect(find.text('实体位置映射'), findsOneWidget);
+      expect(find.text('设置映射'), findsOneWidget);
       expect(
         tester
             .widgetList<Switch>(find.byType(Switch))

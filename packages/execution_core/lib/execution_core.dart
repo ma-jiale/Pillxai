@@ -21,6 +21,8 @@ enum DeviceEventKind {
   recoveredCount,
   rfid,
   noCard,
+  barcodeAppeared,
+  barcodeDisappeared,
   stalled,
   unknown,
   malformed,
@@ -29,13 +31,21 @@ enum DeviceEventKind {
 /// Feedback carries no invented task ID. Association belongs to the executor.
 /// NO CARD is only an RFID observation, never proof of tray removal/readiness.
 final class DeviceEvent {
-  const DeviceEvent(this.kind, this.raw, {this.count, this.width, this.uid});
+  const DeviceEvent(
+    this.kind,
+    this.raw, {
+    this.count,
+    this.width,
+    this.uid,
+    this.barcode,
+  });
 
   final DeviceEventKind kind;
   final String raw;
   final int? count;
   final String? width;
   final String? uid;
+  final String? barcode;
 
   Map<String, Object?> toJson() => {
     'kind': kind.name,
@@ -43,5 +53,6 @@ final class DeviceEvent {
     if (count != null) 'count': count,
     if (width != null) 'width': width,
     if (uid != null) 'uid': uid,
+    if (barcode != null) 'barcode': barcode,
   };
 }

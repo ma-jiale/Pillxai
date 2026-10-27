@@ -21,8 +21,23 @@ class _ParameterInput {
   _ParameterInput(this.prescription);
   final api.PrescriptionView prescription;
   api.ParameterView? saved;
+  bool learningEnabled = true;
+  bool edited = false;
+  bool matchesSaved = false;
   final turntable = TextEditingController();
   final gate = TextEditingController();
+  void showSelection() {
+    final useHistory =
+        learningEnabled &&
+        matchesSaved &&
+        saved!.hasValues &&
+        saved!.turntable > 0 &&
+        saved!.gate > 0;
+    turntable.text = useHistory ? saved!.turntable.toString() : '0.2';
+    gate.text = useHistory ? saved!.gate.toString() : '0.7';
+    edited = false;
+  }
+
   void dispose() {
     turntable.dispose();
     gate.dispose();
@@ -38,6 +53,7 @@ class _PrepareExecutionDialogState extends State<PrepareExecutionDialog> {
   ];
   final uid = TextEditingController();
   List<api.LabelView> labels = [];
+  String? barcode;
   bool loading = true;
   String? loadError;
   bool get simulator =>
@@ -51,6 +67,10 @@ class _PrepareExecutionDialogState extends State<PrepareExecutionDialog> {
 
   Future<void> load() async {
     try {
+      final resident = await terminal.backend.request(
+        terminal.backend.residents.getResident(widget.plan.residentId),
+      );
+      barcode = resident?.data.barcode;
       labels =
           await terminal.backend.request(
             terminal.execution.listLabels(widget.plan.residentId),
@@ -64,11 +84,12 @@ class _PrepareExecutionDialogState extends State<PrepareExecutionDialog> {
           ),
         );
         item.saved = saved;
-        if (saved?.medicineId == item.prescription.medicineId &&
-            (simulator || saved?.simulationOnly == false)) {
-          item.turntable.text = saved!.turntable.toString();
-          item.gate.text = saved.gate.toString();
-        }
+        item.learningEnabled = saved?.learningEnabled ?? true;
+        item.matchesSaved =
+            saved?.medicineId == item.prescription.medicineId &&
+            saved?.feedForm == item.prescription.data.feedForm.toJson() &&
+            saved?.simulationOnly == simulator;
+        item.showSelection();
       }
     } catch (error) {
       loadError = error.toString();
@@ -109,9 +130,16 @@ class _PrepareExecutionDialogState extends State<PrepareExecutionDialog> {
 
   Future<void> claim() async {
     await terminal.run(() async {
-      if (labels.isEmpty) throw StateError('请先核对并绑定这位长者的药盒标签。');
+      if (labels.isEmpty && (barcode == null || barcode!.isEmpty)) {
+        throw StateError('请先为这位长者设置条码或绑定 RFID 标签。');
+      }
       if (terminal.canMaintain) {
         for (final item in medicines) {
+          final previous = item.saved;
+          if (!item.edited &&
+              item.learningEnabled == (previous?.learningEnabled ?? true)) {
+            continue; // Starting from defaults must not create fake positive history.
+          }
           final speed = double.tryParse(item.turntable.text);
           final gate = double.tryParse(item.gate.text);
           if (speed == null ||
@@ -121,15 +149,9 @@ class _PrepareExecutionDialogState extends State<PrepareExecutionDialog> {
               !gate.isFinite ||
               gate < 0 ||
               gate > 1) {
-            throw StateError('请填写每种药现场确认的转盘参数与 0–1 舵机刻度。');
+            throw StateError('请填写有效初速度与 0–1 舵机刻度。');
           }
-          final previous = item.saved;
-          if (previous?.medicineId == item.prescription.medicineId &&
-              previous?.turntable == speed &&
-              previous?.gate == gate &&
-              previous?.simulationOnly == simulator) {
-            continue;
-          }
+          final preserve = !item.edited && item.matchesSaved;
           item.saved = await terminal.backend.request(
             terminal.execution.saveParameters(
               widget.plan.residentId,
@@ -137,9 +159,11 @@ class _PrepareExecutionDialogState extends State<PrepareExecutionDialog> {
               api.MedicationParameters(
                 expectedRevision: previous?.revision ?? 0,
                 medicineId: item.prescription.medicineId,
-                turntable: speed,
-                gate: gate,
+                turntable: preserve ? previous!.turntable : speed,
+                gate: preserve ? previous!.gate : gate,
                 simulationOnly: simulator,
+                learningEnabled: item.learningEnabled,
+                hasValues: item.edited || (preserve && previous!.hasValues),
               ),
             ),
           );
@@ -164,7 +188,7 @@ class _PrepareExecutionDialogState extends State<PrepareExecutionDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('上机准备', style: TextStyle(fontSize: 22)),
+              const Text('准备药盒', style: TextStyle(fontSize: 22)),
               const SizedBox(height: 10),
               Text(
                 '${widget.plan.residentName} · ${terminal.device?.configuration.name ?? '尚未选定设备'}',
@@ -186,96 +210,120 @@ class _PrepareExecutionDialogState extends State<PrepareExecutionDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text(
-                        '药盒标签',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
+                      const Text('请核对长者信息，开仓后放入对应药盒。识别成功后再确认开始摆药。'),
+                      const SizedBox(height: 16),
                       Text(
-                        labels.isEmpty
-                            ? '尚未绑定标签'
-                            : '已绑定：${labels.map((v) => v.uid).join('、')}',
+                        (barcode?.isNotEmpty == true || labels.isNotEmpty)
+                            ? '已设置药盒识别'
+                            : '尚未设置药盒识别，请先绑定标签。',
                       ),
-                      if (terminal.canMaintain) ...[
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: uid,
-                          decoration: const InputDecoration(
-                            labelText: '核对后绑定的新标签 UID',
-                          ),
-                        ),
-                        Wrap(
-                          spacing: 8,
-                          children: [
-                            TextButton(
-                              onPressed: terminal.observedUid == null
-                                  ? null
-                                  : () => setState(
-                                      () => uid.text = terminal.observedUid!,
-                                    ),
-                              child: const Text('填入最近读取的标签'),
+                      const SizedBox(height: 16),
+                      ExpansionTile(
+                        title: const Text('药盒与出药设置'),
+                        children: [
+                          if (barcode?.isNotEmpty == true)
+                            Text('长者条码：$barcode'),
+                          if (terminal.canMaintain) ...[
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: uid,
+                              decoration: const InputDecoration(
+                                labelText: '核对后绑定的新标签 UID',
+                              ),
                             ),
-                            OutlinedButton(
-                              onPressed: terminal.busy ? null : bind,
-                              child: const Text('绑定到当前长者'),
-                            ),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: 20),
-                      const Text(
-                        '每种药的独立参数',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      if (simulator && terminal.canMaintain)
-                        TextButton(
-                          onPressed: () => setState(() {
-                            for (final item in medicines) {
-                              item.turntable.text = '1';
-                              item.gate.text = '0.5';
-                            }
-                          }),
-                          child: const Text('填写模拟参数'),
-                        ),
-                      for (final item in medicines)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Surface(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                            Wrap(
+                              spacing: 8,
                               children: [
-                                Text(
-                                  '${item.prescription.data.medicineName} · ${item.prescription.data.strength}',
+                                TextButton(
+                                  onPressed: terminal.observedUid == null
+                                      ? null
+                                      : () => setState(
+                                          () =>
+                                              uid.text = terminal.observedUid!,
+                                        ),
+                                  child: const Text('填入最近读取的标签'),
                                 ),
-                                const SizedBox(height: 12),
-                                TextField(
-                                  controller: item.turntable,
-                                  enabled:
-                                      terminal.canMaintain && !terminal.busy,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
-                                  decoration: const InputDecoration(
-                                    labelText: '转盘参数（现场确认值）',
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                TextField(
-                                  controller: item.gate,
-                                  enabled:
-                                      terminal.canMaintain && !terminal.busy,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
-                                  decoration: const InputDecoration(
-                                    labelText: '舵机刻度（0–1，数值越小开口越大）',
-                                  ),
+                                OutlinedButton(
+                                  onPressed: terminal.busy ? null : bind,
+                                  child: const Text('绑定到当前长者'),
                                 ),
                               ],
                             ),
+                          ],
+                          const SizedBox(height: 20),
+                          const Text(
+                            '每种药的独立参数',
+                            style: TextStyle(fontWeight: FontWeight.w600),
                           ),
-                        ),
+                          const Text('无有效历史时使用初速度 0.2、舵机 0.7。学习仅在正常批次结束后更新。'),
+                          for (final item in medicines)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 12),
+                              child: Surface(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      '${item.prescription.data.medicineName} · ${item.prescription.data.strength}',
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Material(
+                                      type: MaterialType.transparency,
+                                      child: SwitchListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text('自动学习'),
+                                        subtitle: const Text(
+                                          '关闭后使用默认组；已有参数历史保留。',
+                                        ),
+                                        value: item.learningEnabled,
+                                        onChanged:
+                                            terminal.canMaintain &&
+                                                !terminal.busy
+                                            ? (value) => setState(() {
+                                                item.learningEnabled = value;
+                                                item.showSelection();
+                                              })
+                                            : null,
+                                      ),
+                                    ),
+                                    TextField(
+                                      controller: item.turntable,
+                                      enabled:
+                                          terminal.canMaintain &&
+                                          !terminal.busy &&
+                                          item.learningEnabled,
+                                      onChanged: (_) => item.edited = true,
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                            decimal: true,
+                                          ),
+                                      decoration: const InputDecoration(
+                                        labelText: '转盘初速度',
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    TextField(
+                                      controller: item.gate,
+                                      enabled:
+                                          terminal.canMaintain &&
+                                          !terminal.busy &&
+                                          item.learningEnabled,
+                                      onChanged: (_) => item.edited = true,
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                            decimal: true,
+                                          ),
+                                      decoration: const InputDecoration(
+                                        labelText: '舵机刻度（0–1，数值越小开口越大）',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -305,7 +353,7 @@ class _PrepareExecutionDialogState extends State<PrepareExecutionDialog> {
                             terminal.active
                         ? null
                         : claim,
-                    child: Text(terminal.busy ? '正在准备…' : '领取并开仓'),
+                    child: Text(terminal.busy ? '正在准备…' : '开仓放入药盒'),
                   ),
                 ],
               ),

@@ -138,7 +138,9 @@ class ResidentsApi {
   /// * [int] limit:
   ///
   /// * [String] query:
-  Future<Response> listResidentsWithHttpInfo({ String? after, int? limit, String? query, Future<void>? abortTrigger, }) async {
+  ///
+  /// * [String] barcode:
+  Future<Response> listResidentsWithHttpInfo({ String? after, int? limit, String? query, String? barcode, Future<void>? abortTrigger, }) async {
     // ignore: prefer_const_declarations
     final path = r'/residents';
 
@@ -157,6 +159,9 @@ class ResidentsApi {
     }
     if (query != null) {
       queryParams.addAll(_queryParams('', 'query', query));
+    }
+    if (barcode != null) {
+      queryParams.addAll(_queryParams('', 'barcode', barcode));
     }
 
     const contentTypes = <String>[];
@@ -183,8 +188,10 @@ class ResidentsApi {
   /// * [int] limit:
   ///
   /// * [String] query:
-  Future<ResidentPage?> listResidents({ String? after, int? limit, String? query, Future<void>? abortTrigger, }) async {
-    final response = await listResidentsWithHttpInfo(after: after, limit: limit, query: query, abortTrigger: abortTrigger,);
+  ///
+  /// * [String] barcode:
+  Future<ResidentPage?> listResidents({ String? after, int? limit, String? query, String? barcode, Future<void>? abortTrigger, }) async {
+    final response = await listResidentsWithHttpInfo(after: after, limit: limit, query: query, barcode: barcode, abortTrigger: abortTrigger,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

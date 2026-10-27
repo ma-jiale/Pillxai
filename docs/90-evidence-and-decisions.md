@@ -2,6 +2,8 @@
 
 本文件供功能规格的维护者查证来源、处理冲突。新实现不读取、搜索或参考所列旧文件；业务规格与交付基线在 00 至 07，独立架构与 Agent 路线在 08 至 09。这里的路径和函数名仅用于证据定位，不是新架构或新接口的命名建议。
 
+2026-10-27 用户授权核对 V1 参数规则，并确认当前沿用 V1 Home 参数和学习规则，后续再优化。STM32 负责批次内调速，上位机只设置初速度。有效规则见 [04](04-device-contract.md#新参数与学习策略)，来源见 [92](92-v1-parameter-rules.md)；不迁移旧实现和已学习数据。
+
 ## 提取范围与事实边界
 
 初次功能蒸馏的核对日期为 2026 年 10 月 4 日，仓库提交为 `028eaeb07650e371509670f15ed4affc4cb0425f`，开始时工作区无未提交改动。
@@ -53,6 +55,7 @@
 | Q17 平台规划 | 首版开发 Windows，同时考虑后续 Android、网页端和 iOS | 00 定义设计边界，07 定义首版交付要求；各端功能与连接方式在对应阶段确定 |
 | Q18 架构与 Agent 开发 | 前后端完全分离；采用现代、清楚的架构，支持 Agent 并行协同及能力增长；独立重写不参考旧代码，机器实际使用情况询问用户；以完成任务衡量，不要求不同 Agent 实现一致 | 08 给工程基线，09 给实施路线；技术与页面方案允许有依据地改进 |
 | Q19 本机环境 | 默认不修改电脑环境；确有必要安装或修改时说明必要性、申请批准后执行 | 根目录 AGENTS.md、08–09；优先使用已有工具或独立构建环境 |
+| Q20 初速度与学习（2026-10-27） | STM32 单次内自行调速，上位机只设初速度；保留每处方独立、正常完成才学习、中位数和异常排除，参数当前与 V1 一致，后续再改 | 04 定义 V1 Home 基线与学习流程；R14 定义归属和版本；92 保存来源 |
 
 第四格用于睡前。睡前时段与饭前饭后分盘是不同维度；位置配置、时段用量和分盘开关分别表达。
 
@@ -69,7 +72,7 @@
 | E07 | [主流程](../legacy/v1/client/Assets/Scripts/MainController.cs)，`StartDispensingAsync`、`DispenseMedicineAsync`、`SendMatrixAndWaitAsync`、`ResetAfterDeviceLostAsync`；[错误界面](../legacy/v1/client/Assets/Scripts/ErrorResolutionUI.cs) | 逐药、换盘、跳过、人工核对、断开处理；完成后上传返回值未用于决定列表完成状态 |
 | E08 | [协议编码解析](../legacy/v1/client/Assets/Scripts/SerialProtocol.cs)、[设备控制](../legacy/v1/client/Assets/Scripts/DispenserController.cs)，`SendPillMatrix`；[主流程](../legacy/v1/client/Assets/Scripts/MainController.cs)，`OnMachineOptoPulseReceived`；[Windows 传输](../legacy/v1/client/Assets/Scripts/Hardware/Transport/WindowsSerialTransport.cs) | 报文格式、命令、文本反馈、串口配置、暂停恢复、堵转。补充核对：进度分子取设备序号，分母取矩阵总数，未解析逐格实测字段；均为主机侧证据 |
 | E09 | [界面流程](../legacy/v1/client/Assets/Scripts/UIManager.cs)，`ShowCompletionAsync`、`ReturnHomeAsync`、`WaitForCompletionTrayClearAsync`；[条码识别](../legacy/v1/client/Assets/Scripts/CheckPillBoxController.cs)，`WaitForNoBarcodeCoroutine`；[Home 配置](../legacy/v1/client/Assets/Scenes/Home.unity)、[Dispense 配置](../legacy/v1/client/Assets/Scenes/Dispense.unity) | 取盒方式按来源区分、条码稳定窗口 1.5 秒；不能把无识别结果概括为严格的实体空仓传感 |
-| E10 | [参数管理](../legacy/v1/client/Assets/Scripts/PillCalibrationManager.cs)、[主流程](../legacy/v1/client/Assets/Scripts/MainController.cs)，`SavePulseWidthSettingsAsync`；[Home 配置](../legacy/v1/client/Assets/Scenes/Home.unity) | 光耦优化、手动开口权重、门槛及场景覆盖值；“保存了公式”不等于公式已验证通用有效 |
+| E10 | [参数管理](../legacy/v1/client/Assets/Scripts/PillCalibrationManager.cs)、[主流程](../legacy/v1/client/Assets/Scripts/MainController.cs)，`SavePulseWidthSettingsAsync`；[Home 配置](../legacy/v1/client/Assets/Scenes/Home.unity) | 光耦优化、手动权重、门槛及场景配置；来源差异见 [92](92-v1-parameter-rules.md)，当前采用规则见 [04](04-device-contract.md#新参数与学习策略)；实机结果另行验证 |
 | E11 | [后台业务](../legacy/v1/server/main.py)，`record_dispense_log`、`get_dispense_logs`、`manage_dispense_logs`、`log_operation`、`manage_operation_logs`；[当前客户端目录](../legacy/v1/client/Assets/Scripts) 全文检索；[计划实现](../legacy/v1/client/Assets/Scripts/PrescriptionManager.cs)，`PushAllChangesAsync` | 后台存在摆药日志入口，所查当前客户端未发现对应调用；客户端主要回传处方整体数据；不能承诺记录闭环 |
 | E12 | [采样记录](../legacy/v1/client/Assets/Scripts/PulseDataRecorder.cs)，`RecordSession`；[主流程](../legacy/v1/client/Assets/Scripts/MainController.cs)，`OnMachineOptoPulseReceived` 和记录调用 | 样本及 CSV 列语义。非空样本分支使用未定义局部变量 `angle`；断开早退也可能绕开记录调用。本轮未修复、未宣称可编译运行 |
 | E13 | [应用设置](../legacy/v1/client/Assets/Scripts/AppConfig.cs)、[设置界面](../legacy/v1/client/Assets/Scripts/ConfigurationUI.cs)、[界面流程](../legacy/v1/client/Assets/Scripts/UIManager.cs) 快捷键与刷新方法 | 服务地址、1 至 7 天设置、提醒阈值、设备复位、快捷键；视觉校准界面代码仍存，但确认分支已改为显示自动脉冲校准提示 |
@@ -86,7 +89,7 @@
 | 剂量精度 | 后台支持浮点，表单整数，计划直接转整数，发送时夹到字节范围 | 用户确认支持人工预切半片；保留原片剂量并转换成有明确投料形态的整数颗粒数，不能静默取整 |
 | 开仓和关仓顺序 | 老说明称先扫码后开仓，实际当前入口先开仓；开始前有跳过显式关仓的试验分支 | 用户确认开始后自动按行列定位、可直接投药且无需投料完成确认；具体命令时序另行联调 |
 | 视觉校准与光耦优化 | README 仍讲拍照测面积，当前主路径根据脉宽生成参数；旧视觉配置代码尚存 | 视觉能力列为历史候选，主流程按光耦事实记录 |
-| 参数默认值 | 类定义关闭优化、电机 0.3；Home 场景开启优化、电机 0.2 | 同时注明两处差异，以场景值描述该场景配置，不推定所有部署相同 |
+| 参数默认值 | 类定义关闭优化、电机 0.3；Home 场景开启优化、电机 0.2 | 按 2026-10-27 用户决定采用 Home 基线；当前规则见 04，来源差异见 92 |
 | 取盒稳定时间 | 接手文档 1 秒、注释 3 秒，当前场景 1.5 秒 | 记录实际配置，后续验证数值，不当作通用业务常数 |
 | RFID 与条码身份 | 条码常直接代表住民，RFID 有标签绑定记录 | 用户确认只识别住民即可、一人可有多盒，不要求独立盒号和逐盒管理 |
 | 参数归属 | 当前参数跟处方行，无法证明同药同规格跨人跨机是否适用 | 用户确认每份处方独立，不共享；形态改变重新调整。记录参数来源及适用设备范围，不建立跨处方共享关系 |

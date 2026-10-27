@@ -127,7 +127,17 @@ class TerminalSession {
       case 'pending':
         return engine.task == null ? [] : journal.pending(engine.task!.id);
       case 'acknowledge':
-        engine.acknowledge(data['sequence'] as int);
+        engine.acknowledge(
+          data['sequence'] as int,
+          taskState: api.TaskState.fromJson(data['task_state']),
+          learningResults: data['learning_results'] == null
+              ? null
+              // In-process Android calls can contain nested SDK model objects.
+              // Normalize them as on the serialized platform command boundary.
+              : api.LearningResult.listFromJson(
+                  jsonDecode(jsonEncode(data['learning_results'])),
+                ),
+        );
       case 'sim_remove':
       case 'sim_insert':
         if (engine.transport is! MachineSimulator) {

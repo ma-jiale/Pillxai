@@ -23,7 +23,7 @@ def view(row):
     return dict(
         id=row["id"],
         revision=row["revision"],
-        data=dict(name=row["name"], bed=row["bed"]),
+        data=dict(name=row["name"], bed=row["bed"], barcode=row["barcode"]),
         updated_at=row["updated_at"],
         updated_by=row["updated_by"],
     )
@@ -32,7 +32,7 @@ def view(row):
 def save(connection, account, resident_id, request):
     require_maintain(account)
     values = dict(
-        **request.data.model_dump(),
+        **request.data.model_dump(exclude_none=True),
         updated_at=datetime.now(UTC),
         updated_by=account.id,
         revision=request.expected_revision + 1,
@@ -59,6 +59,10 @@ def save(connection, account, resident_id, request):
             )
         row = connection.execute(statement.returning(residents)).mappings().first()
     except IntegrityError as error:
+        if getattr(error.orig.diag, "constraint_name", None) == "residents_barcode_unique":
+            raise BusinessError(
+                409, "barcode_conflict", "该条码已属于其他长者，请核对条码。"
+            ) from error
         if getattr(error.orig.diag, "constraint_name", None) == "residents_bed_unique":
             raise BusinessError(
                 409, "bed_conflict", "该床位已属于其他长者，请核对完整床位。"
@@ -70,7 +74,7 @@ def save(connection, account, resident_id, request):
         insert(resident_versions).values(
             resident_id=resident_id,
             revision=row["revision"],
-            data=request.data.model_dump(),
+            data=view(row)["data"],
             at=row["updated_at"],
             actor_id=account.id,
         )

@@ -84,7 +84,7 @@ case "$ACTION" in
     ;;
   serve)
     export PILLXAI_ENABLE_CONTRACT_PROBE=true
-    exec uvicorn pillxai_api.app:create_app --factory --host 127.0.0.1 --port "${PILLXAI_API_PORT:-8000}"
+    exec uvicorn pillxai_api.app:create_app --factory --host "${PILLXAI_API_HOST:-127.0.0.1}" --port "${PILLXAI_API_PORT:-8000}"
     ;;
   test)
     : "${PILLXAI_TEST_DATABASE_URL:?Run db-init and migrate before the integration tests}"

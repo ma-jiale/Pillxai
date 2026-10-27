@@ -23,8 +23,11 @@ def list_residents(
     after: UUID | None = None,
     limit: int = Query(200, ge=1, le=500),
     query: str = Query("", max_length=80),
+    barcode: str | None = Query(None, min_length=1, max_length=128),
 ):
     statement = select(residents)
+    if barcode is not None:
+        statement = statement.where(residents.c.barcode == barcode)
     if after:
         statement = statement.where(residents.c.id > after)
     if query.strip():

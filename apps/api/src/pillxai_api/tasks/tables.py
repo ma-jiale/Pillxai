@@ -39,6 +39,11 @@ parameters = Table(
     Column("turntable", Float, nullable=False),
     Column("gate", Float, nullable=False),
     Column("simulation_only", Boolean, nullable=False),
+    Column("learning_enabled", Boolean, nullable=False),
+    Column("has_values", Boolean, nullable=False),
+    Column("source_task_id", UUID(as_uuid=True)),
+    Column("source_batch", Integer),
+    Column("feed_form", String(20)),
     Column("actor_id", UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False),
     Column("at", DateTime(timezone=True), nullable=False),
 )

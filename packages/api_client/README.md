@@ -87,6 +87,7 @@ Class | Method | HTTP request | Description
 *IdentityApi* | [**updateStaff**](doc//IdentityApi.md#updatestaff) | **PUT** /accounts/{account_id} | Update Staff
 *PlanningApi* | [**createPlanPreview**](doc//PlanningApi.md#createplanpreview) | **POST** /residents/{resident_id}/plans/preview | Create Preview
 *PlanningApi* | [**getPlanPreview**](doc//PlanningApi.md#getplanpreview) | **GET** /plans/{plan_id} | Get Preview
+*PlanningApi* | [**listPreparation**](doc//PlanningApi.md#listpreparation) | **GET** /preparation | List Preparation
 *PrescriptionsApi* | [**listPrescriptionVersions**](doc//PrescriptionsApi.md#listprescriptionversions) | **GET** /residents/{resident_id}/prescriptions/{prescription_id}/versions | Versions
 *PrescriptionsApi* | [**listPrescriptions**](doc//PrescriptionsApi.md#listprescriptions) | **GET** /residents/{resident_id}/prescriptions | List Prescriptions
 *PrescriptionsApi* | [**savePrescription**](doc//PrescriptionsApi.md#saveprescription) | **PUT** /residents/{resident_id}/prescriptions/{prescription_id} | Put
@@ -120,6 +121,10 @@ Class | Method | HTTP request | Description
  - [FeedForm](doc//FeedForm.md)
  - [Health](doc//Health.md)
  - [LabelView](doc//LabelView.md)
+ - [LearningAdjustment](doc//LearningAdjustment.md)
+ - [LearningEvidence](doc//LearningEvidence.md)
+ - [LearningResult](doc//LearningResult.md)
+ - [LearningSample](doc//LearningSample.md)
  - [Login](doc//Login.md)
  - [LoginResult](doc//LoginResult.md)
  - [MealRelation](doc//MealRelation.md)
@@ -129,9 +134,11 @@ Class | Method | HTTP request | Description
  - [PlanPreview](doc//PlanPreview.md)
  - [PlanSnapshot](doc//PlanSnapshot.md)
  - [PlanTray](doc//PlanTray.md)
+ - [PreparationItem](doc//PreparationItem.md)
  - [PrescriptionData](doc//PrescriptionData.md)
  - [PrescriptionView](doc//PrescriptionView.md)
  - [PreviewRequest](doc//PreviewRequest.md)
+ - [RecognitionBinding](doc//RecognitionBinding.md)
  - [ResetPassword](doc//ResetPassword.md)
  - [ResidentData](doc//ResidentData.md)
  - [ResidentPage](doc//ResidentPage.md)

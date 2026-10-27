@@ -19,6 +19,11 @@ class ParameterView {
     required this.turntable,
     required this.gate,
     this.simulationOnly = false,
+    this.learningEnabled = true,
+    this.hasValues = true,
+    this.sourceTaskId,
+    this.sourceBatch,
+    this.feedForm,
   });
 
   final String prescriptionId;
@@ -33,6 +38,16 @@ class ParameterView {
 
   final bool simulationOnly;
 
+  final bool learningEnabled;
+
+  final bool hasValues;
+
+  final String? sourceTaskId;
+
+  final int? sourceBatch;
+
+  final String? feedForm;
+
   @override
   bool operator ==(Object other) => identical(this, other) || other is ParameterView &&
     other.prescriptionId == prescriptionId &&
@@ -40,7 +55,12 @@ class ParameterView {
     other.revision == revision &&
     other.turntable == turntable &&
     other.gate == gate &&
-    other.simulationOnly == simulationOnly;
+    other.simulationOnly == simulationOnly &&
+    other.learningEnabled == learningEnabled &&
+    other.hasValues == hasValues &&
+    other.sourceTaskId == sourceTaskId &&
+    other.sourceBatch == sourceBatch &&
+    other.feedForm == feedForm;
 
   @override
   int get hashCode =>
@@ -50,10 +70,15 @@ class ParameterView {
     (revision.hashCode) +
     (turntable.hashCode) +
     (gate.hashCode) +
-    (simulationOnly.hashCode);
+    (simulationOnly.hashCode) +
+    (learningEnabled.hashCode) +
+    (hasValues.hashCode) +
+    (sourceTaskId == null ? 0 : sourceTaskId!.hashCode) +
+    (sourceBatch == null ? 0 : sourceBatch!.hashCode) +
+    (feedForm == null ? 0 : feedForm!.hashCode);
 
   @override
-  String toString() => 'ParameterView[prescriptionId=$prescriptionId, medicineId=$medicineId, revision=$revision, turntable=$turntable, gate=$gate, simulationOnly=$simulationOnly]';
+  String toString() => 'ParameterView[prescriptionId=$prescriptionId, medicineId=$medicineId, revision=$revision, turntable=$turntable, gate=$gate, simulationOnly=$simulationOnly, learningEnabled=$learningEnabled, hasValues=$hasValues, sourceTaskId=$sourceTaskId, sourceBatch=$sourceBatch, feedForm=$feedForm]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -63,6 +88,23 @@ class ParameterView {
       json[r'turntable'] = this.turntable;
       json[r'gate'] = this.gate;
       json[r'simulation_only'] = this.simulationOnly;
+      json[r'learning_enabled'] = this.learningEnabled;
+      json[r'has_values'] = this.hasValues;
+    if (this.sourceTaskId != null) {
+      json[r'source_task_id'] = this.sourceTaskId;
+    } else {
+      json[r'source_task_id'] = null;
+    }
+    if (this.sourceBatch != null) {
+      json[r'source_batch'] = this.sourceBatch;
+    } else {
+      json[r'source_batch'] = null;
+    }
+    if (this.feedForm != null) {
+      json[r'feed_form'] = this.feedForm;
+    } else {
+      json[r'feed_form'] = null;
+    }
     return json;
   }
 
@@ -75,6 +117,14 @@ class ParameterView {
     num? turntable,
     num? gate,
     bool? simulationOnly,
+    bool? learningEnabled,
+    bool? hasValues,
+    String? sourceTaskId,
+    bool sourceTaskIdSetToNull = false,
+    int? sourceBatch,
+    bool sourceBatchSetToNull = false,
+    String? feedForm,
+    bool feedFormSetToNull = false,
   }) => ParameterView(
     prescriptionId: prescriptionId ?? this.prescriptionId,
     medicineId: medicineId ?? this.medicineId,
@@ -82,6 +132,11 @@ class ParameterView {
     turntable: turntable ?? this.turntable,
     gate: gate ?? this.gate,
     simulationOnly: simulationOnly ?? this.simulationOnly,
+    learningEnabled: learningEnabled ?? this.learningEnabled,
+    hasValues: hasValues ?? this.hasValues,
+    sourceTaskId: sourceTaskIdSetToNull ? null : sourceTaskId ?? this.sourceTaskId,
+    sourceBatch: sourceBatchSetToNull ? null : sourceBatch ?? this.sourceBatch,
+    feedForm: feedFormSetToNull ? null : feedForm ?? this.feedForm,
   );
 
   /// Returns a new [ParameterView] instance and imports its values from
@@ -115,6 +170,11 @@ class ParameterView {
         turntable: num.parse('${json[r'turntable']}'),
         gate: num.parse('${json[r'gate']}'),
         simulationOnly: mapValueOfType<bool>(json, r'simulation_only') ?? false,
+        learningEnabled: mapValueOfType<bool>(json, r'learning_enabled') ?? true,
+        hasValues: mapValueOfType<bool>(json, r'has_values') ?? true,
+        sourceTaskId: mapValueOfType<String>(json, r'source_task_id'),
+        sourceBatch: mapValueOfType<int>(json, r'source_batch'),
+        feedForm: mapValueOfType<String>(json, r'feed_form'),
       );
     }
     return null;

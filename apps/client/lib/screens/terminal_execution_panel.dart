@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:pillxai_api_client/api.dart' as api;
 
 import '../data/terminal_controller.dart';
-import '../theme/app_theme.dart';
+import '../widgets/execution_medicine_card.dart';
+import '../widgets/profile_avatar.dart';
+import '../widgets/dispenser_icon.dart';
 import 'terminal_device_dialog.dart';
 
 class TerminalExecutionPanel extends StatelessWidget {
@@ -47,7 +49,8 @@ class TerminalExecutionPanel extends StatelessWidget {
       ].contains(phase);
       final simulator =
           task?.device.configuration.mode == api.DeviceMode.simulator;
-      return Surface(
+      return Padding(
+        padding: EdgeInsets.zero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
@@ -73,31 +76,48 @@ class TerminalExecutionPanel extends StatelessWidget {
                 ],
               ),
             ] else ...[
-              Text(
-                '${task.plan.residentName} · ${task.device.configuration.name}${simulator ? ' · 模拟演练' : ''}',
+              ResidentIdentity(
+                name: task.plan.residentName,
+                bed: task.plan.bed,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 24),
+              if (simulator)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Text('模拟演练'),
+                ),
               if (!waiting && batch != null) ...[
+                ExecutionMedicineCard(
+                  batch: batch,
+                  count: terminal.count,
+                  stage:
+                      '${batch.purpose} · 第 ${batch.index + 1} / ${task.batches.length} 药',
+                  next: batch.index + 1 < task.batches.length
+                      ? task.batches[batch.index + 1]
+                      : null,
+                ),
+                const SizedBox(height: 24),
+              ],
+              if (waiting) ...[
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: DispenserIcon(size: 64),
+                ),
+                const SizedBox(height: 16),
                 Text(
-                  batch.name,
+                  phase == 'closing'
+                      ? '正在收回轨道'
+                      : phase == 'collecting'
+                      ? '请取出药盒'
+                      : phase == 'completed'
+                      ? '本次已完成'
+                      : '本次已结束',
                   style: const TextStyle(
-                    fontSize: 30,
+                    fontSize: 24,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                Text(
-                  '${batch.strength} · ${batch.feedForm == 'half' ? '人工预切半片' : '整片／整粒'} · ${batch.purpose}',
-                ),
-                const SizedBox(height: 20),
-                LinearProgressIndicator(
-                  value: batch.total == 0 ? 0 : terminal.count / batch.total,
-                  minHeight: 8,
-                ),
-                const SizedBox(height: 8),
-                Text('已摆 ${terminal.count} / ${batch.total} 颗'),
-                if (batch.index + 1 < task.batches.length)
-                  Text('下一药：${task.batches[batch.index + 1].name}'),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
               ],
               Text(terminal.state['message'] as String? ?? ''),
               if (!terminal.ownTask) const Text('当前任务属于其他账号，请使用原账号登录。'),
@@ -223,30 +243,55 @@ class TerminalExecutionPanel extends StatelessWidget {
                       context: context,
                       builder: (_) => TerminalDeviceDialog(terminal: terminal),
                     ),
-                    child: const Text('设备与反馈'),
+                    child: const Text('查看设备'),
                   ),
                 ],
               ),
-              if (['running', 'paused'].contains(phase) && batch != null)
-                Material(
-                  color: Colors.transparent,
-                  child: ExpansionTile(
-                    title: const Text('调整当前药物开口'),
-                    children: [
-                      _GateControl(
-                        terminal: terminal,
-                        initial:
-                            (terminal.state['gate'] as num?)?.toDouble() ??
-                            batch.parameters.gate.toDouble(),
-                        key: ValueKey('${task.id}-${batch.index}'),
-                      ),
-                    ],
+              if (['ready', 'running', 'paused'].contains(phase) &&
+                  batch != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.tune_rounded, size: 18),
+                    label: const Text('调整出药开口'),
+                    onPressed: !terminal.ownTask
+                        ? null
+                        : () => showDialog<void>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('调整出药开口'),
+                              content: SizedBox(
+                                width: 420,
+                                child: ListenableBuilder(
+                                  listenable: terminal,
+                                  builder: (context, _) => _GateControl(
+                                    terminal: terminal,
+                                    initial:
+                                        (terminal.state['gate'] as num?)
+                                            ?.toDouble() ??
+                                        batch.parameters.gate.toDouble(),
+                                    key: ValueKey('${task.id}-${batch.index}'),
+                                  ),
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('完成'),
+                                ),
+                              ],
+                            ),
+                          ),
                   ),
                 ),
             ],
-            if (terminal.pending > 0) Text('待同步 ${terminal.pending} 条记录'),
+            if (terminal.pending > 0) const Text('记录已保存在本机，正在同步…'),
+            for (final result
+                in (terminal.view['learning_results'] as List? ?? []))
+              if ((result as Map)['status'] == 'conflict')
+                Text(result['message'] as String),
             if (terminal.syncError != null)
-              Text('同步暂未完成；已开始任务可继续。${terminal.syncError}'),
+              const Text('记录暂未同步，已开始的任务可继续。联网后自动重试。'),
             if (terminal.error != null)
               Text(
                 terminal.error!,
@@ -278,7 +323,7 @@ class _GateControlState extends State<_GateControl> {
   void send() {
     debounce?.cancel();
     if (!mounted ||
-        !['running', 'paused'].contains(widget.terminal.phase) ||
+        !['ready', 'running', 'paused'].contains(widget.terminal.phase) ||
         lastSent == value) {
       return;
     }
@@ -299,7 +344,7 @@ class _GateControlState extends State<_GateControl> {
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      Text('舵机刻度 ${value.toStringAsFixed(2)}'),
+      Text('开口刻度 ${value.toStringAsFixed(2)}（数值越小，开口越大）'),
       Slider(
         value: value,
         divisions: 100,

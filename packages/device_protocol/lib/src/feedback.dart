@@ -72,6 +72,17 @@ DeviceEvent parseFeedback(String raw) {
     'NO CARD': DeviceEventKind.noCard,
   };
   if (exact[line] case final kind?) return DeviceEvent(kind, raw);
+  final barcode = RegExp(r'^(APPEARED|DISAPPEARED),([^,\s]{1,128})$')
+      .firstMatch(raw);
+  if (barcode != null) {
+    return DeviceEvent(
+      barcode[1] == 'APPEARED'
+          ? DeviceEventKind.barcodeAppeared
+          : DeviceEventKind.barcodeDisappeared,
+      raw,
+      barcode: barcode[2],
+    );
+  }
   final count = RegExp(r'^number:(\d+)(?:,\s*|\s+)width:([+-]?\d+(?:\.\d+)?)$')
       .firstMatch(line);
   if (count != null) {

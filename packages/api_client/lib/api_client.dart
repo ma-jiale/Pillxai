@@ -223,6 +223,14 @@ class ApiClient {
           return Health.fromJson(value);
         case 'LabelView':
           return LabelView.fromJson(value);
+        case 'LearningAdjustment':
+          return LearningAdjustment.fromJson(value);
+        case 'LearningEvidence':
+          return LearningEvidence.fromJson(value);
+        case 'LearningResult':
+          return LearningResult.fromJson(value);
+        case 'LearningSample':
+          return LearningSample.fromJson(value);
         case 'Login':
           return Login.fromJson(value);
         case 'LoginResult':
@@ -241,12 +249,16 @@ class ApiClient {
           return PlanSnapshot.fromJson(value);
         case 'PlanTray':
           return PlanTray.fromJson(value);
+        case 'PreparationItem':
+          return PreparationItem.fromJson(value);
         case 'PrescriptionData':
           return PrescriptionData.fromJson(value);
         case 'PrescriptionView':
           return PrescriptionView.fromJson(value);
         case 'PreviewRequest':
           return PreviewRequest.fromJson(value);
+        case 'RecognitionBinding':
+          return RecognitionBinding.fromJson(value);
         case 'ResetPassword':
           return ResetPassword.fromJson(value);
         case 'ResidentData':

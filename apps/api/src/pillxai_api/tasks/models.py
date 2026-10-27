@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
@@ -31,6 +31,8 @@ class DeviceConfiguration(Input):
     tray_absent_line: str = Field(default="", max_length=120)
     ready_line: str = Field(default="", max_length=120)
     feedback_verified: bool = False
+    # Explicitly confirmed per machine: matching barcode disappearance closes immediately.
+    barcode_removal_closes: bool = False
 
     @model_validator(mode="after")
     def distinct_mapping(self):
@@ -71,6 +73,8 @@ class MedicationParameters(Input):
     turntable: Annotated[float, Field(ge=0, allow_inf_nan=False)]
     gate: Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
     simulation_only: bool = False
+    learning_enabled: bool = True
+    has_values: bool = True
 
 
 class ParameterView(BaseModel):
@@ -80,6 +84,11 @@ class ParameterView(BaseModel):
     turntable: float
     gate: float
     simulation_only: bool = False
+    learning_enabled: bool = True
+    has_values: bool = True
+    source_task_id: UUID | None = None
+    source_batch: int | None = None
+    feed_form: str | None = None
 
 
 class BatchPlan(BaseModel):
@@ -94,6 +103,43 @@ class BatchPlan(BaseModel):
     total: int
     matrix: list[list[int]]
     parameters: ParameterView
+    # False for previously saved tasks that did not capture learning evidence.
+    learning_enabled: bool = False
+    had_valid_history: bool = False
+
+
+class LearningSample(BaseModel):
+    sequence: int
+    number: int | None = None
+    raw_width: str | None = None
+    reason: str
+
+
+class LearningAdjustment(BaseModel):
+    sequence: int
+    value: float | None = None
+    applied_to_learning: bool
+
+
+class LearningEvidence(BaseModel):
+    initial_gate: float
+    had_valid_history: bool
+    manual_gate: float | None = None
+    samples: list[LearningSample] = Field(default_factory=list)
+    adjustments: list[LearningAdjustment] = Field(default_factory=list)
+    valid_samples: int
+
+
+class LearningResult(BaseModel):
+    batch: int
+    status: str
+    message: str
+    base_revision: int
+    applied_revision: int | None = None
+    median: float | None = None
+    turntable: float | None = None
+    gate: float | None = None
+    evidence: LearningEvidence
 
 
 class ClaimTask(Input):
@@ -110,6 +156,12 @@ class TaskState(StrEnum):
     cancelled = "cancelled"
 
 
+class RecognitionBinding(BaseModel):
+    source: Literal["rfid", "barcode"]
+    value: str
+    resident_id: UUID
+
+
 class TaskView(BaseModel):
     id: UUID
     plan_id: UUID
@@ -121,12 +173,14 @@ class TaskView(BaseModel):
     plan: PlanSnapshot
     device: DeviceView
     labels: list[str]
+    recognition_bindings: list[RecognitionBinding] = Field(default_factory=list)
     batches: list[BatchPlan]
     sequence: int
     completed_batches: list[int]
     counts: list[int]
     started_at: datetime | None
     updated_at: datetime
+    learning_results: list[LearningResult] = Field(default_factory=list)
 
 
 class TaskOwner(Input):
@@ -135,8 +189,18 @@ class TaskOwner(Input):
 
 class StartTask(TaskOwner):
     expected_revision: Annotated[int, Field(strict=True, ge=1)]
-    uid: Uid
+    uid: Uid | None = None
+    barcode: Annotated[str, StringConstraints(strict=True, min_length=1, max_length=128)] | None = (
+        None
+    )
     observed_at: datetime
+    checked_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def one_recognition_source(self):
+        if (self.uid is None) == (self.barcode is None):
+            raise ValueError("须提供一个识别来源。")
+        return self
 
 
 class ExecutionEvent(Input):
