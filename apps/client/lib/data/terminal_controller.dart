@@ -17,6 +17,7 @@ class TerminalController extends ChangeNotifier {
   Map<String, dynamic> view = {};
   List<api.DeviceView> devices = [];
   List<String> ports = [];
+  Map<String, String> portNames = {};
   api.TaskView? task;
   String? error;
   String? syncError;
@@ -28,6 +29,7 @@ class TerminalController extends ChangeNotifier {
   Future<void>? _syncing;
 
   bool get supported => host.supported;
+  bool get isAndroid => view['platform'] == 'android';
   Map<String, dynamic> get state =>
       Map<String, dynamic>.from(view['state'] as Map? ?? {});
   String get phase => state['phase'] as String? ?? 'idle';
@@ -69,13 +71,17 @@ class TerminalController extends ChangeNotifier {
     } else {
       view = value;
       task = api.TaskView.fromJson(value['task']);
+      if (isAndroid) syncError = value['sync_error'] as String?;
     }
     notifyListeners();
   }
 
   Future<void> initialize() async {
     if (_subscription != null) {
-      await run(refreshDevices);
+      await run(() async {
+        await _setBackgroundSession();
+        await refreshDevices();
+      });
       await synchronize();
       return;
     }
@@ -88,12 +94,35 @@ class TerminalController extends ChangeNotifier {
     await run(() async {
       await host.initialize();
       _accept(Map<String, dynamic>.from(await host.command('view') as Map));
+      await _setBackgroundSession();
       await refreshDevices();
       initialized = true;
     });
     _timer = Timer.periodic(const Duration(seconds: 2), (_) => synchronize());
     await synchronize();
   }
+
+  Future<void> _setBackgroundSession() async {
+    if (!isAndroid || backend.account == null) return;
+    await host.command('session', {
+      'api_url': backend.client.basePath,
+      'authorization': backend.client.defaultHeaderMap['Authorization'] ?? '',
+      'owner_id': backend.account!.id,
+    });
+  }
+
+  Future<void> refreshAfterResume() async {
+    if (!supported || !initialized) return;
+    await run(() async {
+      _accept(Map<String, dynamic>.from(await host.command('view') as Map));
+    });
+    await synchronize();
+  }
+
+  Future<void> requestBluetoothAccess() => run(() async {
+    await host.command('request_access');
+    await refreshDevices();
+  });
 
   Future<void> run(Future<void> Function() action) async {
     if (busy || _disposed) return;
@@ -113,7 +142,16 @@ class TerminalController extends ChangeNotifier {
   Future<void> refreshDevices() async {
     devices = await backend.request(execution.listDevices()) ?? [];
     if (supported) {
-      ports = List<String>.from(await host.command('ports') as List);
+      final candidates = await host.command('ports') as List;
+      portNames = {};
+      ports = candidates.map((value) {
+        if (value is Map) {
+          final address = value['address'] as String;
+          portNames[address] = value['name'] as String;
+          return address;
+        }
+        return value as String;
+      }).toList();
     }
     if (!_disposed) notifyListeners();
   }
@@ -238,6 +276,10 @@ class TerminalController extends ChangeNotifier {
 
   Future<void> _upload() async {
     try {
+      if (isAndroid) {
+        syncError = await host.command('sync') as String?;
+        return;
+      }
       final current = task!;
       if (phase == 'deleting') {
         final receipt = await backend.request(

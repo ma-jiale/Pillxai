@@ -1,12 +1,20 @@
 # Pillxai Flutter 客户端
 
-面向 Android 平板首发，沿用已确认的极简 UI。2026-10-26 在 NT 分支接入真实账号、长者、处方及版本，中央服务在同机 WSL/Conda 运行。执行计划见 [09](../../docs/09-agent-development.md)，最新证据见 [M1 报告](../../docs/validation/2026-10-26-m1.md)。
+面向 Android 平板首发，沿用已确认的极简 UI。2026-10-26 在 NT 分支接入真实账号、长者、处方及版本，中央服务在同机 WSL/Conda 运行。执行计划见 [09](../../docs/09-agent-development.md)，Android 最新证据见 [2026-10-27 报告](../../docs/validation/2026-10-27-android.md)，Windows 闭环见 [执行报告](../../docs/validation/2026-10-26-execution.md)。
 
-默认入口是 `ConnectedWorkspace`，通过生成的 Dart SDK 访问 API。账号与操作权限由服务端校验，登录后直接进入处方管理；长者/处方列表由 `PrescriptionController` 持有，`PrescriptionRepository` 映射 HTTP 契约。保存等待服务端成功，冲突与网络失败保留草稿，处方修改/停用/恢复产生独立版本。`SettingsController` 保存通用规则，保留已保存版本与失败草稿；`PlanPreviewPage` 请求服务器计划，`ServerPlanPattern` 只渲染快照矩阵。真实资料不传入 DemoModel。Windows 已接入设备配置、新 UID 绑定、每处方参数、领取/识别/开始、暂停恢复、双盘、取盒与结果补传；本机执行由独立 Isolate/SQLite 持有。图片上传、异常人工补齐、Android 后台和实机验收仍未完成。
+默认入口是 `ConnectedWorkspace`，通过生成的 Dart SDK 访问 API。账号与操作权限由服务端校验，登录后直接进入处方管理；长者/处方列表由 `PrescriptionController` 持有，`PrescriptionRepository` 映射 HTTP 契约。保存等待服务端成功，冲突与网络失败保留草稿，处方修改/停用/恢复产生独立版本。`SettingsController` 保存通用规则，保留已保存版本与失败草稿；`PlanPreviewPage` 请求服务器计划，`ServerPlanPattern` 只渲染快照矩阵。真实资料不传入 DemoModel。Windows 已接入设备配置、新 UID 绑定、每处方参数、领取/识别/开始、暂停恢复、双盘、取盒与结果补传；本机执行由独立 Isolate/SQLite 持有。Android 已接入独立前台服务、经典蓝牙适配与后台事件补传，Android 15 模拟器双盘、关屏和强制停止恢复通过。图片上传、异常人工补齐与实体平板/机器验收仍未完成。
 
 2026-10-26 新增测试入口：管理员登录后，在原有“设置 → 通用”修改准备天数、从次日开始、餐食分盘或睡前格；每次修改自动保存，成功后显示“设置已保存”，重新登录可读取。冲突或连接失败保留草稿，可重试或放弃并重新加载；工作人员只读。规则作用于之后生成的预览。外观强调色和自动更新开关仍为会话偏好，更新服务未实现。
 
 在“处方管理”维护有效处方，再进入“摆药”点击对应长者的“预览计划”；可调整本次天数与分盘、查看完整日期、各药颗粒与原片等价量，再打开“预览摆药图案”。本次调整不改长期设置。回到应用或打开图案前核对服务端版本，资料/设置/业务日期变化后提示重新生成。预览本身不产生动作；Windows 版可继续“上机准备”，核对标签和参数后“领取并开仓”，识别匹配再开始。网页仅保留资料与预览。可使用新建的“计划联调虚构长者”测试。
+
+## Android 当前入口
+
+2026-10-27：仓库根执行 `scripts/run-android.ps1` 构建普通 Android Debug APK；可指定 `-DeviceId` 安装，使用同机 API 时加 `-ReverseLocalApi`。输出为 `build/app/outputs/flutter-apk/app-debug.apk`。这是开发签名联调包，实体平板/HC-06 和正式签名仍待验收。操作步骤见 [Android 指南](../../docs/android-machine-test.md)。
+
+后台执行由 Android `TerminalService` 的独立 FlutterEngine 持有，复用 `TerminalSession/ExecutionEngine`；蓝牙 SPP、SQLite、通知和事件补传不依赖页面。记录存入应用私有 no-backup 目录，令牌只留内存。Android USB 尚未实现。`scripts/check-android.ps1` 只用于专用模拟器的独立验证包，不能交付给工作人员。
+
+本轮 Flutter 92 项、运行模块 10 项测试通过，Flutter 静态分析无问题，Windows 原生宿主回归通过。实际 Android 模拟器验证及限制见 [报告](../../docs/validation/2026-10-27-android.md)。下文日期更早的验证属于历史阶段或显式演示模式。
 
 ## 运行当前真实资料版本
 

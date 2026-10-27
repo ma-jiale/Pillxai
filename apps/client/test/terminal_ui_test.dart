@@ -36,7 +36,13 @@ class FakeHost implements TerminalHost {
   ]) async {
     operations.add(operation);
     if (operation == 'view') return value;
-    if (operation == 'ports') return ['COM7'];
+    if (operation == 'ports') {
+      return value['platform'] == 'android'
+          ? [
+              {'address': 'AA:BB:CC:DD:EE:FF', 'name': 'dispenser01'},
+            ]
+          : ['COM7'];
+    }
     if (operation == 'pending') return [];
     if (operation == 'pause' || operation == 'resume') {
       (value['state'] as Map)['phase'] = operation == 'pause'
@@ -270,5 +276,74 @@ void main() {
       unawaited(host.close());
       backend.dispose();
     });
+  }
+  for (final size in [const Size(1280, 800), const Size(390, 844)]) {
+    testWidgets(
+      'Android paired-device selection and address validation $size',
+      (tester) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final device = <String, dynamic>{
+          'id': 'device',
+          'revision': 1,
+          'configuration': {
+            'name': 'dispenser01',
+            'identity': 'AA:BB:CC:DD:EE:FF',
+            'terminal_id': 'terminal',
+            'mode': 'hardware',
+            'rows': [2, 1, 0, 3],
+          },
+        };
+        final client = api.ApiClient(basePath: 'http://localhost');
+        client.client.close();
+        client.client = MockClient(
+          (_) async => http.Response(
+            jsonEncode([device]),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          ),
+        );
+        final backend = BackendConnection(client: client)
+          ..account = api.AccountView(
+            id: 'owner',
+            username: 'tester',
+            displayName: '测试',
+            role: api.Role.admin,
+            canMaintain: true,
+            active: true,
+            revision: 1,
+          );
+        final host = FakeHost({
+          'platform': 'android',
+          'terminal_id': 'terminal',
+          'configuration': {'device_id': 'device', 'port': 'COM7'},
+          'state': {'phase': 'idle', 'connected': false},
+        });
+        final terminal = TerminalController(backend, host);
+        await terminal.initialize();
+        expect(host.operations, contains('session'));
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: createTheme(),
+            home: Scaffold(body: TerminalDeviceDialog(terminal: terminal)),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Android 蓝牙 HC-06'), findsOneWidget);
+        expect(find.text('已配对设备的蓝牙地址'), findsOneWidget);
+        await tester.ensureVisible(find.text('保存连接'));
+        await tester.tap(find.text('保存连接'));
+        await tester.pumpAndSettle();
+        expect(terminal.error, contains('蓝牙地址'));
+        expect(host.operations, isNot(contains('configure')));
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        terminal.dispose();
+        unawaited(host.close());
+        backend.dispose();
+      },
+    );
   }
 }

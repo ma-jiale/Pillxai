@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+
+import 'data/android_runtime_stub.dart'
+    if (dart.library.io) 'data/android_runtime.dart'
+    as android;
+
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'models/demo_model.dart';
@@ -19,6 +24,9 @@ import 'widgets/workspace_sidebar.dart';
 /// const 创建不可变配置；运行中的可变数据由下面的 State 保存。
 void main() =>
     runApp(const PillxaiApp(demo: bool.fromEnvironment('PILLXAI_DEMO')));
+
+@pragma('vm:entry-point')
+void terminalServiceMain() => android.runTerminalService();
 
 /// 应用的根配置。model 可由测试注入；日常启动时由 State 创建并持有。
 /// Widget 描述“应显示什么”，不等同于 Unity GameObject 或可变的 Qt 控件。

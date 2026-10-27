@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:pillxai_api_client/api.dart' as api;
 
@@ -37,7 +39,8 @@ class ConnectedWorkspace extends StatefulWidget {
   State<ConnectedWorkspace> createState() => _ConnectedWorkspaceState();
 }
 
-class _ConnectedWorkspaceState extends State<ConnectedWorkspace> {
+class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
+    with WidgetsBindingObserver {
   late final backend = widget.backend ?? BackendConnection();
   PrescriptionController? controller;
   SettingsController? settings;
@@ -49,42 +52,59 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     window.setMethodCallHandler((call) async {
-      if (call.method != 'requestClose') return;
-      final current = terminal;
-      if (current != null && (current.active || current.busy)) {
-        setState(() => page = 1);
-        if (current.task != null &&
-            current.connected &&
-            !current.busy &&
-            ![
-              'awaitingSafeConfirmation',
-              'cancelled',
-              'completed',
-              'deleting',
-              'stopping',
-            ].contains(current.phase)) {
-          await current.action('stop');
-        }
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('本机任务仍在进行。请先停止、确认现场并结束任务，完成同步后再退出。')),
-        );
-        return;
+      if (call.method == 'requestClose') await _requestClose();
+    });
+  }
+
+  Future<void> _requestClose() async {
+    final current = terminal;
+    if (current != null && (current.active || current.busy)) {
+      setState(() => page = 1);
+      if (current.task != null &&
+          current.connected &&
+          !current.busy &&
+          ![
+            'awaitingSafeConfirmation',
+            'cancelled',
+            'completed',
+            'deleting',
+            'stopping',
+          ].contains(current.phase)) {
+        await current.action('stop');
       }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('本机任务仍在进行。请先停止、确认现场并结束任务，完成同步后再退出。')),
+      );
+      return;
+    }
+    try {
       await current?.shutdown();
       await window.invokeMethod<void>('close');
-    });
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     controller?.dispose();
     settings?.dispose();
     terminal?.dispose();
     window.setMethodCallHandler(null);
     if (widget.backend == null) backend.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) terminal?.refreshAfterResume();
   }
 
   Future<void> _login(String username, String password) async {
@@ -152,7 +172,20 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PopScope<Object?>(
+    canPop: false,
+    onPopInvokedWithResult: (didPop, _) {
+      if (didPop) return;
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        window.invokeMethod<void>('background');
+      } else {
+        _requestClose();
+      }
+    },
+    child: _buildWorkspace(context),
+  );
+
+  Widget _buildWorkspace(BuildContext context) {
     final account = backend.account;
     if (account == null) return LoginPage(onLogin: _login);
     final roleLabel = switch (account.role) {

@@ -13,7 +13,7 @@ class UnavailableTerminalHost implements TerminalHost {
   Future<dynamic> command(
     String command, [
     Map<String, dynamic> data = const {},
-  ]) async => throw UnsupportedError('请使用 Windows 本机版连接 HC-06；网页保留资料和计划预览。');
+  ]) async => throw UnsupportedError('请使用 Android 或 Windows 本机版连接 HC-06；网页保留资料和计划预览。');
   @override
   Future<void> close() async {}
 }

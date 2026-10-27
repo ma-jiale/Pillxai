@@ -102,8 +102,13 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
         throw const FormatException('时段映射须为 0、1、2、3 的不重复排列。');
       }
       if (mode == api.DeviceMode.hardware &&
-          !RegExp(r'^COM[1-9][0-9]*$').hasMatch(port.text.trim())) {
-        throw const FormatException('请选择已确认的出站 COM。');
+          !(terminal.isAndroid
+                  ? RegExp(r'^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$')
+                  : RegExp(r'^COM[1-9][0-9]*$'))
+              .hasMatch(port.text.trim())) {
+        throw FormatException(
+          terminal.isAndroid ? '请选择已配对 HC-06 的蓝牙地址。' : '请选择已确认的出站 COM。',
+        );
       }
       await terminal.saveDevice(
         api.DeviceConfiguration(
@@ -125,7 +130,9 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
               ? 'SIM:READY'
               : ready.text.trim(),
         ),
-        port: port.text.trim(),
+        port: terminal.isAndroid
+            ? port.text.trim().toUpperCase()
+            : port.text.trim(),
         simulatorUid: simulatorUid.text.trim().toUpperCase(),
         existing: selected,
       );
@@ -149,7 +156,7 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
               const Text('我的设备', style: TextStyle(fontSize: 22)),
               const SizedBox(height: 16),
               if (!terminal.supported)
-                const Text('请使用 Windows 本机版连接 HC-06；网页可维护资料和预览计划。')
+                const Text('请使用 Android 或 Windows 本机版连接 HC-06；网页可维护资料和预览计划。')
               else
                 Flexible(
                   child: SingleChildScrollView(
@@ -196,14 +203,18 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
                                 decoration: const InputDecoration(
                                   labelText: '连接方式',
                                 ),
-                                items: const [
+                                items: [
                                   DropdownMenuItem(
                                     value: api.DeviceMode.simulator,
                                     child: Text('模拟机'),
                                   ),
                                   DropdownMenuItem(
                                     value: api.DeviceMode.hardware,
-                                    child: Text('Windows 蓝牙／USB 串口'),
+                                    child: Text(
+                                      terminal.isAndroid
+                                          ? 'Android 蓝牙 HC-06'
+                                          : 'Windows 蓝牙／USB 串口',
+                                    ),
                                   ),
                                 ],
                                 onChanged: (value) => setState(() {
@@ -228,8 +239,48 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
                                 hint: '实机填写已核对的蓝牙地址或设备序列标识。',
                               ),
                               if (mode == api.DeviceMode.hardware) ...[
+                                if (terminal.isAndroid) ...[
+                                  const Text('请先在系统蓝牙设置中配对 HC-06，再读取已配对设备。'),
+                                  TextButton.icon(
+                                    onPressed: terminal.busy
+                                        ? null
+                                        : terminal.requestBluetoothAccess,
+                                    icon: const Icon(Icons.bluetooth_rounded),
+                                    label: const Text('读取已配对设备'),
+                                  ),
+                                  if (terminal.ports.isNotEmpty)
+                                    DropdownButtonFormField<String>(
+                                      key: ValueKey(terminal.ports.join(',')),
+                                      decoration: const InputDecoration(
+                                        labelText: '已配对设备',
+                                      ),
+                                      isExpanded: true,
+                                      items: terminal.ports
+                                          .map(
+                                            (address) => DropdownMenuItem(
+                                              value: address,
+                                              child: Text(
+                                                '${terminal.portNames[address] ?? '蓝牙设备'} · $address',
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                      onChanged: (address) {
+                                        if (address == null) return;
+                                        setState(() {
+                                          port.text = address;
+                                          identity.text = address;
+                                          name.text =
+                                              terminal.portNames[address] ??
+                                              'dispenser01';
+                                        });
+                                      },
+                                    ),
+                                ],
                                 input(
-                                  '已确认的出站 COM',
+                                  terminal.isAndroid
+                                      ? '已配对设备的蓝牙地址'
+                                      : '已确认的出站 COM',
                                   port,
                                   hint:
                                       '当前候选：${terminal.ports.join('、')}。候选列表不代表身份已核实。',
@@ -312,7 +363,13 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        Text(terminal.connected ? '已连接 · 115200 / 8N1' : '未连接'),
+                        Text(
+                          terminal.connected
+                              ? (terminal.isAndroid
+                                    ? '已连接 · 蓝牙'
+                                    : '已连接 · 115200 / 8N1')
+                              : '未连接',
+                        ),
                         Text('最近标签：${terminal.observedUid ?? '尚未收到'}'),
                         if (terminal.active) const Text('本机任务未结束，连接配置保持锁定。'),
                         ExpansionTile(

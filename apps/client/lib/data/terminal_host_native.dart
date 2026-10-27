@@ -6,9 +6,15 @@ import 'package:pillxai_device_runtime/device_runtime.dart';
 
 import 'terminal_host.dart';
 import 'terminal_host_stub.dart';
+import 'terminal_host_stub.dart'
+    if (dart.library.ui) 'terminal_host_android.dart'
+    as android;
 
-TerminalHost createHost() =>
-    Platform.isWindows ? NativeTerminalHost() : UnavailableTerminalHost();
+TerminalHost createHost() => Platform.isWindows
+    ? NativeTerminalHost()
+    : Platform.isAndroid
+    ? android.createHost()
+    : UnavailableTerminalHost();
 
 class NativeTerminalHost implements TerminalHost {
   NativeTerminalHost({this.dataDirectory});

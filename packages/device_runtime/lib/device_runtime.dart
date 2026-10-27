@@ -6,3 +6,4 @@ export 'src/execution_engine.dart';
 export 'src/execution_journal.dart';
 export 'src/machine_simulator.dart';
 export 'src/terminal_worker.dart';
+export 'src/terminal_session.dart';
