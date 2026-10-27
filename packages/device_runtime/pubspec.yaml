@@ -5,6 +5,8 @@ publish_to: none
 environment:
   sdk: ^3.13.1
 dependencies:
+  pillxai_api_client:
+    path: ../api_client
   pillxai_execution_core:
     path: ../execution_core
   pillxai_device_protocol:

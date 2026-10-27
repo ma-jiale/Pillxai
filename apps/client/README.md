@@ -2,13 +2,15 @@
 
 面向 Android 平板首发，沿用已确认的极简 UI。2026-10-26 在 NT 分支接入真实账号、长者、处方及版本，中央服务在同机 WSL/Conda 运行。执行计划见 [09](../../docs/09-agent-development.md)，最新证据见 [M1 报告](../../docs/validation/2026-10-26-m1.md)。
 
-默认入口是 `ConnectedWorkspace`，通过生成的 Dart SDK 访问 API。账号与操作权限由服务端校验，登录后直接进入处方管理；长者/处方列表由 `PrescriptionController` 持有，`PrescriptionRepository` 映射 HTTP 契约。保存等待服务端成功，冲突与网络失败保留草稿，处方修改/停用/恢复产生独立版本。`SettingsController` 保存通用规则，保留已保存版本与失败草稿；`PlanPreviewPage` 请求服务器计划，`ServerPlanPattern` 只渲染快照矩阵。真实资料不传入 DemoModel。图片上传、时段位置调整、覆盖衔接、生产执行、RFID 和 Android 后台仍未完成。
+默认入口是 `ConnectedWorkspace`，通过生成的 Dart SDK 访问 API。账号与操作权限由服务端校验，登录后直接进入处方管理；长者/处方列表由 `PrescriptionController` 持有，`PrescriptionRepository` 映射 HTTP 契约。保存等待服务端成功，冲突与网络失败保留草稿，处方修改/停用/恢复产生独立版本。`SettingsController` 保存通用规则，保留已保存版本与失败草稿；`PlanPreviewPage` 请求服务器计划，`ServerPlanPattern` 只渲染快照矩阵。真实资料不传入 DemoModel。Windows 已接入设备配置、新 UID 绑定、每处方参数、领取/识别/开始、暂停恢复、双盘、取盒与结果补传；本机执行由独立 Isolate/SQLite 持有。图片上传、异常人工补齐、Android 后台和实机验收仍未完成。
 
 2026-10-26 新增测试入口：管理员登录后，在原有“设置 → 通用”修改准备天数、从次日开始、餐食分盘或睡前格；每次修改自动保存，成功后显示“设置已保存”，重新登录可读取。冲突或连接失败保留草稿，可重试或放弃并重新加载；工作人员只读。规则作用于之后生成的预览。外观强调色和自动更新开关仍为会话偏好，更新服务未实现。
 
-在“处方管理”维护有效处方，再进入“摆药”点击对应长者的“预览计划”；可调整本次天数与分盘、查看完整日期、各药颗粒与原片等价量，再打开“预览摆药图案”。本次调整不改长期设置。回到应用或打开图案前核对服务端版本，资料/设置/业务日期变化后提示重新生成。当前预览不领取任务、不识别药盒、不触发机器，也不产生已摆药覆盖。可使用新建的“计划联调虚构长者”测试。
+在“处方管理”维护有效处方，再进入“摆药”点击对应长者的“预览计划”；可调整本次天数与分盘、查看完整日期、各药颗粒与原片等价量，再打开“预览摆药图案”。本次调整不改长期设置。回到应用或打开图案前核对服务端版本，资料/设置/业务日期变化后提示重新生成。预览本身不产生动作；Windows 版可继续“上机准备”，核对标签和参数后“领取并开仓”，识别匹配再开始。网页仅保留资料与预览。可使用新建的“计划联调虚构长者”测试。
 
 ## 运行当前真实资料版本
+
+Windows 上机联调入口：仓库根执行 `scripts/run-windows.ps1`，代码变化后加 `-Build`。它检查并启动本项目 WSL 服务，打开原生程序；任务和原始反馈保存于 `.var/terminal`。现场步骤见 [Windows 测试指南](../../docs/windows-machine-test.md)，已通过与未实测项见[执行报告](../../docs/validation/2026-10-26-execution.md)。网页不能替代原生串口执行。
 
 先按 [API 说明](../api/README.md) 执行 migrate、seed、serve。开发账号 `local-admin` 的随机密码在仓库忽略文件 `.var/local-login.json`。不要使用演示凭据登录真实服务，也不要提交该文件。
 
@@ -18,7 +20,7 @@
 node .\scripts\serve-preview.cjs
 ```
 
-打开 `http://127.0.0.1:5180/`。本机开发 API 允许该来源及 `http://localhost:5180`；其他来源默认不允许。原生入口可运行 `flutter.cmd run -d windows`（本轮未构建 Windows 安装包）。服务地址通过编译参数 `--dart-define=PILLXAI_API_URL=http://127.0.0.1:8000` 指定；平板不能直接使用电脑的 localhost，网络和安装另行验证。
+打开 `http://127.0.0.1:5180/`。本机开发 API 允许该来源及 `http://localhost:5180`；其他来源默认不允许。原生入口可运行 `flutter.cmd run -d windows`；当前 Windows Release 可由 scripts/run-windows.ps1 启动（尚无生产安装包）。服务地址通过编译参数 `--dart-define=PILLXAI_API_URL=http://127.0.0.1:8000` 指定；平板不能直接使用电脑的 localhost，网络和安装另行验证。
 
 按用户最新要求，当前不提供账号管理或改密界面；保留真实登录与服务端权限。设置与演示模式共用原来的 `SettingsPage`：通用／外观／关于、搜索、分组列表及自定义强调色。真实模式通过 `SettingsStore` 读取和保存通用规则，不创建 DemoModel；权限、版本与持久化由服务端负责。强调色和自动更新偏好仅保留本次会话，更新服务尚未实现。凭据只留在进程内存，重载页面须重新登录。
 

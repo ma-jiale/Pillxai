@@ -191,26 +191,48 @@ class ApiClient {
           return ApiError.fromJson(value);
         case 'AppSettings':
           return AppSettings.fromJson(value);
+        case 'BatchPlan':
+          return BatchPlan.fromJson(value);
+        case 'BindLabel':
+          return BindLabel.fromJson(value);
         case 'ChangePassword':
           return ChangePassword.fromJson(value);
+        case 'ClaimTask':
+          return ClaimTask.fromJson(value);
         case 'ContractSample':
           return ContractSample.fromJson(value);
         case 'CreateAccount':
           return CreateAccount.fromJson(value);
+        case 'DeviceConfiguration':
+          return DeviceConfiguration.fromJson(value);
+        case 'DeviceMode':
+          return DeviceModeTypeTransformer().decode(value);
+        case 'DeviceView':
+          return DeviceView.fromJson(value);
+        case 'DiscardTask':
+          return DiscardTask.fromJson(value);
         case 'DoseAmounts':
           return DoseAmounts.fromJson(value);
         case 'DoseUnit':
           return DoseUnitTypeTransformer().decode(value);
+        case 'ExecutionEvent':
+          return ExecutionEvent.fromJson(value);
         case 'FeedForm':
           return FeedFormTypeTransformer().decode(value);
         case 'Health':
           return Health.fromJson(value);
+        case 'LabelView':
+          return LabelView.fromJson(value);
         case 'Login':
           return Login.fromJson(value);
         case 'LoginResult':
           return LoginResult.fromJson(value);
         case 'MealRelation':
           return MealRelationTypeTransformer().decode(value);
+        case 'MedicationParameters':
+          return MedicationParameters.fromJson(value);
+        case 'ParameterView':
+          return ParameterView.fromJson(value);
         case 'PlanMedicine':
           return PlanMedicine.fromJson(value);
         case 'PlanPreview':
@@ -237,6 +259,8 @@ class ApiClient {
           return RoleTypeTransformer().decode(value);
         case 'SaveContractSample':
           return SaveContractSample.fromJson(value);
+        case 'SaveDevice':
+          return SaveDevice.fromJson(value);
         case 'SavePrescription':
           return SavePrescription.fromJson(value);
         case 'SaveResident':
@@ -245,6 +269,18 @@ class ApiClient {
           return SaveSettings.fromJson(value);
         case 'SavedContractSample':
           return SavedContractSample.fromJson(value);
+        case 'StartTask':
+          return StartTask.fromJson(value);
+        case 'StoredEvent':
+          return StoredEvent.fromJson(value);
+        case 'SyncEvents':
+          return SyncEvents.fromJson(value);
+        case 'TaskReceipt':
+          return TaskReceipt.fromJson(value);
+        case 'TaskState':
+          return TaskStateTypeTransformer().decode(value);
+        case 'TaskView':
+          return TaskView.fromJson(value);
         case 'UpdateAccount':
           return UpdateAccount.fromJson(value);
         default:

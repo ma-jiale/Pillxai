@@ -42,6 +42,7 @@ class PlanSnapshot(BaseModel):
     slots: list[str]
     sources: list[PrescriptionView]
     trays: list[PlanTray]
+    coverage_through: date | None = None
 
 
 class PlanPreview(BaseModel):

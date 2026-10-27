@@ -55,6 +55,9 @@ String parameterToString(dynamic value) {
   if (value is DateTime) {
     return value.toUtc().toIso8601String();
   }
+  if (value is DeviceMode) {
+    return DeviceModeTypeTransformer().encode(value).toString();
+  }
   if (value is DoseUnit) {
     return DoseUnitTypeTransformer().encode(value).toString();
   }
@@ -66,6 +69,9 @@ String parameterToString(dynamic value) {
   }
   if (value is Role) {
     return RoleTypeTransformer().encode(value).toString();
+  }
+  if (value is TaskState) {
+    return TaskStateTypeTransformer().encode(value).toString();
   }
   return value.toString();
 }

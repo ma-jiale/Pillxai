@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:pillxai_api_client/api.dart' as api;
 import 'package:pillxai_client/data/backend_connection.dart';
+import 'package:pillxai_client/data/terminal_host_stub.dart';
 import 'package:pillxai_client/data/prescription_repository.dart';
 import 'package:pillxai_client/models/prescription_controller.dart';
 import 'package:pillxai_client/models/prescription_store.dart';
@@ -182,6 +183,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ConnectedWorkspace(
+            terminalHost: UnavailableTerminalHost(),
             backend: backend,
             accent: Colors.black,
             onAccentChanged: (_) {},

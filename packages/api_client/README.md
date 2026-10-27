@@ -63,6 +63,20 @@ Class | Method | HTTP request | Description
 *ContractApi* | [**saveContractSample**](doc//ContractApi.md#savecontractsample) | **POST** /dev/contract-samples | Save
 *DefaultApi* | [**getLiveness**](doc//DefaultApi.md#getliveness) | **GET** /health/live | Live
 *DefaultApi* | [**getReadiness**](doc//DefaultApi.md#getreadiness) | **GET** /health/ready | Ready
+*ExecutionApi* | [**bindLabel**](doc//ExecutionApi.md#bindlabel) | **POST** /residents/{resident_id}/labels | Bind Label
+*ExecutionApi* | [**cancelTask**](doc//ExecutionApi.md#canceltask) | **POST** /tasks/{task_id}/cancel | Cancel Task
+*ExecutionApi* | [**claimTask**](doc//ExecutionApi.md#claimtask) | **PUT** /tasks/{task_id} | Claim Task
+*ExecutionApi* | [**discardTask**](doc//ExecutionApi.md#discardtask) | **POST** /tasks/{task_id}/discard | Discard Task
+*ExecutionApi* | [**getParameters**](doc//ExecutionApi.md#getparameters) | **GET** /residents/{resident_id}/prescriptions/{prescription_id}/parameters | Get Parameters
+*ExecutionApi* | [**getTask**](doc//ExecutionApi.md#gettask) | **GET** /tasks/{task_id} | Get Task
+*ExecutionApi* | [**listDevices**](doc//ExecutionApi.md#listdevices) | **GET** /devices | List Devices
+*ExecutionApi* | [**listLabels**](doc//ExecutionApi.md#listlabels) | **GET** /residents/{resident_id}/labels | List Labels
+*ExecutionApi* | [**listTaskEvents**](doc//ExecutionApi.md#listtaskevents) | **GET** /tasks/{task_id}/events | List Events
+*ExecutionApi* | [**listTasks**](doc//ExecutionApi.md#listtasks) | **GET** /tasks | List Tasks
+*ExecutionApi* | [**saveDevice**](doc//ExecutionApi.md#savedevice) | **PUT** /devices/{device_id} | Save Device
+*ExecutionApi* | [**saveParameters**](doc//ExecutionApi.md#saveparameters) | **PUT** /residents/{resident_id}/prescriptions/{prescription_id}/parameters | Save Parameters
+*ExecutionApi* | [**startTask**](doc//ExecutionApi.md#starttask) | **POST** /tasks/{task_id}/start | Start Task
+*ExecutionApi* | [**syncEvents**](doc//ExecutionApi.md#syncevents) | **POST** /tasks/{task_id}/events | Sync Events
 *IdentityApi* | [**changePassword**](doc//IdentityApi.md#changepassword) | **POST** /auth/password | Change Password
 *IdentityApi* | [**createStaff**](doc//IdentityApi.md#createstaff) | **POST** /accounts | Create Staff
 *IdentityApi* | [**getAccount**](doc//IdentityApi.md#getaccount) | **GET** /auth/me | Me
@@ -90,16 +104,27 @@ Class | Method | HTTP request | Description
  - [ActionResult](doc//ActionResult.md)
  - [ApiError](doc//ApiError.md)
  - [AppSettings](doc//AppSettings.md)
+ - [BatchPlan](doc//BatchPlan.md)
+ - [BindLabel](doc//BindLabel.md)
  - [ChangePassword](doc//ChangePassword.md)
+ - [ClaimTask](doc//ClaimTask.md)
  - [ContractSample](doc//ContractSample.md)
  - [CreateAccount](doc//CreateAccount.md)
+ - [DeviceConfiguration](doc//DeviceConfiguration.md)
+ - [DeviceMode](doc//DeviceMode.md)
+ - [DeviceView](doc//DeviceView.md)
+ - [DiscardTask](doc//DiscardTask.md)
  - [DoseAmounts](doc//DoseAmounts.md)
  - [DoseUnit](doc//DoseUnit.md)
+ - [ExecutionEvent](doc//ExecutionEvent.md)
  - [FeedForm](doc//FeedForm.md)
  - [Health](doc//Health.md)
+ - [LabelView](doc//LabelView.md)
  - [Login](doc//Login.md)
  - [LoginResult](doc//LoginResult.md)
  - [MealRelation](doc//MealRelation.md)
+ - [MedicationParameters](doc//MedicationParameters.md)
+ - [ParameterView](doc//ParameterView.md)
  - [PlanMedicine](doc//PlanMedicine.md)
  - [PlanPreview](doc//PlanPreview.md)
  - [PlanSnapshot](doc//PlanSnapshot.md)
@@ -113,10 +138,17 @@ Class | Method | HTTP request | Description
  - [ResidentView](doc//ResidentView.md)
  - [Role](doc//Role.md)
  - [SaveContractSample](doc//SaveContractSample.md)
+ - [SaveDevice](doc//SaveDevice.md)
  - [SavePrescription](doc//SavePrescription.md)
  - [SaveResident](doc//SaveResident.md)
  - [SaveSettings](doc//SaveSettings.md)
  - [SavedContractSample](doc//SavedContractSample.md)
+ - [StartTask](doc//StartTask.md)
+ - [StoredEvent](doc//StoredEvent.md)
+ - [SyncEvents](doc//SyncEvents.md)
+ - [TaskReceipt](doc//TaskReceipt.md)
+ - [TaskState](doc//TaskState.md)
+ - [TaskView](doc//TaskView.md)
  - [UpdateAccount](doc//UpdateAccount.md)
 
 

@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+export 'execution_state.dart';
+
 /// Transport owns a single connection. Opening it must not send machine commands.
 abstract interface class DeviceTransport {
   Future<void> open();

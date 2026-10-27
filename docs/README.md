@@ -4,7 +4,7 @@
 
 Pillxai 是上海交通大学交互研究所项目。软件由项目维护者原创设计、开发和维护，硬件目前不开源。仓库通过介绍项目与开发进展，吸引感兴趣的合作者和投资者。软件采用项目自定义的[非商业源码许可](../LICENSE)，授权方为 Pillxai 项目团队，商业使用须另行取得书面许可；合作、投资与许可咨询联系 [jiale.ma@sjtu.edu.cn](mailto:jiale.ma@sjtu.edu.cn)。项目背景、使用流程、合作方向与机构鸣谢见[项目介绍](../README.md)。
 
-更新日期：2026 年 10 月 26 日。用户确认 Flutter UI 阶段完成，进入完整新版本开发，沿用已确认的极简风格。默认客户端已接入真实登录、长者与处方持久化、版本；账号管理界面按最新要求暂不提供；通用设置与服务端计划预览已接通，摆药生产执行尚未接通，演示模式须显式启用。NT 分支已建立 WSL FastAPI/PostgreSQL、生成式 Dart 契约及 Windows 设备联调基础切片；资料链路的实际证据见 [M1 报告](validation/2026-10-26-m1.md)，基础证据见 [M0 报告](validation/2026-10-26-m0.md)。生产执行、后台和机器动作尚未接通或验收。第一版开发服务在同机 WSL/Conda 中测试，允许模拟机；今天实机联调使用 Windows 电脑连接 HC-06 蓝牙串口，生产首发仍为 Android 平板。当前执行计划与环境盘点见 [09](09-agent-development.md)，模块与部署责任见 [08](08-system-architecture.md)。客户端运行入口、实际验证和限制见[客户端说明](../apps/client/README.md)。此前 Windows 交付说明已移入本机归档，不作为新版本完成证据。
+更新日期：2026 年 10 月 26 日。用户确认 Flutter UI 阶段完成，进入完整新版本开发，沿用已确认的极简风格。默认客户端已接入真实登录、长者/处方版本、设置保存、服务端计划、任务领取、标签绑定及 Windows 本机执行和记录同步；账号管理界面暂不提供，演示模式须显式启用。Windows 双盘模拟闭环已通过，实机与 Android 仍待验收，见 [执行报告](validation/2026-10-26-execution.md)及[上机指南](windows-machine-test.md)。NT 分支已建立 WSL FastAPI/PostgreSQL、生成式 Dart 契约及 Windows 设备联调基础切片；资料链路的实际证据见 [M1 报告](validation/2026-10-26-m1.md)，基础证据见 [M0 报告](validation/2026-10-26-m0.md)。Windows 任务持久化与独立运行宿主已验证；生产验收、Android 后台及实际机器动作尚未完成。第一版开发服务在同机 WSL/Conda 中测试，允许模拟机；今天实机联调使用 Windows 电脑连接 HC-06 蓝牙串口，生产首发仍为 Android 平板。当前执行计划与环境盘点见 [09](09-agent-development.md)，模块与部署责任见 [08](08-system-architecture.md)。客户端运行入口、实际验证和限制见[客户端说明](../apps/client/README.md)。此前 Windows 交付说明已移入本机归档，不作为新版本完成证据。
 
 ## 品牌素材
 

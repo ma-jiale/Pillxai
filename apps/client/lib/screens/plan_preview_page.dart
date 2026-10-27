@@ -3,6 +3,8 @@ import 'package:pillxai_api_client/api.dart' as api;
 
 import '../data/backend_connection.dart';
 import '../data/settings_controller.dart';
+import '../data/terminal_controller.dart';
+import 'prepare_execution_dialog.dart';
 import '../models/prescription_controller.dart';
 import '../models/prescription_store.dart';
 import '../theme/app_page.dart';
@@ -19,10 +21,12 @@ class PlanPreviewPage extends StatelessWidget {
     required this.backend,
     required this.residents,
     required this.settings,
+    this.terminal,
   });
   final BackendConnection backend;
   final PrescriptionController residents;
   final SettingsController settings;
+  final TerminalController? terminal;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -60,6 +64,7 @@ class PlanPreviewPage extends StatelessWidget {
                               resident: resident,
                               residents: residents,
                               settings: settings,
+                              terminal: terminal,
                             ),
                           ),
                           child: const Text('预览计划'),
@@ -98,11 +103,13 @@ class ServerPlanDialog extends StatefulWidget {
     required this.resident,
     required this.residents,
     required this.settings,
+    this.terminal,
   });
   final BackendConnection backend;
   final Resident resident;
   final PrescriptionController residents;
   final SettingsController settings;
+  final TerminalController? terminal;
   @override
   State<ServerPlanDialog> createState() => _ServerPlanDialogState();
 }
@@ -330,6 +337,31 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
                     onPressed: () => Navigator.pop(context),
                     child: const Text('关闭'),
                   ),
+                  if (widget.terminal?.supported == true)
+                    FilledButton(
+                      onPressed:
+                          snapshot == null ||
+                              !preview!.current ||
+                              loading ||
+                              widget.terminal!.active
+                          ? null
+                          : () async {
+                              if (!await _checkVersion() || !context.mounted) {
+                                return;
+                              }
+                              final claimed = await showDialog<bool>(
+                                context: context,
+                                builder: (_) => PrepareExecutionDialog(
+                                  plan: preview!.snapshot,
+                                  terminal: widget.terminal!,
+                                ),
+                              );
+                              if (claimed == true && context.mounted) {
+                                Navigator.pop(context);
+                              }
+                            },
+                      child: const Text('上机准备'),
+                    ),
                   OutlinedButton(
                     onPressed: loading ? null : _generate,
                     child: const Text('重新生成'),

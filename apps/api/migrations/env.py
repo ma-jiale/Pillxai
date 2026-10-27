@@ -8,6 +8,7 @@ from pillxai_api.identity import tables as identity_tables  # noqa: F401
 from pillxai_api.planning import routes as planning_routes  # noqa: F401
 from pillxai_api.prescriptions import tables as prescription_tables  # noqa: F401
 from pillxai_api.residents import tables as resident_tables  # noqa: F401
+from pillxai_api.tasks import tables as task_tables  # noqa: F401
 
 database_url = Settings.from_environment().database_url
 if context.is_offline_mode():

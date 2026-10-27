@@ -8,8 +8,10 @@ from ..database import BusinessError
 from .models import PlanMedicine, PlanTray
 
 
-def calculate(sources, settings, today, days, split_meals):
+def calculate(sources, settings, today, days, split_meals, coverage_through=None):
     start = today + timedelta(days=int(settings.start_tomorrow))
+    if coverage_through is not None:
+        start = max(start, coverage_through + timedelta(days=1))
     active = [
         row
         for row in sources

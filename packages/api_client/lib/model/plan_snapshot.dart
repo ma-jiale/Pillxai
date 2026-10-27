@@ -27,6 +27,7 @@ class PlanSnapshot {
     this.slots = const [],
     this.sources = const [],
     this.trays = const [],
+    this.coverageThrough,
   });
 
   final String id;
@@ -57,6 +58,8 @@ class PlanSnapshot {
 
   final List<PlanTray> trays;
 
+  final DateTime? coverageThrough;
+
   @override
   bool operator ==(Object other) => identical(this, other) || other is PlanSnapshot &&
     other.id == id &&
@@ -72,7 +75,8 @@ class PlanSnapshot {
     _deepEquality.equals(other.dates, dates) &&
     _deepEquality.equals(other.slots, slots) &&
     _deepEquality.equals(other.sources, sources) &&
-    _deepEquality.equals(other.trays, trays);
+    _deepEquality.equals(other.trays, trays) &&
+    other.coverageThrough == coverageThrough;
 
   @override
   int get hashCode =>
@@ -90,10 +94,11 @@ class PlanSnapshot {
     (dates.hashCode) +
     (slots.hashCode) +
     (sources.hashCode) +
-    (trays.hashCode);
+    (trays.hashCode) +
+    (coverageThrough == null ? 0 : coverageThrough!.hashCode);
 
   @override
-  String toString() => 'PlanSnapshot[id=$id, residentId=$residentId, residentRevision=$residentRevision, residentName=$residentName, bed=$bed, businessDate=$businessDate, createdAt=$createdAt, settings=$settings, requestedDays=$requestedDays, splitMeals=$splitMeals, dates=$dates, slots=$slots, sources=$sources, trays=$trays]';
+  String toString() => 'PlanSnapshot[id=$id, residentId=$residentId, residentRevision=$residentRevision, residentName=$residentName, bed=$bed, businessDate=$businessDate, createdAt=$createdAt, settings=$settings, requestedDays=$requestedDays, splitMeals=$splitMeals, dates=$dates, slots=$slots, sources=$sources, trays=$trays, coverageThrough=$coverageThrough]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -107,10 +112,15 @@ class PlanSnapshot {
       json[r'settings'] = this.settings;
       json[r'requested_days'] = this.requestedDays;
       json[r'split_meals'] = this.splitMeals;
-      json[r'dates'] = this.dates;
+      json[r'dates'] = this.dates.map((value) => value.toIso8601String().substring(0, 10)).toList();
       json[r'slots'] = this.slots;
       json[r'sources'] = this.sources;
       json[r'trays'] = this.trays;
+    if (this.coverageThrough != null) {
+      json[r'coverage_through'] = _dateFormatter.format(this.coverageThrough!);
+    } else {
+      json[r'coverage_through'] = null;
+    }
     return json;
   }
 
@@ -131,6 +141,8 @@ class PlanSnapshot {
     List<String>? slots,
     List<PrescriptionView>? sources,
     List<PlanTray>? trays,
+    DateTime? coverageThrough,
+    bool coverageThroughSetToNull = false,
   }) => PlanSnapshot(
     id: id ?? this.id,
     residentId: residentId ?? this.residentId,
@@ -146,6 +158,7 @@ class PlanSnapshot {
     slots: slots ?? this.slots,
     sources: sources ?? this.sources,
     trays: trays ?? this.trays,
+    coverageThrough: coverageThroughSetToNull ? null : coverageThrough ?? this.coverageThrough,
   );
 
   /// Returns a new [PlanSnapshot] instance and imports its values from
@@ -207,6 +220,7 @@ class PlanSnapshot {
             : const [],
         sources: PrescriptionView.listFromJson(json[r'sources']),
         trays: PlanTray.listFromJson(json[r'trays']),
+        coverageThrough: mapDateTime(json, r'coverage_through', r''),
       );
     }
     return null;

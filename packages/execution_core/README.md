@@ -1,5 +1,5 @@
 # 执行模块公开入口
 
-当前 M0 只建立 `DeviceTransport` 与 `DeviceEvent` 的纯 Dart 公开边界，不依赖 Flutter、Windows 或 Android。反馈不虚构任务编号，RFID 无卡不表示药盒已离轨。
+纯 Dart 公开边界包含 `DeviceTransport`、`DeviceEvent` 和可持久化 `ExecutionState`，不依赖 Flutter、Windows 或 Android。反馈不虚构任务编号，RFID 无卡不表示药盒已离轨。
 
-生产任务状态机、启动许可、本地任务快照、允许动作、同步队列与恢复流程将在 M3 实现。本包目前不能启动生产摆药；不要将工程 ProbeSession 当作任务执行器。
+状态机与存储具体实现位于 device_runtime 的 ExecutionEngine/ExecutionJournal，公开任务快照由 API 契约生成。Windows 宿主已经通过双盘模拟、重启核对、暂停恢复、受控取消与补传测试；平台实机仍待验收。工程 ProbeSession 保留为独立诊断工具，不作为正式任务执行入口。

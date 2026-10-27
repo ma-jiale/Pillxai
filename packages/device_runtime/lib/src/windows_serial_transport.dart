@@ -72,7 +72,8 @@ final class WindowsSerialTransport implements DeviceTransport {
         _check(SetCommState(_handle, config), 'SetCommState');
         final timeouts = arena<COMMTIMEOUTS>();
         timeouts.ref
-          ..ReadIntervalTimeout = 0xffffffff // MAXDWORD: return available bytes immediately.
+          ..ReadIntervalTimeout =
+              0xffffffff // MAXDWORD: return available bytes immediately.
           ..ReadTotalTimeoutMultiplier = 0
           ..ReadTotalTimeoutConstant = 0
           ..WriteTotalTimeoutMultiplier = 0

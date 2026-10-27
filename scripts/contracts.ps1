@@ -26,6 +26,10 @@ foreach ($model in Get-ChildItem (Join-Path $target 'lib/model') -Filter '*.dart
         param($match)
         '(' + $match.Groups[1].Value + ' as List).map((value) => DateTime.parse(value as String)).toList()'
     })
+    # The plan's OpenAPI date array also needs a JSON-serializable date-only list.
+    if ($source.Contains('final List<DateTime> dates;')) {
+        $fixed = $fixed.Replace("json[r'dates'] = this.dates;", "json[r'dates'] = this.dates.map((value) => value.toIso8601String().substring(0, 10)).toList();")
+    }
     if ($fixed -ne $source) { [IO.File]::WriteAllText($model.FullName, $fixed, [Text.UTF8Encoding]::new($false)) }
 }
 # This generator emits legacy publishing helpers; they are not part of our SDK.
@@ -44,7 +48,15 @@ if (-not $Check) {
     if (Test-Path $generatedLib) { Remove-Item -LiteralPath $generatedLib -Recurse -Force }
     Copy-Item -LiteralPath (Join-Path $target 'lib') -Destination $generatedLib -Recurse
     foreach ($artifact in @('pubspec.yaml', 'README.md', '.openapi-generator')) {
-        Copy-Item -LiteralPath (Join-Path $target $artifact) -Destination $committed -Recurse -Force
+        $sourceArtifact = Join-Path $target $artifact
+        if (Test-Path $sourceArtifact -PathType Leaf) {
+            $destinationArtifact = Join-Path $committed $artifact
+            if (-not (Test-Path $destinationArtifact) -or (Get-FileHash $sourceArtifact).Hash -ne (Get-FileHash $destinationArtifact).Hash) {
+                Copy-Item -LiteralPath $sourceArtifact -Destination $destinationArtifact -Force
+            }
+        } else {
+            Copy-Item -LiteralPath $sourceArtifact -Destination $committed -Recurse -Force
+        }
     }
 } else {
     $expectedFiles = @(Get-ChildItem (Join-Path $target 'lib') -Recurse -File)

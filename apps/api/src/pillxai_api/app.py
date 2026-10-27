@@ -17,8 +17,9 @@ from .planning.routes import router as planning_router
 from .prescriptions.routes import router as prescriptions_router
 from .residents.routes import router as residents_router
 from .storage import RevisionConflict, read_sample, save_sample
+from .tasks.routes import router as tasks_router
 
-SCHEMA_REVISION = "20261026_planning"
+SCHEMA_REVISION = "20261026_parameter_origin"
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -45,6 +46,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(planning_router)
     app.include_router(residents_router)
     app.include_router(prescriptions_router)
+    app.include_router(tasks_router)
 
     @app.exception_handler(BusinessError)
     async def business_error(request, exception):

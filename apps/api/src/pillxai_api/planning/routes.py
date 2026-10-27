@@ -13,6 +13,7 @@ from ..database import metadata, not_found
 from ..identity.service import AccountDep, ConnectionDep
 from ..prescriptions.service import current_prescriptions
 from ..residents.service import resident_row
+from ..tasks.coverage import completed_until
 from .engine import calculate
 from .models import PlanPreview, PlanSnapshot, PreviewRequest
 
@@ -45,7 +46,8 @@ def create_preview(
     today = now.astimezone(ZoneInfo(configuration.timezone)).date()
     days = data.days if data.days is not None else configuration.preparation_days
     split = data.split_meals if data.split_meals is not None else configuration.split_meals
-    dates, trays = calculate(sources, configuration, today, days, split)
+    coverage = completed_until(connection, resident_id)
+    dates, trays = calculate(sources, configuration, today, days, split, coverage)
     snapshot = PlanSnapshot(
         id=uuid4(),
         resident_id=resident_id,
@@ -61,6 +63,7 @@ def create_preview(
         slots=["早", "午", "晚"] + (["睡前"] if configuration.bedtime_enabled else []),
         sources=sources,
         trays=trays,
+        coverage_through=coverage,
     )
     connection.execute(
         insert(previews).values(
@@ -92,6 +95,7 @@ def get_preview(plan_id: Uuid, account: AccountDep, connection: ConnectionDep):
         and resident["revision"] == snapshot.resident_revision
         and versions(sources) == versions(snapshot.sources)
         and datetime.now(ZoneInfo(configuration.timezone)).date() == snapshot.business_date
+        and completed_until(connection, snapshot.resident_id) == snapshot.coverage_through
     )
     return PlanPreview(
         snapshot=snapshot,

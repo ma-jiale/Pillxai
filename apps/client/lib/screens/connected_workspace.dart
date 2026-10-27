@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pillxai_api_client/api.dart' as api;
 
 import '../data/backend_connection.dart';
@@ -6,13 +7,19 @@ import '../data/prescription_repository.dart';
 import '../models/prescription_controller.dart';
 import '../models/prescription_store.dart';
 import '../data/settings_controller.dart';
+import '../data/terminal_controller.dart';
+import '../data/terminal_host.dart';
 import '../theme/app_page.dart';
 import '../widgets/workspace_sidebar.dart';
+import '../widgets/dispenser_icon.dart';
 import '../widgets/prescription_forms.dart';
 import 'login_page.dart';
 import 'prescriptions_page.dart';
 import 'settings_page.dart';
 import 'plan_preview_page.dart';
+import 'terminal_device_dialog.dart';
+import 'terminal_execution_panel.dart';
+import 'task_history_dialog.dart';
 
 class ConnectedWorkspace extends StatefulWidget {
   const ConnectedWorkspace({
@@ -20,10 +27,12 @@ class ConnectedWorkspace extends StatefulWidget {
     required this.accent,
     required this.onAccentChanged,
     this.backend,
+    this.terminalHost,
   });
   final Color accent;
   final ValueChanged<Color> onAccentChanged;
   final BackendConnection? backend;
+  final TerminalHost? terminalHost;
   @override
   State<ConnectedWorkspace> createState() => _ConnectedWorkspaceState();
 }
@@ -32,13 +41,48 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace> {
   late final backend = widget.backend ?? BackendConnection();
   PrescriptionController? controller;
   SettingsController? settings;
+  TerminalController? terminal;
+  static const window = MethodChannel('pillxai/window');
   int page = 0;
   bool signingOut = false;
+
+  @override
+  void initState() {
+    super.initState();
+    window.setMethodCallHandler((call) async {
+      if (call.method != 'requestClose') return;
+      final current = terminal;
+      if (current != null && (current.active || current.busy)) {
+        setState(() => page = 1);
+        if (current.task != null &&
+            current.connected &&
+            !current.busy &&
+            ![
+              'awaitingSafeConfirmation',
+              'cancelled',
+              'completed',
+              'deleting',
+              'stopping',
+            ].contains(current.phase)) {
+          await current.action('stop');
+        }
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('本机任务仍在进行。请先停止、确认现场并结束任务，完成同步后再退出。')),
+        );
+        return;
+      }
+      await current?.shutdown();
+      await window.invokeMethod<void>('close');
+    });
+  }
 
   @override
   void dispose() {
     controller?.dispose();
     settings?.dispose();
+    terminal?.dispose();
+    window.setMethodCallHandler(null);
     if (widget.backend == null) backend.dispose();
     super.dispose();
   }
@@ -55,6 +99,10 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace> {
             controller?.updateBedtime(backend.settings!.bedtimeEnabled),
       );
       page = 0;
+      terminal ??= TerminalController(
+        backend,
+        widget.terminalHost ?? createTerminalHost(),
+      );
       controller = PrescriptionController(
         PrescriptionRepository(backend),
         bedtime: backend.settings!.bedtimeEnabled,
@@ -64,19 +112,34 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace> {
       );
     });
     controller!.refresh();
+    terminal!.initialize();
   }
 
   Future<void> _logout() async {
     if (signingOut) return;
+    final retainTerminal =
+        terminal?.active == true &&
+        terminal?.ownTask == false &&
+        terminal?.connected == false;
+    if ((terminal?.active == true && !retainTerminal) ||
+        terminal?.busy == true) {
+      setState(() => page = 1);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('请先结束本机任务并完成同步，再退出登录。')));
+      return;
+    }
     setState(() => signingOut = true);
     try {
       await backend.logout();
+      if (!retainTerminal) await terminal?.shutdown();
       if (!mounted) return;
       controller?.dispose();
       settings?.dispose();
+      if (!retainTerminal) terminal?.dispose();
       setState(() {
         controller = null;
         settings = null;
+        if (!retainTerminal) terminal = null;
       });
     } catch (error) {
       if (mounted) {
@@ -126,6 +189,26 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace> {
                                 onPressed: controller!.refresh,
                                 icon: const Icon(Icons.refresh_rounded),
                               ),
+                            if (page == 1 && terminal != null) ...[
+                              IconButton(
+                                tooltip: '执行记录',
+                                icon: const Icon(Icons.history_rounded),
+                                onPressed: () => showDialog<void>(
+                                  context: context,
+                                  builder: (_) =>
+                                      TaskHistoryDialog(terminal: terminal!),
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: '连接设备',
+                                icon: const DispenserIcon(size: 22),
+                                onPressed: () => showDialog<void>(
+                                  context: context,
+                                  builder: (_) =>
+                                      TerminalDeviceDialog(terminal: terminal!),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -134,11 +217,7 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace> {
                         index: page,
                         children: [
                           _prescriptions(),
-                          PlanPreviewPage(
-                            backend: backend,
-                            residents: controller!,
-                            settings: settings!,
-                          ),
+                          _execution(),
                           SettingsPage(
                             model: settings!,
                             accent: widget.accent,
@@ -156,6 +235,51 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace> {
       ),
     );
   }
+
+  Widget _execution() => ListenableBuilder(
+    listenable: terminal!,
+    builder: (context, _) =>
+        terminal!.active &&
+            [
+              'collecting',
+              'closing',
+              'completed',
+              'cancelled',
+              'deleting',
+            ].contains(terminal!.phase)
+        ? Column(
+            children: [
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * .45,
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: TerminalExecutionPanel(terminal: terminal!),
+                ),
+              ),
+              Expanded(
+                child: PlanPreviewPage(
+                  backend: backend,
+                  residents: controller!,
+                  settings: settings!,
+                  terminal: terminal,
+                ),
+              ),
+            ],
+          )
+        : terminal!.active
+        ? SingleChildScrollView(
+            padding: AppPage.insets(context),
+            child: TerminalExecutionPanel(terminal: terminal!),
+          )
+        : PlanPreviewPage(
+            backend: backend,
+            residents: controller!,
+            settings: settings!,
+            terminal: terminal,
+          ),
+  );
 
   Widget _prescriptions() {
     final current = controller;
