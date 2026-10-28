@@ -13,6 +13,7 @@ from .config import Settings
 from .contracts import ApiError, Health, SaveContractSample, SavedContractSample
 from .database import BusinessError
 from .identity.routes import router as identity_router
+from .login_limit import LoginLimit
 from .planning.routes import router as planning_router
 from .prescriptions.routes import router as prescriptions_router
 from .residents.routes import router as residents_router
@@ -24,15 +25,22 @@ SCHEMA_REVISION = "20261027_resident_avatar"
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_environment()
-    engine = create_engine(settings.database_url, pool_pre_ping=True)
+    engine = create_engine(
+        settings.database_url, pool_pre_ping=True, connect_args={"connect_timeout": 5},
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         yield
         engine.dispose()
 
-    app = FastAPI(title="Pillxai API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="Pillxai API", version="0.1.0", lifespan=lifespan,
+        root_path=settings.root_path,
+    )
     app.state.engine = engine
+    if settings.login_limit_per_minute > 0:
+        app.add_middleware(LoginLimit, limit=settings.login_limit_per_minute)
     if settings.enable_contract_probe:
         # Development web preview only. No wildcard origins or cookie credentials.
         app.add_middleware(
@@ -84,7 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/health/live", operation_id="get_liveness", response_model=Health)
     def live():
-        return Health(status="ok", service_version="0.1.0")
+        return Health(status="ok", service_version=settings.service_version)
 
     @app.get(
         "/health/ready",
@@ -99,7 +107,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     text("SELECT version_num FROM alembic_version")
                 ).scalar()
             if revision == SCHEMA_REVISION:
-                return Health(status="ready", service_version="0.1.0")
+                return Health(status="ready", service_version=settings.service_version)
         except SQLAlchemyError:
             pass
         return JSONResponse(

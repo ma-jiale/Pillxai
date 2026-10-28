@@ -40,6 +40,8 @@ Flutter 官方支持范围及平台集成机制见 [部署平台](https://docs.f
 
 ### 4.1 同机开发部署
 
+2026-10-28 用户授权将 V2 部署到现有学校服务器并与 V1 同时运行。部署采用独立 Docker Compose 项目、PostgreSQL、目录、凭据与 CI/CD；共用学校 Runner 和 HTTPS 代理，V1 入口与数据保持独立。运行约定见 [V2 部署说明](../deploy/v2-server/README.md)。这不引入旧业务数据迁移；公开入口、备份恢复与双版本共存分别验收。
+
 WSL 的 Ubuntu-24.04/Conda 承载 API、数据库与后端测试；Windows 运行 Flutter 或独立设备联调入口，通过 HTTP 访问 API，直接持有 HC-06 对应出站 COM。WSL 中央服务不打开 Windows 串口，也不代理逐药实时指令。之后换到 Android 时，设备连接与执行迁入平板的平台宿主，中央 API 保持同一契约。
 
 Conda、包缓存及开发数据使用项目范围路径；可只读检查现有环境，不向已有其他项目环境混装依赖。数据库只对本机服务开放。Windows 到 WSL 的 localhost 转发必须实测；平板阶段另验 USB 调试转发或局域网连接，不把电脑的 localhost 当作平板可直接访问的地址。参考 [WSL 网络说明](https://learn.microsoft.com/windows/wsl/networking)和 [Conda 项目路径环境](https://docs.conda.io/projects/conda/en/stable/user-guide/tasks/manage-environments.html)。

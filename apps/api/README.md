@@ -1,5 +1,7 @@
 # Pillxai API — 账号、长者与处方
 
+服务器部署入口见 [V2 独立部署](../../deploy/v2-server/README.md)：GitHub 构建镜像、学校 Runner 发布，独立 PostgreSQL 和 `/dispenser-v2/`，与 V1 并行。WSL 命令仍用于本机开发；正式部署不使用开发 `seed` 或开启契约探针。实际上线状态须以部署报告与健康检查为准。
+
 中央服务独立运行于 WSL Ubuntu-24.04，Windows/Flutter 通过 HTTP 调用。这里不包含串口、蓝牙或设备命令。已实现真实账号、账号权限、长者及资料历史、处方保存/停用/恢复与版本、通用设置持久化和服务端计划预览。已新增 [tasks](src/pillxai_api/tasks/README.md)：设备/标签/独立参数、领取与启动许可、事件幂等、完整实机任务覆盖及取消/删除；双盘模拟联调已通过。资料切片证据见 [M1 报告](../../docs/validation/2026-10-26-m1.md)，本轮计划边界见 [planning](src/pillxai_api/planning/README.md)。
 
 ## 模块与契约
