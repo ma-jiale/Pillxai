@@ -84,6 +84,8 @@ def initialize(root):
             encoding="utf-8",
         )
         (shared / "server.env").chmod(0o600)
+        shutil.copyfile(Path(__file__).with_name("init-db.sh"), shared / "init-db.sh")
+        (shared / "init-db.sh").chmod(0o444)
         write_json(
             shared / "initial-admin.json",
             {

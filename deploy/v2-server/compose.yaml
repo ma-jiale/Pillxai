@@ -68,7 +68,7 @@ services:
         read_only: true
         bind: {create_host_path: false}
       - type: bind
-        source: ./init-db.sh
+        source: ${V2_SHARED}/init-db.sh
         target: /docker-entrypoint-initdb.d/init-db.sh
         read_only: true
         bind: {create_host_path: false}

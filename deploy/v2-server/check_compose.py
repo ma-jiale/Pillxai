@@ -33,12 +33,33 @@ def check(artifact, revision):
         )
         backup = manage.backup(root, release)
         manage.restore_check(root, release, backup)
+        database_container = manage.compose(
+            root,
+            release,
+            "ps",
+            "-q",
+            "db",
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
         # A second update must preserve credentials/data and validate PostgreSQL ownership.
         before = (root / "shared/initial-admin.json").read_bytes()
         with patch.object(manage, "verify_branch"):
             manage.deploy(root, artifact, revision, "ci/fixture", "NT")
         assert (root / "shared/initial-admin.json").read_bytes() == before
         release = manage.current_release(root)
+        assert (
+            manage.compose(
+                root,
+                release,
+                "ps",
+                "-q",
+                "db",
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            == database_container
+        )
         assert manage.sql(root, release, "SELECT count(*) FROM accounts") == "1"
         assert (root / "previous.json").is_file()
         print("Actual Compose initialization, second deployment, backup and restore passed.")

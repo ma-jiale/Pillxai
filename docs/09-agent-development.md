@@ -167,6 +167,8 @@ Windows 首先验证可经 localhost 访问 WSL API；端口在 M0 检查占用�
 
 ## 9. 分阶段任务与完成条件
 
+2026-10-28 新增 V2 服务器并行部署工作：用户要求在新分支 `codex/v2-server-deployment` 实施，使用现有学校 Runner 和独立 Docker/PostgreSQL 部署，不替换 V1。部署入口见 [V2 说明](../deploy/v2-server/README.md)，本轮运行及上线状态见 [部署验证](validation/2026-10-28-v2-deployment.md)。此工作推进服务交付，不能替代 M5 完整业务与 M6 负载、备份副本、实机及工作人员验收。
+
 当前已在 NT 分支完成 M0 的首个基础切片：WSL API/PostgreSQL、契约生成与真实 HTTP 验证、独立协议/Windows 联调/SQLite 诊断。W0 工具入口可用，但真实串口尚未打开。M1 真实资料切片已实现并验证登录、权限、长者/处方版本及现有表单接入；现已完成设置、M2 任务归属、M3 Windows 宿主与 M4 双盘模拟闭环；Android 宿主已完成模拟器切片，实体平板、药品目录复用、异常人工补齐及 M5–M6 完整交付仍待实施。下面的完整阶段目标不能当作全部已完成。实际证据见 [M0 验证报告](validation/2026-10-26-m0.md)。
 
 | 阶段 | 用户目标、输入与依赖 | 交付内容 | 完成证据 |
