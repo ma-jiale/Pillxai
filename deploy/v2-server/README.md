@@ -31,6 +31,8 @@ V2 使用学校现有 `pillxa-server` Runner 接收 GitHub 构建的 Docker 制�
 
 ## 首次开启
 
+2026-10-28 当前阶段仅授权推送、CI 与镜像验证：工作流 `deploy` job 以 `if: ${{ false }}` 显式关闭，仓库变量无法单独开启部署。后续获得服务器部署授权后，才恢复 `V2_CD_ENABLED == 'true'`、非 PR 事件及可信分支条件，再按下述步骤配置环境。
+
 GitHub 建立独立 `v2-production` 环境，只允许部署分支 `NT` 和 `codex/v2-server-deployment`。默认没有部署开关时，只检查与构建。设置仓库变量：
 
 | 变量 | 值 |

@@ -68,9 +68,9 @@ jobs:
           if-no-files-found: error
   deploy:
     needs: package
-    if: >-
-      vars.V2_CD_ENABLED == 'true' && github.event_name != 'pull_request' &&
-      (github.ref == 'refs/heads/NT' || github.ref == 'refs/heads/codex/v2-server-deployment')
+    # User authorized CI/image verification only. Re-enable only after deployment approval,
+    # with V2_CD_ENABLED and the trusted branch checks described in the deployment README.
+    if: ${{ false }}
     runs-on: [self-hosted, linux, pillxa-server]
     environment: v2-production
     concurrency:
