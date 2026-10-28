@@ -66,8 +66,13 @@ def initialize(root):
         if shared.exists():
             raise ValueError("shared already exists; refusing to overwrite configuration")
         shared.mkdir(mode=0o700)
-        for directory in (root / "releases", root / "backups", shared / "postgres"):
+        for directory in (root / "releases", root / "backups"):
             directory.mkdir(mode=0o700)
+        # PostgreSQL 18 chowns PGDATA (18/docker), not its bind-mounted parent.
+        # The postgres user must traverse this parent after the entrypoint drops root.
+        # shared stays 0700 on the host; PostgreSQL keeps actual PGDATA at 0700.
+        (shared / "postgres").mkdir(mode=0o755)
+        (shared / "postgres").chmod(0o755)
         password = secrets.token_hex(32)
         values = {
             "app-password": password,
