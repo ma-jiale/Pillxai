@@ -1,8 +1,8 @@
 name: V2 Server CI and CD
 on:
   push:
-    branches: [NT, codex/v2-server-deployment]
-    paths: ['apps/api/**', 'deploy/v2-server/**', 'contracts/http/**', 'packages/api_client/**', 'tests/fixtures/**', '.github/workflows/v2-server.yml']
+    # Every main update, including docs/client changes, validates and publishes its revision.
+    branches: [main, NT, codex/v2-server-deployment]
   pull_request:
     paths: ['apps/api/**', 'deploy/v2-server/**', 'contracts/http/**', 'packages/api_client/**', 'tests/fixtures/**', '.github/workflows/v2-server.yml']
   workflow_dispatch:
@@ -68,9 +68,8 @@ jobs:
           if-no-files-found: error
   deploy:
     needs: package
-    # User authorized CI/image verification only. Re-enable only after deployment approval,
-    # with V2_CD_ENABLED and the trusted branch checks described in the deployment README.
-    if: ${{ false }}
+    # Only main pushes deploy; PRs, development branches and manual checks never deploy.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.V2_CD_ENABLED == 'true' }}
     runs-on: [self-hosted, linux, pillxa-server]
     environment: v2-production
     concurrency:

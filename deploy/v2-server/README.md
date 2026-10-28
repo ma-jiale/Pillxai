@@ -4,7 +4,7 @@ V2 使用学校现有 `pillxa-server` Runner 接收 GitHub 构建的 Docker 制�
 
 ## 发布与目录
 
-工作流 `.github/workflows/v2-server.yml` 在 `NT` 或 `codex/v2-server-deployment` 的后端/部署相关提交后运行；PR 只执行 GitHub 托管测试，不进入学校 Runner。首次开发部署使用后一个分支。V1 工作流不修改，不把 V1 分支整体合入新版。
+工作流 `.github/workflows/v2-server.yml` 在 `main`、`NT` 或 `codex/v2-server-deployment` 更新后运行。按用户要求，`main` 的每次 push（含 PR 合并、文档或客户端更新）都执行测试和镜像验证；通过且仓库变量 `V2_CD_ENABLED=true` 时才自动部署。`NT`、开发分支及手动运行只验证，不部署；PR 只测试。V1 工作流保持独立。
 
 测试连接真实 PostgreSQL，禁止跳过集成用例；检查 OpenAPI 与源码一致性。打包阶段固定解析出的基础镜像摘要，真实验证镜像登录、重启、备份恢复，再验证正式 Compose 的首次部署和第二次更新。镜像和部署文件一起打包，校验提交、文件 SHA-256、镜像 ID 和架构。学校服务器不需要访问 Docker Hub 或 PyPI。
 
@@ -31,14 +31,22 @@ V2 使用学校现有 `pillxa-server` Runner 接收 GitHub 构建的 Docker 制�
 
 ## 首次开启
 
-2026-10-28 当前阶段仅授权推送、CI 与镜像验证：工作流 `deploy` job 以 `if: ${{ false }}` 显式关闭，仓库变量无法单独开启部署。后续获得服务器部署授权后，才恢复 `V2_CD_ENABLED == 'true'`、非 PR 事件及可信分支条件，再按下述步骤配置环境。
+2026-10-28 用户要求改为主分支更新触发 CD。工作流与宿主部署工具均只接受 `main`；宿主还会核对制品提交是否仍为远程 `main` 最新提交，拒绝排队期间过时的制品。当前分支尚未合入 `main`，本轮配置修改本身不会部署服务器。
 
-GitHub 建立独立 `v2-production` 环境，只允许部署分支 `NT` 和 `codex/v2-server-deployment`。默认没有部署开关时，只检查与构建。设置仓库变量：
+首次启用顺序：
+
+1. 确认学校 Runner 在线，标签包含 `self-hosted`、`linux`、`pillxa-server`，部署账号可用 Docker Compose 与 Python 3.12+，V1 健康且资源足够。
+2. 在 GitHub Settings → Environments 建立 `v2-production`，Deployment branches and tags 选择仅允许分支 `main`。需要全自动 CD 时不设置每次人工审批。
+3. 在 Settings → Secrets and variables → Actions → Variables 设置下表的**仓库变量**。`V2_CD_ENABLED` 不放在 Environment variables 中，因为 job 是否调度到该环境之前就要读取它。
+4. 将包含完整 V2 代码的 `codex/v2-server-deployment` 分支通过 PR 合入 `main`。当前 main 和开发分支已有分叉，合并时保留 main 上现有 V1 变更，不强推覆盖 main。该次合并即触发首次 CD；以后合并到 main 自动重复测试、构建和部署。
+5. 在 Actions 查看 `test → package → deploy` 全部成功，并确认本机 `http://127.0.0.1:8068/health/ready` 的版本对应该次 main 提交。首次 HTTPS 代理配置和公开入口验收按下一节执行。
 
 | 变量 | 值 |
 | --- | --- |
-| `V2_CD_ENABLED` | `true` 后允许学校 Runner 执行 |
+| `V2_CD_ENABLED` | `true` 允许 main push 通过验证后部署；缺省或 `false` 只验证 |
 | `V2_SERVER_PYTHON` | `/home/deploy/miniforge3/bin/python3`，省略时使用此路径 |
+
+若代码已经合入 main 才打开开关，设置变量本身不会触发工作流；可重跑该 main push 对应的工作流（必须仍是 main 最新提交），或提交新的 main 更新。手动 Run workflow 仅用于验证，不执行 CD。暂停后续 CD 时将 `V2_CD_ENABLED` 改为 `false`；已运行的部署需要单独观察处理。
 
 首次部署先检查 V1 健康、容器身份、服务器资源。V2 根目录不存在时才初始化；已经存在但配置不全时停止，不覆盖重建。自动创建随机管理员密码，Actions 不输出密码。管理员在服务器上以部署账号安全查看 `shared/initial-admin.json`，首次登录后改密。重复初始化和升级不重置已有账号。
 

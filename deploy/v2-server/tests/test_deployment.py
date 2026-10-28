@@ -1,3 +1,5 @@
+import io
+import json
 import subprocess
 import sys
 import tempfile
@@ -21,6 +23,32 @@ def manifest():
         "postgres_image": "pillxai-v2-postgres:" + "b" * 64,
         "postgres_id": "sha256:" + "b" * 64,
     }
+
+
+class DeploymentBranchTests(unittest.TestCase):
+    def test_development_branches_are_rejected_before_network_access(self):
+        with patch.object(manage.urllib.request, "urlopen") as request:
+            for branch in ("NT", "codex/v2-server-deployment", "feature/example"):
+                with self.subTest(branch=branch), self.assertRaisesRegex(ValueError, "Untrusted"):
+                    manage.verify_branch("ma-jiale/Pillxai", branch, REVISION)
+        request.assert_not_called()
+
+    def test_main_accepts_only_current_remote_revision(self):
+        for remote, accepted in ((REVISION, True), ("b" * 40, False)):
+            response = io.BytesIO(json.dumps({"object": {"sha": remote}}).encode())
+            with (
+                self.subTest(remote=remote),
+                patch.object(manage.urllib.request, "urlopen", return_value=response) as request,
+            ):
+                if accepted:
+                    manage.verify_branch("ma-jiale/Pillxai", "main", REVISION)
+                else:
+                    with self.assertRaisesRegex(ValueError, "advanced"):
+                        manage.verify_branch("ma-jiale/Pillxai", "main", REVISION)
+                self.assertEqual(
+                    "https://api.github.com/repos/ma-jiale/Pillxai/git/ref/heads/main",
+                    request.call_args.args[0].full_url,
+                )
 
 
 class DeploymentTests(unittest.TestCase):
@@ -92,7 +120,7 @@ class DeploymentTests(unittest.TestCase):
             patch.object(manage, "assert_idle", side_effect=ValueError("active")),
         ):
             with self.assertRaisesRegex(ValueError, "active"):
-                manage.deploy(self.root, self.artifact, REVISION, "owner/repo", "NT")
+                manage.deploy(self.root, self.artifact, REVISION, "owner/repo", "main")
         command.assert_not_called()
         self.assertEqual("old", manage.read_json(self.root / "current.json")["release"])
 
@@ -115,7 +143,7 @@ class DeploymentTests(unittest.TestCase):
             patch.object(manage, "compose", side_effect=command) as calls,
         ):
             with self.assertRaises(subprocess.CalledProcessError):
-                manage.deploy(self.root, self.artifact, REVISION, "owner/repo", "NT")
+                manage.deploy(self.root, self.artifact, REVISION, "owner/repo", "main")
         return previous, calls, health
 
     def test_failure_restores_only_compatible_previous_api(self):
@@ -151,7 +179,7 @@ class DeploymentTests(unittest.TestCase):
 
             calls.side_effect = command
             with self.assertRaises(ValueError):
-                manage.deploy(self.root, self.artifact, REVISION, "owner/repo", "NT")
+                manage.deploy(self.root, self.artifact, REVISION, "owner/repo", "main")
         self.assertFalse((self.root / "current.json").exists())
         self.assertTrue((self.root / "pending.json").exists())
 
@@ -161,7 +189,7 @@ class DeploymentTests(unittest.TestCase):
         manage.write_json(self.artifact / "manifest.json", self.manifest)
         with patch.object(manage, "verify_branch"), patch.object(manage, "run") as run:
             with self.assertRaisesRegex(ValueError, "separate reviewed upgrade"):
-                manage.deploy(self.root, self.artifact, REVISION, "owner/repo", "NT")
+                manage.deploy(self.root, self.artifact, REVISION, "owner/repo", "main")
         run.assert_not_called()
 
     def test_compose_cannot_use_a_v1_project(self):

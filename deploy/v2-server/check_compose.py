@@ -25,7 +25,7 @@ def check(artifact, revision):
         # The surrounding workflow already checked out the exact CI commit.
         # No production command has this bypass; only this disposable integration test.
         with patch.object(manage, "verify_branch"):
-            manage.deploy(root, artifact, revision, "ci/fixture", "NT")
+            manage.deploy(root, artifact, revision, "ci/fixture", "main")
         release = manage.current_release(root)
         assert manage.sql(root, release, "SELECT count(*) FROM accounts") == "1"
         assert (
@@ -46,7 +46,7 @@ def check(artifact, revision):
         # A second update must preserve credentials/data and validate PostgreSQL ownership.
         before = (root / "shared/initial-admin.json").read_bytes()
         with patch.object(manage, "verify_branch"):
-            manage.deploy(root, artifact, revision, "ci/fixture", "NT")
+            manage.deploy(root, artifact, revision, "ci/fixture", "main")
         assert (root / "shared/initial-admin.json").read_bytes() == before
         release = manage.current_release(root)
         assert (

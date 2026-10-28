@@ -235,7 +235,7 @@ def verify_branch(repository, branch, revision):
 
     if not re.fullmatch(r"[\w.-]+/[\w.-]+", repository):
         raise ValueError("Invalid repository")
-    if branch not in {"NT", "codex/v2-server-deployment"}:
+    if branch != "main":
         raise ValueError("Untrusted deployment branch")
     headers = {"Accept": "application/vnd.github+json"}
     if token := os.environ.get("GH_TOKEN"):
