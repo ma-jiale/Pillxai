@@ -197,6 +197,8 @@ def smoke(api_image, pg_image, revision):
         ).stdout.strip()
         assert count == "1"
         run(["docker", "restart", api], stdout=subprocess.DEVNULL)
+        # Docker may assign a new host port when restarting an ephemeral mapping.
+        port = inspect_container_port(api)
         for attempt in range(60):
             try:
                 assert (
