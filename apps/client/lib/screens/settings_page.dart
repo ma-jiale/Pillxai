@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_page.dart';
 
-import '../models/demo_model.dart';
+import '../models/settings_store.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_menu.dart';
 
@@ -16,7 +16,7 @@ enum _Category {
   final IconData icon;
 }
 
-/// 偏好页：机构演示规则交给 model，强调色通过回调交给根组件。
+/// 共用设置界面：规则通过设置契约读取，强调色通过回调交给根组件。
 /// 分类、搜索与未应用的HEX草稿是局部状态，切分类时保留颜色草稿。
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -24,10 +24,12 @@ class SettingsPage extends StatefulWidget {
     required this.model,
     required this.accent,
     required this.onAccentChanged,
+    this.onConfigureMapping,
   });
-  final DemoModel model;
+  final SettingsStore model;
   final Color accent;
   final ValueChanged<Color> onAccentChanged;
+  final VoidCallback? onConfigureMapping;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -49,7 +51,10 @@ class _SettingsPageState extends State<SettingsPage> {
   late final _hexController = TextEditingController(text: _hex(widget.accent));
   _Category _category = _Category.general;
   String? _colorError;
-  bool _autoUpdate = true;
+  late bool _autoUpdate = !widget.model.persistent;
+  bool _saving = false;
+  String? _saveError;
+  String? _saveStatus;
 
   void _checkForUpdates() => showDialog<void>(
     context: context,
@@ -101,13 +106,54 @@ class _SettingsPageState extends State<SettingsPage> {
     widget.onAccentChanged(Color(0xff000000 | int.parse(value, radix: 16)));
   }
 
-  void _saveRules({int? days, bool? split, bool? night, bool? tomorrow}) =>
-      widget.model.saveSettings(
+  Future<void> _saveRules({
+    int? days,
+    bool? split,
+    bool? night,
+    bool? tomorrow,
+  }) async {
+    if (!widget.model.canSaveRules || _saving) return;
+    setState(() {
+      _saving = true;
+      _saveError = null;
+      _saveStatus = null;
+    });
+    try {
+      await widget.model.saveSettings(
         days: days ?? widget.model.preparationDays,
         split: split ?? widget.model.splitMeals,
         night: night ?? widget.model.bedtime,
         tomorrow: tomorrow ?? widget.model.startTomorrow,
       );
+      if (mounted) {
+        setState(
+          () => _saveStatus = widget.model.persistent ? '设置已保存' : '已应用到本次会话',
+        );
+      }
+    } catch (error) {
+      if (mounted) setState(() => _saveError = error.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _reloadRules() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await widget.model.reloadSettings();
+      if (mounted) {
+        setState(() {
+          _saveError = null;
+          _saveStatus = '已重新加载设置';
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _saveError = error.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -315,6 +361,47 @@ class _SettingsPageState extends State<SettingsPage> {
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 40),
+        if (!widget.model.canSaveRules &&
+            !_saving &&
+            items.any((item) => item.group == '准备周期' || item.group == '药盒布局'))
+          const Padding(
+            padding: EdgeInsets.only(bottom: 24),
+            child: Text(
+              '当前账号只能查看摆药规则。',
+              style: TextStyle(fontSize: 12, color: Color(0xff7c7c7c)),
+            ),
+          ),
+        if (_category == _Category.general || _search.text.isNotEmpty) ...[
+          if (_saving)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 16),
+              child: Text('保存中…'),
+            ),
+          if (_saveStatus != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text(_saveStatus!),
+            ),
+          if (_saveError != null) ...[
+            Text(
+              _saveError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+            Wrap(
+              spacing: 12,
+              children: [
+                TextButton(
+                  onPressed: _saving ? null : () => _saveRules(),
+                  child: const Text('重试保存'),
+                ),
+                TextButton(
+                  onPressed: _saving ? null : _reloadRules,
+                  child: const Text('放弃更改并重新加载'),
+                ),
+              ],
+            ),
+          ],
+        ],
         if (items.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 40),
@@ -345,18 +432,20 @@ class _SettingsPageState extends State<SettingsPage> {
       '准备周期',
       '准备天数',
       '每次准备 1–7 天的用药。',
-      SizedBox(
-        width: 108,
-        child: AppSelect<int>(
-          key: const ValueKey('preparation-days'),
-          value: widget.model.preparationDays,
-          label: '准备天数',
-          options: [
-            for (var day = 1; day <= 7; day++) AppSelectOption(day, '$day 天'),
-          ],
-          onChanged: (value) {
-            _saveRules(days: value);
-          },
+      _ruleControl(
+        SizedBox(
+          width: 108,
+          child: AppSelect<int>(
+            key: const ValueKey('preparation-days'),
+            value: widget.model.preparationDays,
+            label: '准备天数',
+            options: [
+              for (var day = 1; day <= 7; day++) AppSelectOption(day, '$day 天'),
+            ],
+            onChanged: (value) {
+              _saveRules(days: value);
+            },
+          ),
         ),
       ),
     ),
@@ -367,7 +456,9 @@ class _SettingsPageState extends State<SettingsPage> {
       '关闭时，从当天开始准备。',
       Switch(
         value: widget.model.startTomorrow,
-        onChanged: (value) => _saveRules(tomorrow: value),
+        onChanged: widget.model.canSaveRules
+            ? (value) => _saveRules(tomorrow: value)
+            : null,
       ),
     ),
     _SettingItem(
@@ -377,7 +468,9 @@ class _SettingsPageState extends State<SettingsPage> {
       '饭前单独一盘，其余餐食关系共用另一盘。',
       Switch(
         value: widget.model.splitMeals,
-        onChanged: (value) => _saveRules(split: value),
+        onChanged: widget.model.canSaveRules
+            ? (value) => _saveRules(split: value)
+            : null,
       ),
     ),
     _SettingItem(
@@ -387,9 +480,22 @@ class _SettingsPageState extends State<SettingsPage> {
       '在药盒布局中增加睡前格。',
       Switch(
         value: widget.model.bedtime,
-        onChanged: (value) => _saveRules(night: value),
+        onChanged: widget.model.canSaveRules
+            ? (value) => _saveRules(night: value)
+            : null,
       ),
     ),
+    if (widget.onConfigureMapping != null)
+      _SettingItem(
+        _Category.general,
+        '药盒布局',
+        '实体位置映射',
+        '设置当前机器的时段行位置和日期列方向。',
+        OutlinedButton(
+          onPressed: widget.onConfigureMapping,
+          child: const Text('设置映射'),
+        ),
+      ),
     _SettingItem(
       _Category.appearance,
       '界面颜色',
@@ -459,14 +565,30 @@ class _SettingsPageState extends State<SettingsPage> {
       _Category.about,
       '软件更新',
       '自动更新',
-      '有新版本时，在空闲状态下自动下载并安装；摆药期间不安装。',
+      widget.model.persistent ? '当前由维护人员安装更新。' : '有新版本时，在空闲状态下自动下载并安装；摆药期间不安装。',
       Switch(
         key: const ValueKey('auto-update'),
         value: _autoUpdate,
-        onChanged: (value) => setState(() => _autoUpdate = value),
+        onChanged: widget.model.persistent
+            ? null
+            : (value) => setState(() => _autoUpdate = value),
       ),
     ),
   ];
+
+  Widget _ruleControl(Widget child) => Semantics(
+    enabled: widget.model.canSaveRules,
+    child: ExcludeFocus(
+      excluding: !widget.model.canSaveRules,
+      child: IgnorePointer(
+        ignoring: !widget.model.canSaveRules,
+        child: Opacity(
+          opacity: widget.model.canSaveRules ? 1 : .45,
+          child: child,
+        ),
+      ),
+    ),
+  );
 
   Widget _groupCard(List<_SettingItem> items) => Surface(
     padding: const EdgeInsets.symmetric(horizontal: 20),

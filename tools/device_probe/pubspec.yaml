@@ -1,0 +1,16 @@
+name: pillxai_device_probe
+description: Explicit Windows engineering probe; never creates production coverage.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: ^3.13.1
+dependencies:
+  args: ^2.7.0
+  pillxai_device_runtime:
+    path: ../../packages/device_runtime
+  pillxai_device_protocol:
+    path: ../../packages/device_protocol
+  pillxai_execution_core:
+    path: ../../packages/execution_core
+dev_dependencies:
+  lints: ^6.0.0

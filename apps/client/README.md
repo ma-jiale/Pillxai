@@ -1,12 +1,54 @@
-# Pillxai 客户端交互预览
+# Pillxai Flutter 客户端
 
-这是面向 Android 平板首发的 Flutter 客户端预览。当前采用用户确认的极简风格作为唯一界面，移除底部方案切换栏和其他方案，继续完善处方管理。浏览器预览用于快速评审，Android Debug APK 用于在平板上体验实际尺寸与触控。
+## 正式界面恢复状态（2026-10-27）
 
-本轮已建立界面和内存演示交互，尚未接入 FastAPI、HC-06、摄像头或 RFID、Android 后台生命周期和生产数据持久化。准备弹窗根据内存处方、本次天数和用药有效日期生成 GUI 计划与颗粒图案；执行进度仍由定时器模拟，不控制机器。这不是中央生产计划服务。
+用户否定此前 UI 还原效果后，已先提交可运行恢复点 `7b699ad`，再复原正式页面。原确认版与正式版现共用顶栏、清单、准备确认、当前/下一药卡片、取盒提示、设备面板、图案网格、历史卡片和右侧结果详情。登录、处方表单、设置继续复用确认版；设备和位置映射改用公共选择器。全量 **108 项测试**、静态检查与 Android Debug 构建通过，六张原确认执行/图案金图逐像素回归通过。已保留数据覆盖安装到 BTKR-W00 平板并观察到真实工作区及新版设备面板；未发起机器任务。图片附件、人工补齐、全历史查询等业务限制及验收证据见 [UI 复原与平板安装报告](../../docs/validation/2026-10-27-ui-restoration.md)。本次安装不代表已获用户视觉验收。
+
+真实入口提供待准备/提前准备清单、搜索、当前药主卡片与进度、下一药预告、按需设备配置和出药设置；登录默认进入摆药，保留已完成的真实后台与蓝牙链路。清单由服务端提供，不使用演示数据。此前恢复点的 106 项客户端测试与构建、现场安装状态见 [前轮验证报告](../../docs/validation/2026-10-27-production-ui.md)。
+
+面向 Android 平板首发，沿用已确认的极简 UI。2026-10-26 在 NT 分支接入真实账号、长者、处方及版本，中央服务在同机 WSL/Conda 运行。执行计划见 [09](../../docs/09-agent-development.md)，Android 最新证据见 [2026-10-27 报告](../../docs/validation/2026-10-27-android.md)，Windows 闭环见 [执行报告](../../docs/validation/2026-10-26-execution.md)。
+
+默认入口是 `ConnectedWorkspace`，通过生成的 Dart SDK 访问 API。账号与操作权限由服务端校验，登录后直接进入摆药待准备清单；长者/处方列表由 `PrescriptionController` 持有，`PrescriptionRepository` 映射 HTTP 契约。保存等待服务端成功，冲突与网络失败保留草稿，处方修改/停用/恢复产生独立版本。`SettingsController` 保存通用规则，保留已保存版本与失败草稿；`PlanPreviewPage` 请求服务器计划，`ServerPlanPattern` 只渲染快照矩阵。真实资料不传入 DemoModel。Windows 已接入设备配置、新 UID 绑定、每处方参数、领取/识别/开始、暂停恢复、双盘、取盒与结果补传；本机执行由独立 Isolate/SQLite 持有。Android 已接入独立前台服务、经典蓝牙适配与后台事件补传，Android 15 模拟器双盘、关屏和强制停止恢复通过。图片上传、异常人工补齐与实体平板/机器验收仍未完成。
+
+2026-10-26 新增测试入口：管理员登录后，在原有“设置 → 通用”修改准备天数、从次日开始、餐食分盘或睡前格；每次修改自动保存，成功后显示“设置已保存”，重新登录可读取。冲突或连接失败保留草稿，可重试或放弃并重新加载；工作人员只读。规则作用于之后生成的预览。外观强调色仍为会话偏好；正式模式自动更新开关禁用，更新服务未实现。
+
+在“处方管理”维护有效处方，再进入“摆药”点击对应长者的“开始摆药”；可调整本次天数与分盘、查看完整日期、各药颗粒与原片等价量，再打开“预览摆药图案”。本次调整不改长期设置。回到应用或打开图案前核对服务端版本，资料/设置/业务日期变化后提示重新生成。预览本身不产生动作；Android 和 Windows 本机版可直接“开仓放入药盒”，识别匹配再开始；标签绑定和独立参数可从“药盒与出药设置”维护。网页仅保留资料与预览。可使用新建的“计划联调虚构长者”测试。
+
+## Android 当前入口
+
+2026-10-27：仓库根执行 `scripts/run-android.ps1` 构建普通 Android Debug APK；可指定 `-DeviceId` 安装，使用同机 API 时加 `-ReverseLocalApi`。输出为 `build/app/outputs/flutter-apk/app-debug.apk`。这是开发签名联调包，实体平板/HC-06 和正式签名仍待验收。操作步骤见 [Android 指南](../../docs/android-machine-test.md)。
+
+后台执行由 Android `TerminalService` 的独立 FlutterEngine 持有，复用 `TerminalSession/ExecutionEngine`；蓝牙 SPP、SQLite、通知和事件补传不依赖页面。记录存入应用私有 no-backup 目录，令牌只留内存。Android USB 尚未实现。`scripts/check-android.ps1` 只用于专用模拟器的独立验证包，不能交付给工作人员。
+
+本轮 Flutter 92 项、运行模块 10 项测试通过，Flutter 静态分析无问题，Windows 原生宿主回归通过。实际 Android 模拟器验证及限制见 [报告](../../docs/validation/2026-10-27-android.md)。下文日期更早的验证属于历史阶段或显式演示模式。
+
+## 运行当前真实资料版本
+
+Windows 上机联调入口：仓库根执行 `scripts/run-windows.ps1`，代码变化后加 `-Build`。它检查并启动本项目 WSL 服务，打开原生程序；任务和原始反馈保存于 `.var/terminal`。现场步骤见 [Windows 测试指南](../../docs/windows-machine-test.md)，已通过与未实测项见[执行报告](../../docs/validation/2026-10-26-execution.md)。网页不能替代原生串口执行。
+
+先按 [API 说明](../api/README.md) 执行 migrate、seed、serve。开发账号 `local-admin` 的随机密码在仓库忽略文件 `.var/local-login.json`。不要使用演示凭据登录真实服务，也不要提交该文件。
+
+```powershell
+.\scripts\flutter.cmd pub get
+.\scripts\flutter.cmd build web --release --no-web-resources-cdn --no-pub
+node .\scripts\serve-preview.cjs
+```
+
+打开 `http://127.0.0.1:5180/`。本机开发 API 允许该来源及 `http://localhost:5180`；其他来源默认不允许。原生入口可运行 `flutter.cmd run -d windows`；当前 Windows Release 可由 scripts/run-windows.ps1 启动（尚无生产安装包）。服务地址通过编译参数 `--dart-define=PILLXAI_API_URL=http://127.0.0.1:8000` 指定；平板不能直接使用电脑的 localhost，网络和安装另行验证。
+
+按用户最新要求，当前不提供账号管理或改密界面；保留真实登录与服务端权限。设置与演示模式共用原来的 `SettingsPage`：通用／外观／关于、搜索、分组列表及自定义强调色。真实模式通过 `SettingsStore` 读取和保存通用规则，不创建 DemoModel；权限、版本与持久化由服务端负责。强调色和自动更新偏好仅保留本次会话，更新服务尚未实现。凭据只留在进程内存，重载页面须重新登录。
+
+已运行（2026-10-26）：后端 20 项、Flutter 85 项、静态检查、SDK 漂移检查与 Web release 构建通过。`tool/check_business.dart` 验证资料和版本，`tool/check_planning.dart` 验证真实设置保存/重读、双药双盘、半片颗粒、预览覆盖参数和不可变快照。页面测试覆盖 1280×800、390×844 下的设置冲突草稿、重载、计划数量、图案和失效提示；原有三尺寸 UI 回归全部通过。当前没有 Windows GUI/Android 真机或生产硬件验收。
+
+应用内浏览器已验证原设置布局、天数 7→3 保存、刷新重新登录仍为 3、恢复 7，以及“计划联调虚构长者”的双药双盘、完整日期与逐格图案。浏览器控制台无警告或错误，API readiness 为 ready。测试仅使用虚构处方；不代表实机摆药验收。
+
+## 显式演示模式
+
+下文的准备、执行、历史与可编辑演示规则仅适用于 `--dart-define=PILLXAI_DEMO=true`。该模式使用虚构内存资料，登录为 `admin` / `admin123`，不调用真实业务 API、不控制机器。它保留既有交互回归，不能作为生产任务入口。
 
 每种药完成后，下一药从预告卡片的实际位置移动并展开为当前药，原当前药退出，随后补入新的下一药预告；宽屏从右向左接替，窄屏从下向上接替，全程约 680 毫秒。计数和开口值重置后直接进入下一药的摆药状态，无需再点击“开始本药”，主操作保持“暂停”。最后一种药完成后自动返回待摆清单，结果保存在历史；药盒状态按下位机反馈更新，不要求人工确认取盒。当前自动计数仍为定时器演示，没有药物更换检测或设备动作。
 
-## 可以体验什么
+### 演示交互与既有 UI 设计
 
 左侧仅保留 `Pillxai` 文字字标，按“摆药”“处方管理”“设置”排列，登录后默认进入摆药，直接切换，不设返回页。当前侧栏按最新确认采用图标文字横排和较长圆角矩形；选中背景固定浅灰，不随强调色变化。设置使用齿轮、摆药使用下半黑色与上半白色的胶囊，处方管理保留原图标。三个页面共用当前演示状态。
 
@@ -20,7 +62,7 @@
 
 摆药沿用处方管理原有的白色细边框卡片风格：`Surface` 统一白底、16 像素圆角、浅灰边框与标准留白。处方管理保留长者列表和资料、用药详情，移除整个“摆药准备”栏；准备与开始摆药统一从左侧“摆药”模块进入。摆药待准备/提前准备清单及执行中的当前药、下一药均复用同一容器，保留卡片接替动画和药品图片原色。
 
-界面使用正常业务文案，移除演示说明、账号快捷填充与模拟操作选择器。左下角保留账户头像、院内管理员身份及退出操作；真实登录服务尚未接入。有执行中或暂停的任务时，须先完成或结束当前摆药。登录页和加载页仅显示 Pillxai 文字字标，移除品牌图像 Logo，Web 页签与应用清单也不再引用该图像；原素材保留为参考。
+界面使用正常业务文案，移除演示说明、账号快捷填充与模拟操作选择器。左下角保留账户头像、管理员身份及退出操作；真实登录服务尚未接入。有执行中或暂停的任务时，须先完成或结束当前摆药。登录页和加载页仅显示 Pillxai 文字字标，移除品牌图像 Logo，Web 页签与应用清单也不再引用该图像；原素材保留为参考。
 
 摆药、处方管理及执行页的主标题由工作区顶栏显示，正文不重复标题。移除页面说明小标题和待摆清单顶部日期。设置页标题仅放在左侧分类栏顶部，与主侧边栏、分类栏共用 `AppPage.navigationBackground` 浅灰色；右侧不设顶栏，白色分组内容区直接延伸到顶部。设置页采用左侧分类、右侧分组列表，提供通用、外观、关于三类；窄屏保留顶部标题，使用分类选择器。搜索跨分类筛选设置，切换分类保留未应用的颜色输入。不再展示“本机设备”分类、无法操作的“图片显示”整组说明或演示重置。设备管理统一从摆药界面右上角状态按钮进入。
 
@@ -54,7 +96,7 @@
 
 ## 登录预览
 
-首次启动显示登录表单，登录后默认进入摆药。提供密码显隐、必填校验和普通错误提示，手机键盘弹出时仍可操作。默认管理员账号为 `admin`，密码为 `admin123`，需要手动输入；不提供快捷填充。登录后账户区和菜单显示“管理员 / 院内管理员”，替换原 `demo` 测试账号。仅提供本地 UI 登录，未实现账号管理或真实权限控制。此流程不代表真实认证、授权或安全会话已经实现，不发送、记录或持久化输入的密码。刷新或重启后重新登录。`initiallySignedIn` 只用于 GUI 测试构造已登录场景。
+首次启动显示登录表单，登录后默认进入摆药。提供密码显隐、必填校验和普通错误提示，手机键盘弹出时仍可操作。默认管理员账号为 `admin`，密码为 `admin123`，需要手动输入；不提供快捷填充。登录后账户区和菜单显示“管理员 / 管理员”，替换原 `demo` 测试账号。仅提供本地 UI 登录，未实现账号管理或真实权限控制。此流程不代表真实认证、授权或安全会话已经实现，不发送、记录或持久化输入的密码。刷新或重启后重新登录。`initiallySignedIn` 只用于 GUI 测试构造已登录场景。
 
 ## 串口设备界面
 
@@ -99,10 +141,10 @@
 .\scripts\flutter.cmd test
 ```
 
-构建并打开浏览器预览：
+构建并打开显式演示预览（真实资料版本使用上面的命令）：
 
 ```powershell
-.\scripts\flutter.cmd build web --release --no-web-resources-cdn
+.\scripts\flutter.cmd build web --release --no-web-resources-cdn --dart-define=PILLXAI_DEMO=true
 node .\scripts\serve-preview.cjs
 ```
 
@@ -111,7 +153,7 @@ node .\scripts\serve-preview.cjs
 需要热重载时，可启动 Flutter 的开发预览：
 
 ```powershell
-.\scripts\flutter.cmd run -d chrome
+.\scripts\flutter.cmd run -d chrome --dart-define=PILLXAI_DEMO=true
 ```
 
 查看已连接终端、运行到指定设备，以及构建 Android 调试包：
@@ -128,7 +170,10 @@ node .\scripts\serve-preview.cjs
 
 | 位置 | 责任 |
 | --- | --- |
-| `lib/main.dart` | 应用入口、三入口侧边栏、当前强调色 |
+| `lib/main.dart` | 默认真实入口与显式演示入口、主题与语言 |
+| `lib/data/` | API 会话、契约映射与处方 repository |
+| `lib/models/prescription_controller.dart` | 当前工作区查询、选择、加载与保存状态 |
+| `lib/widgets/workspace_sidebar.dart` | 两种运行模式共用的三入口侧边栏 |
 | `lib/theme/app_theme.dart` | 统一设计参数、Material 主题与公共表面组件 |
 | `lib/screens/` | 处方管理、摆药与设置页面 |
 | `lib/models/demo_model.dart` | 内存资料、任务快照与演示状态转换；不包含网络或设备命令 |
@@ -143,11 +188,11 @@ node .\scripts\serve-preview.cjs
 
 ## 代码导读与触屏约定
 
-从 `main.dart` 的 `PillxaiApp` 读起：根 `State` 持有共享模型，页面持有输入、筛选和滚动状态。`setState` 更新页面局部状态；模型方法在一次业务变更结束后调用 `notifyListeners`，`ListenableBuilder` 根据最新数据重新构建。切页使用 `IndexedStack`，不重置任务。
+从 `main.dart` 的 `PillxaiApp` 读起：默认进入 `ConnectedWorkspace`，应用会话持有 API 连接及当前会话的 controller；演示模式才创建 DemoModel。页面持有输入、筛选和滚动状态。`setState` 更新局部状态，controller 在查询或保存结束后通知页面。下面的计划与任务导读仅属于演示模式。
 
 入口按职责阅读：`build` 配置应用主题与语言 → `_buildHome` 判断登录并排列左侧导航、右侧内容 → `_buildHeader` 显示标题与设备入口、`_buildPages` 选择页面。这些辅助方法属于同一个 `State`，首次阅读先看 `_buildHome` 的区域关系，再进入对应方法查看细节。回调中的 `setState` 才会修改会话状态，构建方法本身只返回界面配置。处方管理和设置页不显示任务提示条；通过侧栏“摆药”回到当前任务，切页仍保留任务状态。
 
-侧栏胶囊图标保存在 `assets/icons/capsule.svg`，由 `SvgPicture.asset` 加载；修改图形时编辑 SVG，`main.dart` 只指定资源路径和显示尺寸。SVG 支持依赖 `flutter_svg`，版本在 `pubspec.yaml` 和锁文件中固定。
+侧栏胶囊图标保存在 `assets/icons/capsule.svg`，由 `workspace_sidebar.dart` 中的 `SvgPicture.asset` 加载；修改图形时编辑 SVG。依赖 `flutter_svg` 的版本在 `pubspec.yaml` 和锁文件中固定。
 
 准备只有一条主线：`DemoModel.planFor` 根据覆盖起点生成 `PreparationPlan` → `PreparationDialog` 选择天数并展示校验结果 → 最新药盒反馈匹配后调用 `startPreparedTask(plan)` → 执行页用 `pause` / `resume` 控制同一任务。构造模型时不创建任务；`resume` 不能首次启动。任务状态通过只读 getter 对外提供。测试也通过同一计划和启动入口，短任务样例集中在 `test/support/tasks.dart`，不再维护另一套准备状态机。
 
@@ -157,7 +202,7 @@ node .\scripts\serve-preview.cjs
 
 平板宽屏下，长者名单和详情独立滚动，搜索与添加固定可达，点选后详情回到顶部；窄屏或可用高度不足时纵向排列，点选后定位到详情。按钮、选择器和菜单行的触控目标至少48逻辑像素，保留轻巧图标与原有白灰风格。侧栏高度可随字体增长，短屏可滚动；表单中部适应软键盘并可拖动收起键盘，系统返回和“取消”使用同一未保存保护。浅色强调色保留填充原色，文字、滑块和日历选中态使用可读颜色。
 
-## 实际验证与限制
+## M1 之前的演示界面验证记录
 
 2026 年 10 月 26 日 UI 拆分提交前验证：当前全部改动合并后的静态检查和77项测试通过，Web release 构建通过，包含 SVG 胶囊资源及移除跨页任务提示条后的版本。以下分项记录中的“未重新构建 Web”描述各自当时的验证范围；本次已统一重建。Android 平板真机、真实蓝牙和后台生命周期仍未实测。
 

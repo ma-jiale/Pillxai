@@ -1,0 +1,9 @@
+{
+  "pubName": "pillxai_api_client",
+  "pubVersion": "0.1.0",
+  "pubDescription": "Generated Pillxai HTTP contract client",
+  "pubPublishTo": "none",
+  "hideGenerationTimestamp": true,
+  "useFinalProperties": true,
+  "serializationLibrary": "native_serialization"
+}

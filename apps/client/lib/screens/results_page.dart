@@ -1,8 +1,12 @@
+import '../widgets/result_details.dart';
+export '../widgets/result_details.dart' show ResultBadge;
+
 import 'package:flutter/material.dart';
 
 import '../models/demo_model.dart';
 import '../theme/app_theme.dart';
 import '../widgets/profile_avatar.dart';
+import '../widgets/collection_banner.dart';
 
 /// 用稳定id查询当前快照；监听模型是为了同步取盒反馈，不是允许编辑历史。
 /// 返回的Future在详情关闭时完成，调用页可据此恢复自己的导航状态。
@@ -17,217 +21,135 @@ Future<void> showResultDetails(
     builder: (context, _) {
       final record = model.records.where((r) => r.id == id).firstOrNull;
       if (record == null) return const SizedBox.shrink();
-      return Dialog(
-        alignment: Alignment.centerRight,
-        insetPadding: const EdgeInsets.all(16),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+      return ResultDetailsSheet(
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            RecordSummary(record: record),
+            const SizedBox(height: 28),
+            const Text(
+              '逐药结果',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              '计数为演练累计值，不能代表每个药格的实际数量。',
+              style: TextStyle(fontSize: 12, color: Color(0xff777777)),
+            ),
+            const SizedBox(height: 12),
+            for (final medicine in record.medicines)
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 12, 8),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        '结果详情',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: '关闭结果详情',
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Surface(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      RecordSummary(record: record),
-                      const SizedBox(height: 28),
-                      const Text(
-                        '逐药结果',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        '计数为演练累计值，不能代表每个药格的实际数量。',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xff777777),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      for (final medicine in record.medicines)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Surface(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Wrap(
-                                  spacing: 12,
-                                  runSpacing: 6,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    Text(
-                                      medicine.name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                    ResultBadge(
-                                      medicine.result.label,
-                                      attention:
-                                          medicine.result.outcome ==
-                                              MedicineOutcome.skipped ||
-                                          medicine.result.outcome ==
-                                              MedicineOutcome.unverified ||
-                                          medicine.result.outcome ==
-                                              MedicineOutcome.notStarted,
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  '${medicine.strength} · ${medicine.form}',
-                                  style: const TextStyle(
-                                    color: Color(0xff777777),
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-                                Wrap(
-                                  spacing: 24,
-                                  runSpacing: 8,
-                                  children: [
-                                    Text('计划 ${medicine.target} 颗'),
-                                    Text(
-                                      '演练计数 ${medicine.result.countedParticles} 颗',
-                                    ),
-                                    if (medicine.result.confirmedParticles !=
-                                        null)
-                                      Text(
-                                        '人工确认 ${medicine.result.confirmedParticles} 颗',
-                                      ),
-                                  ],
-                                ),
-                                if (medicine.result.outcome ==
-                                    MedicineOutcome.unverified)
-                                  const Padding(
-                                    padding: EdgeInsets.only(top: 8),
-                                    child: Text(
-                                      '已结束，实际摆药数量仍待核实。',
-                                      style: TextStyle(
-                                        color: Color(0xff9a6324),
-                                      ),
-                                    ),
-                                  ),
-                              ],
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            medicine.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
                             ),
                           ),
-                        ),
-                      ExpansionTile(
-                        tilePadding: EdgeInsets.zero,
-                        title: const Text(
-                          '原计划',
-                          style: TextStyle(fontSize: 14),
-                        ),
+                          ResultBadge(
+                            medicine.result.label,
+                            attention:
+                                medicine.result.outcome ==
+                                    MedicineOutcome.skipped ||
+                                medicine.result.outcome ==
+                                    MedicineOutcome.unverified ||
+                                medicine.result.outcome ==
+                                    MedicineOutcome.notStarted,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${medicine.strength} · ${medicine.form}',
+                        style: const TextStyle(color: Color(0xff777777)),
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 24,
+                        runSpacing: 8,
                         children: [
-                          for (final medicine in record.medicines)
-                            ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(medicine.name),
-                              subtitle: Text(
-                                '${medicine.schedule} · ${medicine.form}',
-                              ),
+                          Text('计划 ${medicine.target} 颗'),
+                          Text('演练计数 ${medicine.result.countedParticles} 颗'),
+                          if (medicine.result.confirmedParticles != null)
+                            Text(
+                              '人工确认 ${medicine.result.confirmedParticles} 颗',
                             ),
                         ],
                       ),
-                      ExpansionTile(
-                        tilePadding: EdgeInsets.zero,
-                        initiallyExpanded: record.needsReview,
-                        title: const Text(
-                          '处理经过',
-                          style: TextStyle(fontSize: 14),
+                      if (medicine.result.outcome == MedicineOutcome.unverified)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text(
+                            '已结束，实际摆药数量仍待核实。',
+                            style: TextStyle(color: Color(0xff9a6324)),
+                          ),
                         ),
-                        children: [
-                          for (final event in record.events)
-                            ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                event.description,
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                              subtitle: Text(
-                                recordTime(event.at),
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                        ],
-                      ),
                     ],
                   ),
                 ),
               ),
-              if (record.isExample &&
-                  record.collection != CollectionStage.complete &&
-                  !model.busy)
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: FilledButton.icon(
-                    key: const ValueKey('preview-collection'),
-                    onPressed: () {
-                      if (model.openExampleCollection(record.id)) {
-                        Navigator.pop(context);
-                      }
-                    },
-                    icon: const Icon(Icons.output_rounded, size: 18),
-                    label: const Text('演示自动取盒反馈'),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: const Text('原计划', style: TextStyle(fontSize: 14)),
+              children: [
+                for (final medicine in record.medicines)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(medicine.name),
+                    subtitle: Text('${medicine.schedule} · ${medicine.form}'),
                   ),
-                ),
-            ],
-          ),
+              ],
+            ),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              initiallyExpanded: record.needsReview,
+              title: const Text('处理经过', style: TextStyle(fontSize: 14)),
+              children: [
+                for (final event in record.events)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      event.description,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    subtitle: Text(
+                      recordTime(event.at),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ),
+        footer:
+            record.isExample &&
+                record.collection != CollectionStage.complete &&
+                !model.busy
+            ? FilledButton.icon(
+                key: const ValueKey('preview-collection'),
+                onPressed: () {
+                  if (model.openExampleCollection(record.id)) {
+                    Navigator.pop(context);
+                  }
+                },
+                icon: const Icon(Icons.output_rounded, size: 18),
+                label: const Text('演示自动取盒反馈'),
+              )
+            : null,
       );
     },
   ),
 );
-
-/// 结果标签的纯展示组件，状态含义由调用者提供。
-class ResultBadge extends StatelessWidget {
-  const ResultBadge(this.label, {super.key, this.attention = false});
-  final String label;
-  final bool attention;
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-    decoration: BoxDecoration(
-      color: attention ? const Color(0xfffaf0df) : const Color(0xfff2f2f2),
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Text(
-      label,
-      style: TextStyle(
-        fontSize: 12,
-        color: attention ? const Color(0xff8a5a1f) : const Color(0xff555555),
-      ),
-    ),
-  );
-}
 
 /// 展示任务发生时的资料快照，不能改读当前长者资料来“更新”历史。
 class RecordSummary extends StatelessWidget {
@@ -303,40 +225,13 @@ class CollectionStatusBanner extends StatelessWidget {
       CollectionStage.retractionFailed => '轨道尚未就绪，等待设备反馈',
       CollectionStage.complete => '取盒已结束',
     };
-    return Surface(
-      key: const ValueKey('collection-status'),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${record.name} · ${record.label}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '$message · 演练',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xff777777),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-            key: const ValueKey('result-details'),
-            onPressed: () => showResultDetails(context, model, record.id),
-            child: const Text('结果详情'),
-          ),
-        ],
+    return CollectionBanner(
+      title: '${record.name} · ${record.label}',
+      message: '$message · 演练',
+      action: TextButton(
+        key: const ValueKey('result-details'),
+        onPressed: () => showResultDetails(context, model, record.id),
+        child: const Text('结果详情'),
       ),
     );
   }

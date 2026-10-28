@@ -1,0 +1,265 @@
+//
+// AUTO-GENERATED FILE, DO NOT MODIFY!
+//
+// @dart=2.18
+
+// ignore_for_file: unused_element, unused_import
+// ignore_for_file: always_put_required_named_parameters_first
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: lines_longer_than_80_chars
+
+part of openapi.api;
+
+
+class ResidentsApi {
+  ResidentsApi([ApiClient? apiClient]) : apiClient = apiClient ?? defaultApiClient;
+
+  final ApiClient apiClient;
+
+  /// Get
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] residentId (required):
+  Future<Response> getResidentWithHttpInfo(String residentId, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/residents/{resident_id}'
+      .replaceAll('{resident_id}', residentId);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Get
+  ///
+  /// Parameters:
+  ///
+  /// * [String] residentId (required):
+  Future<ResidentView?> getResident(String residentId, { Future<void>? abortTrigger, }) async {
+    final response = await getResidentWithHttpInfo(residentId, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ResidentView',) as ResidentView;
+    
+    }
+    return null;
+  }
+
+  /// Versions
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] residentId (required):
+  Future<Response> listResidentVersionsWithHttpInfo(String residentId, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/residents/{resident_id}/versions'
+      .replaceAll('{resident_id}', residentId);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Versions
+  ///
+  /// Parameters:
+  ///
+  /// * [String] residentId (required):
+  Future<List<ResidentView>?> listResidentVersions(String residentId, { Future<void>? abortTrigger, }) async {
+    final response = await listResidentVersionsWithHttpInfo(residentId, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      final responseBody = await _decodeBodyBytes(response);
+      return (await apiClient.deserializeAsync(responseBody, 'List<ResidentView>') as List)
+        .cast<ResidentView>()
+        .toList(growable: false);
+
+    }
+    return null;
+  }
+
+  /// List Residents
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] after:
+  ///
+  /// * [int] limit:
+  ///
+  /// * [String] query:
+  ///
+  /// * [String] barcode:
+  Future<Response> listResidentsWithHttpInfo({ String? after, int? limit, String? query, String? barcode, Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/residents';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (after != null) {
+      queryParams.addAll(_queryParams('', 'after', after));
+    }
+    if (limit != null) {
+      queryParams.addAll(_queryParams('', 'limit', limit));
+    }
+    if (query != null) {
+      queryParams.addAll(_queryParams('', 'query', query));
+    }
+    if (barcode != null) {
+      queryParams.addAll(_queryParams('', 'barcode', barcode));
+    }
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// List Residents
+  ///
+  /// Parameters:
+  ///
+  /// * [String] after:
+  ///
+  /// * [int] limit:
+  ///
+  /// * [String] query:
+  ///
+  /// * [String] barcode:
+  Future<ResidentPage?> listResidents({ String? after, int? limit, String? query, String? barcode, Future<void>? abortTrigger, }) async {
+    final response = await listResidentsWithHttpInfo(after: after, limit: limit, query: query, barcode: barcode, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ResidentPage',) as ResidentPage;
+    
+    }
+    return null;
+  }
+
+  /// Put
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] residentId (required):
+  ///
+  /// * [SaveResident] saveResident (required):
+  Future<Response> saveResidentWithHttpInfo(String residentId, SaveResident saveResident, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/residents/{resident_id}'
+      .replaceAll('{resident_id}', residentId);
+
+    // ignore: prefer_final_locals
+    Object? postBody = saveResident;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>['application/json'];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'PUT',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Put
+  ///
+  /// Parameters:
+  ///
+  /// * [String] residentId (required):
+  ///
+  /// * [SaveResident] saveResident (required):
+  Future<ResidentView?> saveResident(String residentId, SaveResident saveResident, { Future<void>? abortTrigger, }) async {
+    final response = await saveResidentWithHttpInfo(residentId, saveResident, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ResidentView',) as ResidentView;
+    
+    }
+    return null;
+  }
+}

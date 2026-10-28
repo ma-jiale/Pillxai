@@ -47,6 +47,7 @@ class Medicine {
     this.endDate,
     this.stopped = false,
     this.imageAsset,
+    this.revision = 0,
   });
   final String id;
   final String name;
@@ -61,6 +62,7 @@ class Medicine {
   final DateTime? endDate;
   final bool stopped;
   final String? imageAsset;
+  final int revision;
 
   String get schedule => doses.describe(unit);
 
@@ -101,6 +103,7 @@ class Medicine {
     endDate: clearEndDate ? null : endDate ?? this.endDate,
     stopped: stopped ?? this.stopped,
     imageAsset: imageAsset,
+    revision: revision,
   );
 }
 
@@ -113,10 +116,14 @@ class Resident {
     required this.bed,
     required this.medicines,
     this.avatarAsset,
+    this.revision = 0,
+    this.barcode = '',
   });
   final String id;
   String name;
   String bed;
   final List<Medicine> medicines;
   final String? avatarAsset;
+  final int revision;
+  final String barcode;
 }

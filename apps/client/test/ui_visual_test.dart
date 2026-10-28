@@ -44,6 +44,15 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.runAsync(() async {
+        for (final asset in [
+          'assets/images/medicine-a.png',
+          'assets/images/medicine-b.png',
+        ]) {
+          await precacheImage(
+            AssetImage(asset),
+            tester.element(find.byType(PillxaiApp)),
+          );
+        }
         for (final resident in model.residents) {
           if (resident.avatarAsset != null) {
             await precacheImage(
@@ -109,6 +118,10 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('pattern-open')));
       await tester.pumpAndSettle();
       await capture('pattern');
+      await expectLater(
+        find.byKey(root),
+        matchesGoldenFile('goldens/approved-${size.width.toInt()}-pattern.png'),
+      );
       expect(find.text('计划 · 1 点 = 1 颗'), findsNothing);
       expect(
         tester
@@ -145,6 +158,12 @@ void main() {
         titleOrigin,
       );
       await capture('execution');
+      await expectLater(
+        find.byKey(root),
+        matchesGoldenFile(
+          'goldens/approved-${size.width.toInt()}-execution.png',
+        ),
+      );
       final currentBounds = tester.getRect(
         find.byKey(const ValueKey('medicine-current-slot')),
       );

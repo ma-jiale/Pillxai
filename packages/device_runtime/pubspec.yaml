@@ -1,0 +1,19 @@
+name: pillxai_device_runtime
+description: Terminal-owned transport and durable engineering diagnostics.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: ^3.13.1
+dependencies:
+  pillxai_api_client:
+    path: ../api_client
+  pillxai_execution_core:
+    path: ../execution_core
+  pillxai_device_protocol:
+    path: ../device_protocol
+  ffi: ^2.1.4
+  win32: 5.15.0
+  sqlite3: ^3.0.0
+dev_dependencies:
+  test: ^1.26.0
+  lints: ^6.0.0

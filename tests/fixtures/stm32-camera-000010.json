@@ -1,0 +1,17 @@
+{
+  "source": "2026-10-27 physical Android tablet + PillDispenser01 + HC-06",
+  "precondition": "Open command AA BB 03 03 00 acknowledged with ACK and DONE",
+  "barcode": "000010",
+  "observations": [
+    {
+      "received_at": "2026-10-27T20:07:52.065043+08:00",
+      "raw": "APPEARED,000010\r\n",
+      "bytes": [65, 80, 80, 69, 65, 82, 69, 68, 44, 48, 48, 48, 48, 49, 48, 13, 10]
+    },
+    {
+      "received_at": "2026-10-27T20:08:15.548547+08:00",
+      "raw": "DISAPPEARED,000010\r\n",
+      "bytes": [68, 73, 83, 65, 80, 80, 69, 65, 82, 69, 68, 44, 48, 48, 48, 48, 49, 48, 13, 10]
+    }
+  ]
+}

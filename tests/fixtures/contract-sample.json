@@ -1,0 +1,11 @@
+{
+  "sample_id": "8279432e-f2a2-4e15-8492-933ba6151550",
+  "prescription_version": 3,
+  "start_date": "2026-10-26",
+  "end_date": null,
+  "observed_at": "2026-10-26T09:00:00+08:00",
+  "feed_form": "half",
+  "original_tablets": "0.5",
+  "particles": 1,
+  "note": null
+}

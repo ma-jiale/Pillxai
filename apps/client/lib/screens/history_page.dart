@@ -4,7 +4,7 @@ import '../models/demo_model.dart';
 import '../theme/app_page.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_menu.dart';
-import '../widgets/profile_avatar.dart';
+import '../widgets/result_details.dart';
 import 'results_page.dart';
 
 /// 会话历史查询。筛选条件和页码归本页面；记录快照归共享模型。
@@ -352,85 +352,35 @@ class _HistoryPageState extends State<HistoryPage> {
             for (final record in shown)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: Surface(
-                  child: InkWell(
-                    key: ValueKey('history-${record.id}'),
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () async {
-                      final previousRecordId = widget.model.currentRecord?.id;
-                      await showResultDetails(context, widget.model, record.id);
-                      if (mounted &&
-                          previousRecordId != record.id &&
-                          widget.model.currentRecord?.id == record.id) {
-                        widget.onClose();
-                      }
-                    },
-                    child: LayoutBuilder(
-                      builder: (context, bounds) {
-                        final identity = ResidentIdentity(
-                          name: record.name,
-                          bed: record.bed,
-                          asset: record.avatar,
-                        );
-                        final result = Wrap(
-                          spacing: 8,
-                          runSpacing: 6,
-                          children: [
-                            ResultBadge(
-                              record.label,
-                              attention:
-                                  record.outcome != TaskOutcome.completed,
-                            ),
-                            if (record.needsReview)
-                              const ResultBadge('待核实', attention: true),
-                            const ResultBadge('演练'),
-                          ],
-                        );
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (bounds.maxWidth < 560) ...[
-                              identity,
-                              const SizedBox(height: 12),
-                              result,
-                            ] else
-                              Row(
-                                children: [
-                                  Expanded(child: identity),
-                                  const SizedBox(width: 16),
-                                  result,
-                                  const SizedBox(width: 12),
-                                  const Icon(
-                                    Icons.chevron_right,
-                                    color: Color(0xff999999),
-                                  ),
-                                ],
-                              ),
-                            const SizedBox(height: 14),
-                            Wrap(
-                              spacing: 20,
-                              runSpacing: 6,
-                              children: [
-                                Text(recordTime(record.finishedAt)),
-                                Text(
-                                  '${record.completedCount} / ${record.medicines.length} 种药完成',
-                                ),
-                                Text(record.collectionLabel),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '${record.device} · ${record.operatorName}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Color(0xff777777),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
+                child: HistoryRecordCard(
+                  key: ValueKey('history-${record.id}'),
+                  name: record.name,
+                  bed: record.bed,
+                  avatar: record.avatar,
+                  badges: [
+                    ResultBadge(
+                      record.label,
+                      attention: record.outcome != TaskOutcome.completed,
                     ),
-                  ),
+                    if (record.needsReview)
+                      const ResultBadge('待核实', attention: true),
+                    const ResultBadge('演练'),
+                  ],
+                  facts: [
+                    recordTime(record.finishedAt),
+                    '${record.completedCount} / ${record.medicines.length} 种药完成',
+                    record.collectionLabel,
+                  ],
+                  caption: '${record.device} · ${record.operatorName}',
+                  onTap: () async {
+                    final previousRecordId = widget.model.currentRecord?.id;
+                    await showResultDetails(context, widget.model, record.id);
+                    if (mounted &&
+                        previousRecordId != record.id &&
+                        widget.model.currentRecord?.id == record.id) {
+                      widget.onClose();
+                    }
+                  },
                 ),
               ),
             if (records.isNotEmpty)
