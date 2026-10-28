@@ -47,6 +47,7 @@ def smoke(api_image, pg_image, revision):
     """Actual image + database + authenticated API + isolated pg_restore, no production data."""
     suffix = uuid4().hex[:12]
     network, db, api = (f"pillxai-v2-ci-{suffix}-{part}" for part in ("net", "db", "api"))
+    ingress = f"pillxai-v2-ci-{suffix}-ingress"
     password = uuid4().hex
     environment = os.environ.copy()
     environment["PILLXAI_DATABASE_URL"] = (
@@ -56,6 +57,7 @@ def smoke(api_image, pg_image, revision):
     admin = {"username": "ci-admin", "password": uuid4().hex}
     schema = None
     run(["docker", "network", "create", "--internal", network], stdout=subprocess.DEVNULL)
+    run(["docker", "network", "create", ingress], stdout=subprocess.DEVNULL)
     try:
         run(
             [
@@ -120,6 +122,8 @@ def smoke(api_image, pg_image, revision):
                 api,
                 "--network",
                 network,
+                "--network",
+                ingress,
                 "-e",
                 "PILLXAI_DATABASE_URL",
                 "-e",
@@ -204,6 +208,20 @@ def smoke(api_image, pg_image, revision):
                     raise
                 time.sleep(1)
         return schema
+    except Exception:
+        # Only disposable fixture containers; never print inspect output containing env secrets.
+        for name in (api, db):
+            logs = subprocess.run(
+                ["docker", "logs", "--tail", "60", name],
+                capture_output=True,
+                text=True,
+            )
+            print(
+                (logs.stdout + logs.stderr)
+                .replace(password, "[redacted]")
+                .replace(admin["password"], "[redacted]")
+            )
+        raise
     finally:
         # Only randomly named disposable CI resources; never the production project.
         for name in (api, db):
@@ -217,11 +235,19 @@ def smoke(api_image, pg_image, revision):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+        subprocess.run(
+            ["docker", "network", "rm", ingress],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
 
 def inspect_container_port(name):
     data = json.loads(run(["docker", "inspect", name], capture_output=True, text=True).stdout)[0]
-    return int(data["NetworkSettings"]["Ports"]["8000/tcp"][0]["HostPort"])
+    ports = data["NetworkSettings"]["Ports"].get("8000/tcp")
+    if not ports:
+        raise RuntimeError(f"API has no published port; container state: {data['State']['Status']}")
+    return int(ports[0]["HostPort"])
 
 
 def main():

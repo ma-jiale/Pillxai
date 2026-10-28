@@ -31,6 +31,7 @@ services:
   api:
     <<: *api
     restart: unless-stopped
+    networks: [backend, ingress]
     ports:
       - "127.0.0.1:${V2_PORT:-8068}:8000"
     depends_on:
@@ -118,5 +119,6 @@ services:
     networks: [backend]
     logging: *logging
 networks:
+  ingress: {}
   backend:
     internal: true
