@@ -1,13 +1,15 @@
-# Pillxai Dispenser
+<h1 align="center">Pillxai</h1>
 
-[![Flutter](https://img.shields.io/badge/Flutter-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
-[![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![License: Source Available](https://img.shields.io/badge/License-Source%20Available-orange)](LICENSE)
-[![Status: In Development](https://img.shields.io/badge/Status-In%20Development-yellow)](#开发进展)
+<p align="center">
+  <a href="https://flutter.dev"><img src="https://img.shields.io/badge/Flutter-02569B?logo=flutter&amp;logoColor=white" alt="Flutter"></a>
+  <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&amp;logoColor=white" alt="FastAPI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Source%20Available-orange" alt="License: Source Available"></a>
+  <a href="#开发进展"><img src="https://img.shields.io/badge/Status-In%20Development-yellow" alt="Status: In Development"></a>
+</p>
 
-**面向养老院与社区护理场景的智能摆药系统。**
+<p align="center"><strong>面向养老院与社区护理场景的智能摆药系统。</strong></p>
 
-Pillxai 由 STM32 驱动的摆药机、Pillxai 应用和服务器后端组成，帮助护士与护工根据长者的用药安排，为未来多天准备多种药物。工作人员按提示投入当前药物，机器完成计数与分格摆放，多余药片从回收口返回。
+Pillxai 由摆药机、Pillxai 应用和服务器后端组成，帮助护士与护工根据长者的用药安排，为未来多天准备多种药物。工作人员按提示投入当前药物，机器完成计数与分格摆放，多余药片从回收口返回。
 
 [项目背景](#项目背景) · [工作方式](#工作方式) · [下载](#下载) · [设置](#设置) · [开发进展](#开发进展) · [后续规划](#后续规划) · [合作与交流](#合作与交流)
 
@@ -66,11 +68,11 @@ flowchart LR
 | 第二版 | Unity |
 | 第三版（当前维护） | Flutter |
 
-当前仓库正在开发 Flutter 新版本：
+Flutter 新版本的开发进展（`NT` 开发分支）：
 
 - 已建立处方管理、摆药与设置的交互界面；默认入口现已接入真实登录、长者与处方保存、用药版本；当前不提供账号管理界面。
 - 已建立 FastAPI/PostgreSQL 基础服务、生成式 Dart API 客户端、独立设备协议模块与 Windows 工程联调入口，并完成基础软件验证。
-- 本机资料链路已通过 SDK 和浏览器到数据库的验证，见 [M1 报告](docs/validation/2026-10-26-m1.md)。生产摆药任务、后台运行及完整设备流程仍在实施与验收中；演示执行只在显式测试模式提供。
+- 本机资料链路已通过 SDK 和浏览器到数据库的验证。生产摆药任务、后台运行及完整设备流程仍在实施与验收中；演示执行只在显式测试模式提供。
 - 既有硬件使用与早期院内测试，不代表 Flutter 新版本已经完成生产或实机验收。
 
 ## 下载
