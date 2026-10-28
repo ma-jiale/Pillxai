@@ -6,6 +6,8 @@ import 'dart:async';
 
 import '../models/prescription_store.dart';
 import '../models/dose_rules.dart';
+import '../data/resident_avatar.dart';
+import 'profile_avatar.dart';
 
 String formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -55,10 +57,12 @@ class ResidentForm extends StatefulWidget {
     required this.model,
     this.resident,
     this.onSave,
+    this.chooseAvatar = pickResidentAvatar,
   });
   final PrescriptionStore model;
   final Resident? resident;
   final FutureOr<void> Function(Resident)? onSave;
+  final Future<String?> Function() chooseAvatar;
 
   @override
   State<ResidentForm> createState() => _ResidentFormState();
@@ -71,6 +75,8 @@ class _ResidentFormState extends State<ResidentForm> {
   bool _dirty = false;
   bool _saving = false;
   String? _saveError;
+  bool _pickingAvatar = false;
+  late String? _avatar = widget.resident?.avatarAsset;
   late final _id = widget.resident?.id ?? newRecordId();
 
   @override
@@ -81,22 +87,23 @@ class _ResidentFormState extends State<ResidentForm> {
   }
 
   Future<void> _cancel() async {
-    if (_saving) return;
+    if (_saving || _pickingAvatar) return;
     if (await _confirmDiscard(context, _dirty) && mounted) {
       Navigator.pop(context);
     }
   }
 
   Future<void> _save() async {
-    if (_saving) return;
+    if (_saving || _pickingAvatar) return;
     if (!_form.currentState!.validate()) return;
     final draft = Resident(
       id: _id,
       name: _name.text.trim(),
       bed: _bed.text.trim(),
       medicines: widget.resident?.medicines ?? [],
-      avatarAsset: widget.resident?.avatarAsset,
+      avatarAsset: _avatar,
       revision: widget.resident?.revision ?? 0,
+      barcode: widget.resident?.barcode ?? '',
     );
     setState(() {
       _saving = true;
@@ -109,6 +116,29 @@ class _ResidentFormState extends State<ResidentForm> {
       if (mounted) setState(() => _saveError = error.toString());
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _uploadAvatar() async {
+    if (_saving || _pickingAvatar) return;
+    setState(() {
+      _pickingAvatar = true;
+      _saveError = null;
+    });
+    try {
+      final chosen = await widget.chooseAvatar();
+      if (mounted && chosen != null) {
+        setState(() {
+          _avatar = chosen;
+          _dirty = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _saveError = '图片无法读取，请选择小于 10 MB 的 PNG 或 JPEG 图片。');
+      }
+    } finally {
+      if (mounted) setState(() => _pickingAvatar = false);
     }
   }
 
@@ -127,6 +157,56 @@ class _ResidentFormState extends State<ResidentForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Row(
+            children: [
+              ProfileAvatar(label: '长者头像预览', asset: _avatar, size: 64),
+              const SizedBox(width: 16),
+              TextButton.icon(
+                onPressed: _saving || _pickingAvatar ? null : _uploadAvatar,
+                icon: const Icon(Icons.upload_outlined, size: 18),
+                label: Text(_pickingAvatar ? '正在读取…' : '上传头像'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (var i = 0; i < residentAvatarPresets.length; i++)
+                IconButton(
+                  key: ValueKey('avatar-preset-$i'),
+                  tooltip: '预设头像 ${i + 1}',
+                  onPressed: _saving || _pickingAvatar
+                      ? null
+                      : () => setState(() {
+                          _avatar = residentAvatarPresets[i];
+                          _dirty = true;
+                        }),
+                  style: IconButton.styleFrom(
+                    side: BorderSide(
+                      color: _avatar == residentAvatarPresets[i]
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.transparent,
+                    ),
+                  ),
+                  icon: ProfileAvatar(
+                    label: '预设头像 ${i + 1}',
+                    asset: residentAvatarPresets[i],
+                    size: 42,
+                  ),
+                ),
+              TextButton(
+                onPressed: _saving || _pickingAvatar
+                    ? null
+                    : () => setState(() {
+                        _avatar = null;
+                        _dirty = true;
+                      }),
+                child: const Text('默认头像'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
           TextFormField(
             controller: _name,
             autofocus: true,
@@ -151,6 +231,16 @@ class _ResidentFormState extends State<ResidentForm> {
               );
               return duplicate == null ? null : '该床位已属于${duplicate.name}';
             },
+          ),
+          const SizedBox(height: 20),
+          Text('条形码', style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: 8),
+          SelectableText(
+            widget.resident == null
+                ? '保存后自动生成'
+                : widget.resident!.barcode.isEmpty
+                ? '尚未分配'
+                : widget.resident!.barcode,
           ),
         ],
       ),

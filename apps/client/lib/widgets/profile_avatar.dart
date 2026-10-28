@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'dart:convert';
+
 /// Profile photos keep their own colors and are always cropped to a circle.
 /// 展示头像及语义名称；缺少图片时保留统一占位，不改变身份文本。
-class ProfileAvatar extends StatelessWidget {
+class ProfileAvatar extends StatefulWidget {
   const ProfileAvatar({
     super.key,
     required this.label,
@@ -14,13 +16,46 @@ class ProfileAvatar extends StatelessWidget {
   final double size;
 
   @override
+  State<ProfileAvatar> createState() => _ProfileAvatarState();
+}
+
+class _ProfileAvatarState extends State<ProfileAvatar> {
+  ImageProvider? photo;
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  @override
+  void didUpdateWidget(ProfileAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.asset != widget.asset) load();
+  }
+
+  void load() {
+    final asset = widget.asset;
+    try {
+      photo = asset == null || asset.isEmpty
+          ? null
+          : asset.startsWith('data:image/png;base64,')
+          ? MemoryImage(
+              base64Decode(asset.substring('data:image/png;base64,'.length)),
+            )
+          : AssetImage(asset);
+    } on FormatException {
+      photo = null;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) => Semantics(
-    label: label,
+    label: widget.label,
     image: true,
     child: ClipOval(
       child: SizedBox.square(
-        dimension: size,
-        child: asset == null
+        dimension: widget.size,
+        child: photo == null
             ? const ColoredBox(
                 color: Color(0xfff0efed),
                 child: Icon(
@@ -28,8 +63,8 @@ class ProfileAvatar extends StatelessWidget {
                   color: Color(0xff777777),
                 ),
               )
-            : Image.asset(
-                asset!,
+            : Image(
+                image: photo!,
                 fit: BoxFit.cover,
                 excludeFromSemantics: true,
                 errorBuilder: (_, error, stack) => const ColoredBox(

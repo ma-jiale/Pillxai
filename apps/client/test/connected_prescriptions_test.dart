@@ -19,7 +19,7 @@ const actorId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 final profile = {
   'id': residentId,
   'revision': 1,
-  'data': {'name': '服务端长者', 'bed': 'A-1'},
+  'data': {'name': '服务端长者', 'bed': 'A-1', 'barcode': '000010'},
   'updated_at': '2026-10-26T08:00:00Z',
   'updated_by': actorId,
 };
@@ -77,6 +77,9 @@ void main() {
         ),
       ),
     );
+    expect(find.text('000010'), findsOneWidget);
+    expect(field('条形码'), findsNothing);
+    expect(resident.barcode, '000010');
     await tester.enterText(field('姓名'), '保留这份草稿');
     await tester.tap(find.text('保存'));
     await tester.pump();

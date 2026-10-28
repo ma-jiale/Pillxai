@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 class AppMenuAction {
   const AppMenuAction(this.label, this.onPressed, {this.icon});
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final IconData? icon;
 }
 

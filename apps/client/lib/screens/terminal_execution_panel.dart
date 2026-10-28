@@ -5,12 +5,18 @@ import 'package:pillxai_api_client/api.dart' as api;
 
 import '../data/terminal_controller.dart';
 import '../widgets/execution_medicine_card.dart';
-import '../widgets/profile_avatar.dart';
+import '../widgets/dispensing_medicine_cards.dart';
+import '../widgets/app_menu.dart';
 import '../widgets/dispenser_icon.dart';
 import 'terminal_device_dialog.dart';
 
 class TerminalExecutionPanel extends StatelessWidget {
-  const TerminalExecutionPanel({super.key, required this.terminal});
+  const TerminalExecutionPanel({
+    super.key,
+    required this.terminal,
+    this.residentAvatar,
+  });
+  final String? residentAvatar;
   final TerminalController terminal;
 
   Future<bool> confirm(BuildContext context, String title, String body) async =>
@@ -76,11 +82,15 @@ class TerminalExecutionPanel extends StatelessWidget {
                 ],
               ),
             ] else ...[
-              ResidentIdentity(
+              DispensingIdentity(
+                avatar: residentAvatar,
                 name: task.plan.residentName,
                 bed: task.plan.bed,
+                stage: batch == null
+                    ? ''
+                    : '${batch.purpose} · 第 ${batch.index + 1} / ${task.batches.length} 药',
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 38),
               if (simulator)
                 const Padding(
                   padding: EdgeInsets.only(bottom: 12),
@@ -90,8 +100,7 @@ class TerminalExecutionPanel extends StatelessWidget {
                 ExecutionMedicineCard(
                   batch: batch,
                   count: terminal.count,
-                  stage:
-                      '${batch.purpose} · 第 ${batch.index + 1} / ${task.batches.length} 药',
+                  stage: terminal.state['message'] as String? ?? '',
                   next: batch.index + 1 < task.batches.length
                       ? task.batches[batch.index + 1]
                       : null,
@@ -119,38 +128,43 @@ class TerminalExecutionPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
               ],
-              Text(terminal.state['message'] as String? ?? ''),
+              if (waiting || batch == null)
+                Text(terminal.state['message'] as String? ?? ''),
               if (!terminal.ownTask) const Text('当前任务属于其他账号，请使用原账号登录。'),
-              const SizedBox(height: 16),
+              if (!terminal.ownTask) const SizedBox(height: 16),
               Wrap(
                 spacing: 12,
-                runSpacing: 10,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   if (phase == 'ready')
-                    FilledButton(
+                    DispensingPrimaryButton(
+                      label: terminal.state['permitted'] == true
+                          ? '已换好，继续'
+                          : '开始摆药',
+                      icon: Icons.play_arrow_rounded,
                       onPressed:
                           terminal.busy ||
                               !terminal.recognized ||
                               !terminal.ownTask
                           ? null
                           : terminal.start,
-                      child: Text(
-                        terminal.state['permitted'] == true ? '已换好，继续' : '开始摆药',
-                      ),
                     ),
                   if (phase == 'running')
-                    FilledButton(
+                    DispensingPrimaryButton(
+                      label: '暂停',
+                      icon: Icons.pause_rounded,
                       onPressed: terminal.busy
                           ? null
                           : () => terminal.action('pause'),
-                      child: const Text('暂停'),
                     ),
                   if (phase == 'paused')
-                    FilledButton(
+                    DispensingPrimaryButton(
+                      label: '继续',
+                      icon: Icons.play_arrow_rounded,
                       onPressed: terminal.busy
                           ? null
                           : () => terminal.action('resume'),
-                      child: const Text('继续'),
                     ),
                   if (phase == 'recovery') ...[
                     OutlinedButton(
@@ -192,21 +206,6 @@ class TerminalExecutionPanel extends StatelessWidget {
                       }),
                       child: const Text('模拟放入本人药盒'),
                     ),
-                  if (![
-                    'awaitingSafeConfirmation',
-                    'cancelled',
-                    'completed',
-                    'deleting',
-                  ].contains(phase))
-                    TextButton(
-                      onPressed:
-                          terminal.busy ||
-                              !terminal.connected ||
-                              terminal.state['pending'] != null
-                          ? null
-                          : () => terminal.action('stop'),
-                      child: const Text('停止并结束本次'),
-                    ),
                   if (phase == 'awaitingSafeConfirmation')
                     FilledButton(
                       onPressed: terminal.busy
@@ -238,52 +237,47 @@ class TerminalExecutionPanel extends StatelessWidget {
                             },
                       child: const Text('结束此次分药（不记录）'),
                     ),
-                  OutlinedButton(
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (_) => TerminalDeviceDialog(terminal: terminal),
+                  if (['ready', 'running', 'paused'].contains(phase) &&
+                      batch != null)
+                    OutlinedButton.icon(
+                      key: const ValueKey('adjust-opening'),
+                      icon: const Icon(Icons.tune_rounded, size: 18),
+                      label: const Text('调整开口'),
+                      onPressed: !terminal.ownTask
+                          ? null
+                          : () => _adjustOpening(context, task, batch),
                     ),
-                    child: const Text('查看设备'),
+                  AppActionMenu(
+                    tooltip: '更多操作',
+                    actions: [
+                      AppMenuAction(
+                        '查看设备',
+                        () => showDialog<void>(
+                          context: context,
+                          builder: (_) =>
+                              TerminalDeviceDialog(terminal: terminal),
+                        ),
+                        icon: Icons.settings_input_component_outlined,
+                      ),
+                      if (![
+                        'awaitingSafeConfirmation',
+                        'cancelled',
+                        'completed',
+                        'deleting',
+                      ].contains(phase))
+                        AppMenuAction(
+                          '停止并结束本次',
+                          terminal.busy ||
+                                  !terminal.connected ||
+                                  terminal.state['pending'] != null
+                              ? null
+                              : () => terminal.action('stop'),
+                          icon: Icons.stop_circle_outlined,
+                        ),
+                    ],
                   ),
                 ],
               ),
-              if (['ready', 'running', 'paused'].contains(phase) &&
-                  batch != null)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.tune_rounded, size: 18),
-                    label: const Text('调整出药开口'),
-                    onPressed: !terminal.ownTask
-                        ? null
-                        : () => showDialog<void>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('调整出药开口'),
-                              content: SizedBox(
-                                width: 420,
-                                child: ListenableBuilder(
-                                  listenable: terminal,
-                                  builder: (context, _) => _GateControl(
-                                    terminal: terminal,
-                                    initial:
-                                        (terminal.state['gate'] as num?)
-                                            ?.toDouble() ??
-                                        batch.parameters.gate.toDouble(),
-                                    key: ValueKey('${task.id}-${batch.index}'),
-                                  ),
-                                ),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('完成'),
-                                ),
-                              ],
-                            ),
-                          ),
-                  ),
-                ),
             ],
             if (terminal.pending > 0) const Text('记录已保存在本机，正在同步…'),
             for (final result
@@ -301,6 +295,35 @@ class TerminalExecutionPanel extends StatelessWidget {
         ),
       );
     },
+  );
+  void _adjustOpening(
+    BuildContext context,
+    api.TaskView task,
+    api.BatchPlan batch,
+  ) => showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('调整出药开口'),
+      content: SizedBox(
+        width: 420,
+        child: ListenableBuilder(
+          listenable: terminal,
+          builder: (context, _) => _GateControl(
+            terminal: terminal,
+            initial:
+                (terminal.state['gate'] as num?)?.toDouble() ??
+                batch.parameters.gate.toDouble(),
+            key: ValueKey('${task.id}-${batch.index}'),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('完成'),
+        ),
+      ],
+    ),
   );
 }
 

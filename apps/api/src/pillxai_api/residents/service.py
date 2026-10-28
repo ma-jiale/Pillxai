@@ -1,12 +1,29 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import insert, select, update
+from sqlalchemy import Sequence, insert, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from ..database import BusinessError, conflict, not_found
 from ..identity.service import require_maintain
 from .tables import resident_versions, residents
+
+
+def next_barcode(connection):
+    while True:
+        try:
+            number = connection.scalar(Sequence("resident_barcode_number").next_value())
+        except DBAPIError as error:
+            if getattr(error.orig, "sqlstate", None) == "2200H":
+                raise BusinessError(
+                    409, "barcode_exhausted", "六位条形码已用完，请联系维护人员。"
+                ) from error
+            raise
+        code = f"{number:06d}"
+        if not connection.execute(
+            select(residents.c.id).where(residents.c.barcode == code)
+        ).first():
+            return code
 
 
 def resident_row(connection, resident_id, *, lock=False):
@@ -23,7 +40,7 @@ def view(row):
     return dict(
         id=row["id"],
         revision=row["revision"],
-        data=dict(name=row["name"], bed=row["bed"], barcode=row["barcode"]),
+        data=dict(name=row["name"], bed=row["bed"], barcode=row["barcode"], avatar=row["avatar"]),
         updated_at=row["updated_at"],
         updated_by=row["updated_by"],
     )
@@ -32,13 +49,18 @@ def view(row):
 def save(connection, account, resident_id, request):
     require_maintain(account)
     values = dict(
-        **request.data.model_dump(exclude_none=True),
+        **request.data.model_dump(exclude={"barcode"}, exclude_none=True),
         updated_at=datetime.now(UTC),
         updated_by=account.id,
         revision=request.expected_revision + 1,
     )
     try:
         if request.expected_revision == 0:
+            if request.data.barcode not in (None, ""):
+                raise BusinessError(
+                    422, "barcode_read_only", "条形码由系统自动生成，不能指定或修改。"
+                )
+            values["barcode"] = next_barcode(connection)
             statement = (
                 pg_insert(residents)
                 .values(
@@ -48,7 +70,9 @@ def save(connection, account, resident_id, request):
                 .on_conflict_do_nothing(index_elements=[residents.c.id])
             )
         else:
-            resident_row(connection, resident_id)
+            current = resident_row(connection, resident_id, lock=True)
+            if request.data.barcode not in (None, current["barcode"]):
+                raise BusinessError(422, "barcode_read_only", "条形码由系统自动生成，不能修改。")
             statement = (
                 update(residents)
                 .where(

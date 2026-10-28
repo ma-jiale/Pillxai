@@ -6,6 +6,8 @@ Pillxai 是上海交通大学交互研究所项目。软件由项目维护者原
 
 更新日期：2026 年 10 月 27 日。用户确认 Flutter UI 阶段完成，进入完整新版本开发，沿用已确认的极简风格。默认客户端已接入真实登录、长者/处方版本、设置保存、服务端计划、任务领取、标签绑定及 Windows 本机执行和记录同步；账号管理界面暂不提供，演示模式须显式启用。Windows 双盘模拟闭环已通过；Android 前台服务/RFCOMM 已实现并通过 Android 15 模拟器关屏、双盘补传和强杀恢复，见 [Android 报告](validation/2026-10-27-android.md)，实体平板已通过真实 HC-06 完成单药 28 颗、FINISH 和学习参数保存；取盒立即收仓规则已接入并通过软件回归，自动释放及完整实机验收仍待完成，见 [执行报告](validation/2026-10-26-execution.md)及[上机指南](windows-machine-test.md)。NT 分支已建立 WSL FastAPI/PostgreSQL、生成式 Dart 契约及 Windows 设备联调基础切片；资料链路的实际证据见 [M1 报告](validation/2026-10-26-m1.md)，基础证据见 [M0 报告](validation/2026-10-26-m0.md)。Windows 任务持久化与独立运行宿主已验证；生产验收、Android 真机后台及实际机器动作尚未验收。第一版开发服务在同机 WSL/Conda 中测试，允许模拟机；今天实机联调使用 Windows 电脑连接 HC-06 蓝牙串口，生产首发仍为 Android 平板。当前执行计划与环境盘点见 [09](09-agent-development.md)，模块与部署责任见 [08](08-system-architecture.md)。客户端运行入口、实际验证和限制见[客户端说明](../apps/client/README.md)。此前 Windows 交付说明已移入本机归档，不作为新版本完成证据。
 
+2026-10-27 UI 复原：用户否定正式版本此前的还原效果后，已先提交可运行恢复点 `7b699ad`，再收拢确认版与正式版展示组件，涵盖准备、执行、设备、图案和历史详情。108 项客户端测试、静态检查与 Android Debug 构建通过，已保留数据覆盖安装到实体平板。附件链路等业务能力及真实机器流程仍有未完成/未实测项，尚未获得用户视觉验收。见 [UI 复原与平板安装报告](validation/2026-10-27-ui-restoration.md)。
+
 ## 品牌素材
 
 项目名称为 **Pillxai Dispenser**。[方形主标志](../assets/branding/pillxa-mark-rounded.png)采用圆角白底 PNG，只有圆角外部透明；[文字标志](../assets/branding/pillxa-wordmark.svg)保留原稿字形，收紧空白画布并按实际比例显示。素材保存在 assets/branding，使用说明见[品牌素材](../assets/branding/README.md)。

@@ -12,11 +12,26 @@ import 'terminal_ui_test.dart' show FakeHost;
 class ConnectionHost extends FakeHost {
   ConnectionHost(super.value);
   Map<String, dynamic>? connectedConfiguration;
+  bool failPair = false;
   @override
   Future<dynamic> command(
     String operation, [
     Map<String, dynamic> data = const {},
   ]) async {
+    if (operation == 'discover_devices') {
+      operations.add(operation);
+      return [
+        {
+          'address': 'AA:BB:CC:DD:EE:FF',
+          'name': 'PillDispenser03',
+          'paired': false,
+        },
+      ];
+    }
+    if (operation == 'pair_device' && failPair) {
+      operations.add(operation);
+      throw StateError('配对未完成');
+    }
     if (operation == 'configure') {
       value['configuration'] = data;
       events.add(value);
@@ -31,6 +46,90 @@ class ConnectionHost extends FakeHost {
 }
 
 void main() {
+  for (final failure in ['none', 'pair', 'save']) {
+    testWidgets('add unpaired device pairs, persists and connects: $failure', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1280, 1100);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final devices = <Map<String, dynamic>>[];
+      final order = <String>[];
+      final backend =
+          connection((request) async {
+              if (request.method == 'PUT') {
+                order.add('save');
+                if (failure == 'save') {
+                  return jsonResponse({
+                    'code': 'conflict',
+                    'message': '保存失败',
+                  }, 409);
+                }
+                final body = jsonDecode(request.body) as Map;
+                expect(body['configuration']['identity'], 'AA:BB:CC:DD:EE:FF');
+                expect(body['configuration']['positions_verified'], false);
+                devices.add({
+                  'id': request.url.pathSegments.last,
+                  'revision': 1,
+                  'configuration': body['configuration'],
+                });
+                return jsonResponse(devices.last);
+              }
+              return jsonResponse(devices);
+            })
+            ..account = api.AccountView(
+              id: 'owner',
+              username: 'admin',
+              displayName: '管理员',
+              role: api.Role.admin,
+              canMaintain: true,
+              active: true,
+              revision: 1,
+            );
+      final host = ConnectionHost({
+        'platform': 'android',
+        'terminal_id': 'terminal',
+        'state': {'connected': false, 'phase': 'idle'},
+      })..failPair = failure == 'pair';
+      final terminal = TerminalController(backend, host);
+      await terminal.initialize();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: TerminalDeviceDialog(terminal: terminal)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('add-device')));
+      await tester.pumpAndSettle();
+      expect(find.text('未配对'), findsOneWidget);
+      expect(find.text('AA:BB:CC:DD:EE:FF'), findsNothing);
+      await tester.tap(find.text('添加'));
+      await tester.pumpAndSettle();
+      expect(host.operations, contains('pair_device'));
+      if (failure == 'none') {
+        expect(
+          host.operations.indexOf('pair_device'),
+          lessThan(host.operations.indexOf('configure')),
+        );
+        expect(
+          host.operations.indexOf('configure'),
+          lessThan(host.operations.indexOf('connect')),
+        );
+        expect(host.connectedConfiguration?['port'], 'AA:BB:CC:DD:EE:FF');
+        expect(find.text('我的设备'), findsOneWidget);
+        expect(find.text('设备诊断'), findsNothing);
+      } else {
+        expect(host.operations, isNot(contains('connect')));
+        expect(host.operations, isNot(contains('configure')));
+        if (failure == 'pair') expect(order, isEmpty);
+      }
+      await tester.pumpWidget(const SizedBox());
+      terminal.dispose();
+      await host.close();
+      backend.dispose();
+    });
+  }
   for (final failSave in [false, true]) {
     testWidgets(
       'paired selection saves new identity before connecting; failure=$failSave',
@@ -110,13 +209,9 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.text('添加或配置设备'));
+        await tester.tap(find.byTooltip('配置设备'));
         await tester.pumpAndSettle();
-        final paired = find.byWidgetPredicate(
-          (w) =>
-              w is DropdownButtonFormField<String> &&
-              w.decoration.labelText == '已配对设备',
-        );
+        final paired = find.byKey(const ValueKey('paired-devices'));
         await tester.ensureVisible(paired);
         await tester.tap(paired);
         await tester.pumpAndSettle();

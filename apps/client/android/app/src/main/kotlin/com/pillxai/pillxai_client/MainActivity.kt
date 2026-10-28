@@ -20,6 +20,8 @@ class MainActivity : FlutterActivity() {
     private var permissionResult: MethodChannel.Result? = null
     private var resumePermissionAction: (() -> Unit)? = null
     private var resumePermissionResult: MethodChannel.Result? = null
+    private val bluetoothSetup by lazy { BluetoothSetup(this) }
+    private var requestedPermissions = emptyList<String>()
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -58,10 +60,20 @@ class MainActivity : FlutterActivity() {
                     val arguments = call.arguments as Map<*, *>
                     val operation = arguments["operation"] as String
                     val run = {
-                        if (operation == "request_access") result.success("null")
-                        else dispatch(arguments, result)
+                        when (operation) {
+                            "request_access" -> result.success("null")
+                            "discover_devices", "pair_device" -> {
+                                val snapshot = JSONObject(service?.latest ?: "{}")
+                                if (!snapshot.isNull("task") || !snapshot.isNull("claim_intent")) {
+                                    result.error("busy", "请先完成当前摆药，再添加设备。", null)
+                                } else if (operation == "discover_devices") bluetoothSetup.discover(result)
+                                else bluetoothSetup.pair((arguments["data"] as Map<*, *>)["address"] as String, result)
+                            }
+                            else -> dispatch(arguments, result)
+                        }
                     }
-                    if (operation == "connect" || operation == "request_access") withPermissions(result, run)
+                    if (operation in listOf("connect", "request_access", "discover_devices", "pair_device"))
+                        withPermissions(result, operation in listOf("discover_devices", "pair_device"), run)
                     else run()
                 }
                 else -> result.notImplemented()
@@ -97,10 +109,15 @@ class MainActivity : FlutterActivity() {
         })
     }
 
-    private fun withPermissions(result: MethodChannel.Result, action: () -> Unit) {
+    private fun withPermissions(result: MethodChannel.Result, scanning: Boolean, action: () -> Unit) {
         if (!visible) { result.error("background", "请回到应用后连接设备。", null); return }
-        if (permissionContinuation != null) { result.error("permission", "请先处理系统权限提示。", null); return }
+        if (permissionContinuation != null || resumePermissionAction != null) { result.error("permission", "请先处理系统权限提示。", null); return }
         val permissions = mutableListOf<String>()
+        if (scanning) {
+            val scan = if (Build.VERSION.SDK_INT >= 31) Manifest.permission.BLUETOOTH_SCAN
+                else Manifest.permission.ACCESS_FINE_LOCATION
+            if (checkSelfPermission(scan) != PackageManager.PERMISSION_GRANTED) permissions.add(scan)
+        }
         if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED)
             permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
@@ -109,6 +126,7 @@ class MainActivity : FlutterActivity() {
         else {
             permissionContinuation = action
             permissionResult = result
+            requestedPermissions = permissions.filter { it != Manifest.permission.POST_NOTIFICATIONS }
             requestPermissions(permissions.toTypedArray(), 6206)
         }
     }
@@ -120,7 +138,7 @@ class MainActivity : FlutterActivity() {
         val result = permissionResult
         permissionContinuation = null
         permissionResult = null
-        if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED)
+        if (requestedPermissions.any { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED })
             result?.error("permission", "附近设备权限未允许，请在应用权限中开启后重试。", null)
         else if (!visible) {
             resumePermissionAction = action
@@ -146,6 +164,7 @@ class MainActivity : FlutterActivity() {
         if (binding) { unbindService(connection); binding = false }
     }
     override fun onDestroy() {
+        bluetoothSetup.dispose()
         permissionResult?.error("detached", "界面已关闭，请重新操作。", null)
         resumePermissionResult?.error("detached", "界面已关闭，请重新操作。", null)
         initializers.toList().forEach { it.error("detached", "界面已关闭。", null) }

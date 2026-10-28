@@ -149,7 +149,9 @@ def test_bed_uniqueness_history_and_reopen(world):
             f"/residents/{rid}/versions", headers=tokens["admin"]
         ).json()
     assert [row["revision"] for row in versions] == [2, 1]
-    assert versions[1]["data"] == dict(name="测试长者", bed=bed, barcode="")
+    assert versions[1]["data"] == dict(
+        name="测试长者", bed=bed, barcode=saved["data"]["barcode"], avatar=""
+    )
     first = client.get("/residents?limit=1", headers=tokens["admin"]).json()
     second = client.get(
         f"/residents?limit=1&after={first['next_after']}", headers=tokens["admin"]

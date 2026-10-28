@@ -51,7 +51,7 @@ class AndroidTerminalHost implements TerminalHost {
     final raw = await channel
         .invokeMethod<String>('command', {'operation': command, 'data': data})
         .timeout(
-          const Duration(seconds: 20),
+          Duration(seconds: command == 'pair_device' ? 90 : 45),
           onTimeout: () {
             throw TimeoutException('本机操作结果未确认，请核对状态，勿重复启动。');
           },

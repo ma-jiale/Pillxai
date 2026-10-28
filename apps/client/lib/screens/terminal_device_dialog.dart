@@ -3,6 +3,8 @@ import 'package:pillxai_api_client/api.dart' as api;
 
 import '../data/terminal_controller.dart';
 import '../widgets/dispenser_icon.dart';
+import '../widgets/device_panel.dart';
+import '../widgets/app_menu.dart';
 
 class TerminalDeviceDialog extends StatefulWidget {
   const TerminalDeviceDialog({super.key, required this.terminal});
@@ -26,6 +28,7 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
   bool positions = false;
   bool feedback = false;
   bool reverse = false;
+  String _page = 'list';
 
   @override
   void initState() {
@@ -91,6 +94,7 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
   );
 
   Future<bool> save() async {
+    if (terminal.active || terminal.busy || !terminal.canMaintain) return false;
     var saved = false;
     await terminal.run(() async {
       final mapping = rows.text
@@ -149,332 +153,453 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
   }
 
   Future<void> connect() async {
+    if (selected?.id != terminal.device?.id &&
+        (terminal.active || !terminal.canMaintain)) {
+      return;
+    }
     if (!terminal.active && terminal.canMaintain && !await save()) return;
     await terminal.action('connect');
   }
 
-  @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: terminal,
-    builder: (context, _) => Dialog(
-      insetPadding: const EdgeInsets.all(16),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 660, maxHeight: 760),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('我的设备', style: TextStyle(fontSize: 22)),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  const DispenserIcon(size: 56),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          terminal.device?.configuration.name ?? '尚未添加设备',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          terminal.connected
-                              ? '已连接 · ${terminal.isAndroid ? '蓝牙' : '串口'}'
-                              : '请开启摆药机并连接设备',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xff777777),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              if (!terminal.supported)
-                const Text('请使用 Android 或 Windows 本机版连接 HC-06；网页可维护资料和预览计划。')
-              else
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (terminal.devices.isNotEmpty)
-                          DropdownButtonFormField<String>(
-                            key: ValueKey(selected?.id),
-                            initialValue: selected?.id,
-                            decoration: const InputDecoration(
-                              labelText: '已登记设备',
-                            ),
-                            isExpanded: true,
-                            items: terminal.devices
-                                .map(
-                                  (d) => DropdownMenuItem(
-                                    value: d.id,
-                                    child: Text(d.configuration.name),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: terminal.active
-                                ? null
-                                : (id) => setState(
-                                    () => load(
-                                      terminal.devices.firstWhere(
-                                        (d) => d.id == id,
-                                      ),
-                                    ),
-                                  ),
-                          ),
-                        const SizedBox(height: 16),
-                        ExpansionTile(
-                          initiallyExpanded: terminal.device == null,
-                          title: const Text('添加或配置设备'),
-                          children: [
-                            IgnorePointer(
-                              ignoring:
-                                  terminal.active ||
-                                  !terminal.canMaintain ||
-                                  terminal.busy,
-                              child: Column(
-                                children: [
-                                  DropdownButtonFormField<api.DeviceMode>(
-                                    key: ValueKey(mode),
-                                    initialValue: mode,
-                                    decoration: const InputDecoration(
-                                      labelText: '连接方式',
-                                    ),
-                                    items: [
-                                      DropdownMenuItem(
-                                        value: api.DeviceMode.simulator,
-                                        child: Text('模拟机'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: api.DeviceMode.hardware,
-                                        child: Text(
-                                          terminal.isAndroid
-                                              ? 'Android 蓝牙 HC-06'
-                                              : 'Windows 蓝牙／USB 串口',
-                                        ),
-                                      ),
-                                    ],
-                                    onChanged: (value) => setState(() {
-                                      mode = value!;
-                                      selected = null;
-                                      positions = false;
-                                      feedback = false;
-                                      identity.text =
-                                          mode == api.DeviceMode.simulator
-                                          ? 'simulator-${terminal.terminalId}'
-                                          : '';
-                                      name.text =
-                                          mode == api.DeviceMode.simulator
-                                          ? '模拟机'
-                                          : 'dispenser01';
-                                    }),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  input('设备名称', name),
-                                  input(
-                                    '稳定设备身份',
-                                    identity,
-                                    hint: '实机填写已核对的蓝牙地址或设备序列标识。',
-                                  ),
-                                  if (mode == api.DeviceMode.hardware) ...[
-                                    if (terminal.isAndroid) ...[
-                                      const Text(
-                                        '请先在系统蓝牙设置中配对 HC-06，再读取已配对设备。',
-                                      ),
-                                      TextButton.icon(
-                                        onPressed: terminal.busy
-                                            ? null
-                                            : terminal.requestBluetoothAccess,
-                                        icon: const Icon(
-                                          Icons.bluetooth_rounded,
-                                        ),
-                                        label: const Text('读取已配对设备'),
-                                      ),
-                                      if (terminal.ports.isNotEmpty)
-                                        DropdownButtonFormField<String>(
-                                          key: ValueKey(
-                                            terminal.ports.join(','),
-                                          ),
-                                          decoration: const InputDecoration(
-                                            labelText: '已配对设备',
-                                          ),
-                                          isExpanded: true,
-                                          items: terminal.ports
-                                              .map(
-                                                (address) => DropdownMenuItem(
-                                                  value: address,
-                                                  child: Text(
-                                                    '${terminal.portNames[address] ?? '蓝牙设备'} · $address',
-                                                  ),
-                                                ),
-                                              )
-                                              .toList(),
-                                          onChanged: (address) {
-                                            if (address == null) return;
-                                            setState(() {
-                                              final matches = terminal.devices
-                                                  .where(
-                                                    (device) =>
-                                                        device
-                                                            .configuration
-                                                            .identity ==
-                                                        address,
-                                                  );
-                                              if (matches.isNotEmpty) {
-                                                load(matches.first);
-                                              } else {
-                                                selected = null;
-                                                positions = false;
-                                                feedback = false;
-                                                present.clear();
-                                                absent.clear();
-                                                ready.clear();
-                                              }
-                                              port.text = address;
-                                              identity.text = address;
-                                              name.text =
-                                                  terminal.portNames[address] ??
-                                                  'dispenser01';
-                                            });
-                                          },
-                                        ),
-                                    ],
-                                    input(
-                                      terminal.isAndroid
-                                          ? '已配对设备的蓝牙地址'
-                                          : '已确认的出站 COM',
-                                      port,
-                                      hint:
-                                          '当前候选：${terminal.ports.join('、')}。候选列表不代表身份已核实。',
-                                    ),
-                                    ExpansionTile(
-                                      title: const Text('取盒反馈配置'),
-                                      children: [
-                                        const Text('实体位置映射请在“设置 → 药盒布局”中调整。'),
-                                        input('在轨完整报文', present),
-                                        input('离轨完整报文', absent),
-                                        input('收仓就绪完整报文', ready),
-                                        CheckboxListTile(
-                                          title: const Text('以上三种反馈已实机确认'),
-                                          value: feedback,
-                                          onChanged: (v) =>
-                                              setState(() => feedback = v!),
-                                        ),
-                                        const Text(
-                                          '未确认取盒反馈时，完成分药后会保留设备占用并等待现场核对。',
-                                        ),
-                                      ],
-                                    ),
-                                  ] else
-                                    input('模拟标签 UID', simulatorUid),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: [
-                            OutlinedButton(
-                              onPressed:
-                                  terminal.active ||
-                                      terminal.busy ||
-                                      !terminal.canMaintain
-                                  ? null
-                                  : save,
-                              child: const Text('保存连接'),
-                            ),
-                            FilledButton(
-                              onPressed:
-                                  terminal.busy ||
-                                      terminal.connected ||
-                                      (terminal.connection.isEmpty &&
-                                          !terminal.canMaintain)
-                                  ? null
-                                  : connect,
-                              child: Text(
-                                terminal.active
-                                    ? '尝试重连'
-                                    : terminal.canMaintain
-                                    ? '保存并连接'
-                                    : '连接',
-                              ),
-                            ),
-                            OutlinedButton(
-                              onPressed:
-                                  terminal.busy ||
-                                      terminal.active ||
-                                      !terminal.connected
-                                  ? null
-                                  : () => terminal.action('disconnect'),
-                              child: const Text('断开'),
-                            ),
-                            OutlinedButton(
-                              onPressed:
-                                  terminal.busy ||
-                                      !terminal.connected ||
-                                      terminal.active
-                                  ? null
-                                  : () => terminal.action('open_binding'),
-                              child: const Text('开仓读取标签'),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          terminal.connected
-                              ? (terminal.isAndroid
-                                    ? '已连接 · 蓝牙'
-                                    : '已连接 · 115200 / 8N1')
-                              : '未连接',
-                        ),
+  void _configure(api.DeviceView device) {
+    setState(() {
+      load(device);
+      if (terminal.isAndroid && port.text.isEmpty) {
+        port.text = device.configuration.identity;
+      }
+      _page = 'configure';
+    });
+  }
 
-                        if (terminal.active) const Text('本机任务未结束，连接配置保持锁定。'),
-                        ExpansionTile(
-                          title: const Text('设备诊断'),
-                          children: [
-                            Text('最近标签：${terminal.observedUid ?? '尚未收到'}'),
-                            SelectableText(
-                              (terminal.view['raw_lines'] as List? ?? []).join(
-                                '\n',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              if (terminal.error != null)
+  Future<void> _search() async {
+    setState(() => _page = 'search');
+    if (terminal.isAndroid) {
+      await terminal.discoverDevices();
+    } else {
+      await terminal.run(terminal.refreshDevices);
+    }
+  }
+
+  void _choosePort(String address) {
+    if (terminal.active || !terminal.canMaintain || terminal.busy) return;
+    setState(() {
+      final known = terminal.devices
+          .where((d) => d.configuration.identity == address)
+          .firstOrNull;
+      if (known != null) {
+        load(known);
+      } else {
+        selected = null;
+        positions = false;
+        feedback = false;
+        reverse = false;
+        rows.text = '2,1,0,3';
+        present.clear();
+        absent.clear();
+        ready.clear();
+      }
+      mode = api.DeviceMode.hardware;
+      port.text = address;
+      identity.text = address;
+      name.text =
+          known?.configuration.name ?? terminal.portNames[address] ?? '摆药机';
+      _page = 'configure';
+    });
+  }
+
+  Widget _list() {
+    final devices = [...terminal.devices];
+    if (terminal.device != null &&
+        !devices.any((d) => d.id == terminal.device!.id)) {
+      devices.add(terminal.device!);
+    }
+    return ListView(
+      children: [
+        if (!terminal.supported)
+          const Text('请使用 Android 或 Windows 本机版连接 HC-06；网页可维护资料和预览计划。'),
+        if (devices.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 80),
+            child: Column(
+              children: [
+                DispenserIcon(size: 64, color: Color(0xffaaaaaa)),
+                SizedBox(height: 20),
                 Text(
-                  terminal.error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  '还没有添加设备',
+                  style: TextStyle(color: Color(0xff777777), fontSize: 14),
                 ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('关闭'),
+              ],
+            ),
+          ),
+        for (final device in devices)
+          DevicePanelRow(
+            name: device.configuration.name,
+            status: terminal.device?.id == device.id && terminal.connected
+                ? '已连接'
+                : '未连接',
+            actions: [
+              TextButton(
+                key: ValueKey('device-connect-${device.id}'),
+                onPressed:
+                    terminal.busy ||
+                        !terminal.supported ||
+                        (!terminal.canMaintain &&
+                            terminal.device?.id != device.id) ||
+                        (terminal.active &&
+                            (terminal.device?.id != device.id ||
+                                terminal.connected))
+                    ? null
+                    : () async {
+                        if (terminal.device?.id == device.id) {
+                          await terminal.action(
+                            terminal.connected ? 'disconnect' : 'connect',
+                          );
+                        } else if (terminal.isAndroid &&
+                            device.configuration.mode ==
+                                api.DeviceMode.hardware) {
+                          await terminal.addBluetoothDevice(
+                            device.configuration.identity,
+                            device.configuration.name,
+                          );
+                        } else {
+                          _configure(device);
+                        }
+                      },
+                child: Text(
+                  terminal.device?.id == device.id
+                      ? (terminal.connected
+                            ? '断开'
+                            : terminal.active
+                            ? '尝试重连'
+                            : '连接')
+                      : '选用',
                 ),
+              ),
+              IconButton(
+                tooltip: '配置设备',
+                onPressed: () => _configure(device),
+                icon: const Icon(Icons.tune_rounded, size: 18),
               ),
             ],
           ),
-        ),
+        if (terminal.active)
+          const Padding(
+            padding: EdgeInsets.only(top: 16),
+            child: Text('本机任务未结束，连接配置保持锁定。'),
+          ),
+      ],
+    );
+  }
+
+  Widget _searchBody() => ListView(
+    children: [
+      DeviceSearchHeading(
+        instructions: terminal.isAndroid
+            ? '请打开摆药机电源并靠近平板，选择设备即可添加。'
+            : '蓝牙设备请靠近终端；USB 设备请插入数据线。',
+        status: terminal.busy
+            ? terminal.deviceSetupStatus ?? '正在搜索摆药机…'
+            : (terminal.isAndroid
+                  ? terminal.nearbyDevices.isEmpty
+                  : terminal.ports.isEmpty)
+            ? '未找到可用设备'
+            : '选择要添加的摆药机',
       ),
+      if (terminal.busy) const LinearProgressIndicator(minHeight: 2),
+      if (terminal.isAndroid)
+        for (final candidate in terminal.nearbyDevices)
+          DevicePanelRow(
+            name: candidate['name'] as String,
+            status: candidate['paired'] == true ? '可添加' : '未配对',
+            actions: [
+              TextButton(
+                onPressed:
+                    terminal.busy || terminal.active || !terminal.canMaintain
+                    ? null
+                    : () async {
+                        await terminal.addBluetoothDevice(
+                          candidate['address'] as String,
+                          candidate['name'] as String,
+                        );
+                        if (mounted &&
+                            terminal.devices.any(
+                              (d) =>
+                                  d.configuration.identity ==
+                                  candidate['address'],
+                            )) {
+                          setState(() => _page = 'list');
+                        }
+                      },
+                child: const Text('添加'),
+              ),
+            ],
+          ),
+      if (!terminal.isAndroid)
+        for (final address in terminal.ports)
+          DevicePanelRow(
+            name: terminal.portNames[address] ?? address,
+            status: address,
+            actions: [
+              TextButton(
+                onPressed:
+                    terminal.busy || terminal.active || !terminal.canMaintain
+                    ? null
+                    : () => _choosePort(address),
+                child: const Text('添加'),
+              ),
+            ],
+          ),
+      if (terminal.canMaintain)
+        TextButton(
+          onPressed: terminal.active || terminal.busy
+              ? null
+              : () => setState(() => _page = 'configure'),
+          child: const Text('手动配置'),
+        ),
+    ],
+  );
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: terminal,
+    builder: (context, _) => DevicePanel(
+      title: _page == 'list'
+          ? '我的设备'
+          : _page == 'configure'
+          ? '设备配置'
+          : null,
+      subtitle: null,
+      onBack: _page == 'list' || terminal.busy
+          ? null
+          : () => setState(() => _page = 'list'),
+      body: _page == 'list'
+          ? _list()
+          : _page == 'search'
+          ? _searchBody()
+          : _configuration(),
+      notice: terminal.error == null
+          ? null
+          : Text(
+              terminal.error!,
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+      footer: _page == 'list'
+          ? OutlinedButton.icon(
+              key: const ValueKey('add-device'),
+              onPressed:
+                  terminal.active ||
+                      terminal.busy ||
+                      !terminal.canMaintain ||
+                      !terminal.supported
+                  ? null
+                  : _search,
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: const Text('添加新设备'),
+            )
+          : _page == 'search'
+          ? TextButton.icon(
+              onPressed: terminal.busy ? null : _search,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('重新搜索'),
+            )
+          : TextButton(
+              onPressed: () => setState(() => _page = 'list'),
+              child: const Text('完成'),
+            ),
+    ),
+  );
+
+  Widget _configuration() => SingleChildScrollView(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (terminal.devices.isNotEmpty)
+          AppSelect<String>(
+            value: selected?.id ?? '',
+            label: '已登记设备',
+            showLabel: true,
+            enabled: !terminal.active && !terminal.busy && terminal.canMaintain,
+            options: [
+              const AppSelectOption('', '新设备'),
+              for (final d in terminal.devices)
+                AppSelectOption(d.id, d.configuration.name),
+            ],
+            onChanged: (id) {
+              if (id.isNotEmpty) {
+                _configure(terminal.devices.firstWhere((d) => d.id == id));
+              }
+            },
+          ),
+        const SizedBox(height: 16),
+        ExpansionTile(
+          initiallyExpanded: true,
+          title: const Text('添加或配置设备'),
+          children: [
+            IgnorePointer(
+              ignoring:
+                  terminal.active || !terminal.canMaintain || terminal.busy,
+              child: Column(
+                children: [
+                  AppSelect<api.DeviceMode>(
+                    value: mode,
+                    label: '连接方式',
+                    showLabel: true,
+                    enabled:
+                        !terminal.active &&
+                        !terminal.busy &&
+                        terminal.canMaintain,
+                    options: [
+                      const AppSelectOption(api.DeviceMode.simulator, '模拟机'),
+                      AppSelectOption(
+                        api.DeviceMode.hardware,
+                        terminal.isAndroid
+                            ? 'Android 蓝牙 HC-06'
+                            : 'Windows 蓝牙／USB 串口',
+                      ),
+                    ],
+                    onChanged: (value) => setState(() {
+                      mode = value;
+                      selected = null;
+                      positions = false;
+                      feedback = false;
+                      present.clear();
+                      absent.clear();
+                      ready.clear();
+                      identity.text = value == api.DeviceMode.simulator
+                          ? 'simulator-${terminal.terminalId}'
+                          : '';
+                      name.text = value == api.DeviceMode.simulator
+                          ? '模拟机'
+                          : '摆药机';
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  input('设备名称', name),
+                  input('稳定设备身份', identity, hint: '实机填写已核对的蓝牙地址或设备序列标识。'),
+                  if (mode == api.DeviceMode.hardware) ...[
+                    if (terminal.isAndroid) ...[
+                      const Text('请先在系统蓝牙设置中配对 HC-06，再读取已配对设备。'),
+                      TextButton.icon(
+                        onPressed: terminal.busy
+                            ? null
+                            : terminal.requestBluetoothAccess,
+                        icon: const Icon(Icons.bluetooth_rounded),
+                        label: const Text('读取已配对设备'),
+                      ),
+                      if (terminal.ports.isNotEmpty)
+                        AppSelect<String>(
+                          key: const ValueKey('paired-devices'),
+                          value: terminal.ports.contains(port.text)
+                              ? port.text
+                              : '',
+                          label: '已配对设备',
+                          showLabel: true,
+                          enabled:
+                              !terminal.active &&
+                              !terminal.busy &&
+                              terminal.canMaintain,
+                          options: [
+                            const AppSelectOption('', '选择已配对设备'),
+                            for (final address in terminal.ports)
+                              AppSelectOption(
+                                address,
+                                '${terminal.portNames[address] ?? '蓝牙设备'} · $address',
+                              ),
+                          ],
+                          onChanged: (address) {
+                            if (address.isNotEmpty) _choosePort(address);
+                          },
+                        ),
+                    ],
+                    input(
+                      terminal.isAndroid ? '已配对设备的蓝牙地址' : '已确认的出站 COM',
+                      port,
+                      hint: '当前候选：${terminal.ports.join('、')}。候选列表不代表身份已核实。',
+                    ),
+                    ExpansionTile(
+                      title: const Text('取盒反馈配置'),
+                      children: [
+                        const Text('实体位置映射请在“设置 → 药盒布局”中调整。'),
+                        input('在轨完整报文', present),
+                        input('离轨完整报文', absent),
+                        input('收仓就绪完整报文', ready),
+                        CheckboxListTile(
+                          title: const Text('以上三种反馈已实机确认'),
+                          value: feedback,
+                          onChanged: (v) => setState(() => feedback = v!),
+                        ),
+                        const Text('未确认取盒反馈时，完成分药后会保留设备占用并等待现场核对。'),
+                      ],
+                    ),
+                  ] else
+                    input('模拟标签 UID', simulatorUid),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            OutlinedButton(
+              onPressed:
+                  terminal.active || terminal.busy || !terminal.canMaintain
+                  ? null
+                  : save,
+              child: const Text('保存连接'),
+            ),
+            FilledButton(
+              onPressed:
+                  terminal.busy ||
+                      terminal.connected ||
+                      (terminal.connection.isEmpty && !terminal.canMaintain)
+                  ? null
+                  : connect,
+              child: Text(
+                terminal.active
+                    ? '尝试重连'
+                    : terminal.canMaintain
+                    ? '保存并连接'
+                    : '连接',
+              ),
+            ),
+            OutlinedButton(
+              onPressed: terminal.busy || terminal.active || !terminal.connected
+                  ? null
+                  : () => terminal.action('disconnect'),
+              child: const Text('断开'),
+            ),
+            OutlinedButton(
+              onPressed: terminal.busy || !terminal.connected || terminal.active
+                  ? null
+                  : () => terminal.action('open_binding'),
+              child: const Text('开仓读取标签'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          terminal.connected
+              ? (terminal.isAndroid ? '已连接 · 蓝牙' : '已连接 · 115200 / 8N1')
+              : '未连接',
+        ),
+
+        if (terminal.active) const Text('本机任务未结束，连接配置保持锁定。'),
+        ExpansionTile(
+          title: const Text('设备诊断'),
+          children: [
+            Text('最近标签：${terminal.observedUid ?? '尚未收到'}'),
+            SelectableText(
+              (terminal.view['raw_lines'] as List? ?? []).join('\n'),
+            ),
+          ],
+        ),
+      ],
     ),
   );
 }

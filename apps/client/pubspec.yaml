@@ -12,6 +12,7 @@ dependencies:
   cupertino_icons: 1.0.8
   flutter_svg: 2.3.0
   http: ^1.6.0
+  file_selector: 1.1.0
   pillxai_api_client:
     path: ../../packages/api_client
   pillxai_device_runtime:

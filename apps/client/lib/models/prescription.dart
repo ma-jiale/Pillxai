@@ -117,6 +117,7 @@ class Resident {
     required this.medicines,
     this.avatarAsset,
     this.revision = 0,
+    this.barcode = '',
   });
   final String id;
   String name;
@@ -124,4 +125,5 @@ class Resident {
   final List<Medicine> medicines;
   final String? avatarAsset;
   final int revision;
+  final String barcode;
 }

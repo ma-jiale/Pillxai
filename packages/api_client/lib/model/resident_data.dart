@@ -16,6 +16,7 @@ class ResidentData {
     required this.name,
     this.bed = '',
     this.barcode,
+    this.avatar,
   });
 
   final String name;
@@ -24,21 +25,25 @@ class ResidentData {
 
   final String? barcode;
 
+  final String? avatar;
+
   @override
   bool operator ==(Object other) => identical(this, other) || other is ResidentData &&
     other.name == name &&
     other.bed == bed &&
-    other.barcode == barcode;
+    other.barcode == barcode &&
+    other.avatar == avatar;
 
   @override
   int get hashCode =>
     // ignore: unnecessary_parenthesis
     (name.hashCode) +
     (bed.hashCode) +
-    (barcode == null ? 0 : barcode!.hashCode);
+    (barcode == null ? 0 : barcode!.hashCode) +
+    (avatar == null ? 0 : avatar!.hashCode);
 
   @override
-  String toString() => 'ResidentData[name=$name, bed=$bed, barcode=$barcode]';
+  String toString() => 'ResidentData[name=$name, bed=$bed, barcode=$barcode, avatar=$avatar]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -48,6 +53,11 @@ class ResidentData {
       json[r'barcode'] = this.barcode;
     } else {
       json[r'barcode'] = null;
+    }
+    if (this.avatar != null) {
+      json[r'avatar'] = this.avatar;
+    } else {
+      json[r'avatar'] = null;
     }
     return json;
   }
@@ -59,10 +69,13 @@ class ResidentData {
     String? bed,
     String? barcode,
     bool barcodeSetToNull = false,
+    String? avatar,
+    bool avatarSetToNull = false,
   }) => ResidentData(
     name: name ?? this.name,
     bed: bed ?? this.bed,
     barcode: barcodeSetToNull ? null : barcode ?? this.barcode,
+    avatar: avatarSetToNull ? null : avatar ?? this.avatar,
   );
 
   /// Returns a new [ResidentData] instance and imports its values from
@@ -85,6 +98,7 @@ class ResidentData {
         name: mapValueOfType<String>(json, r'name')!,
         bed: mapValueOfType<String>(json, r'bed') ?? '',
         barcode: mapValueOfType<String>(json, r'barcode'),
+        avatar: mapValueOfType<String>(json, r'avatar'),
       );
     }
     return null;

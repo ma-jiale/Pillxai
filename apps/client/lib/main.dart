@@ -19,6 +19,9 @@ import 'models/prescription_store.dart';
 import 'theme/app_theme.dart';
 import 'theme/app_page.dart';
 import 'widgets/workspace_sidebar.dart';
+import 'widgets/workspace_header.dart';
+import 'data/backend_connection.dart';
+import 'data/terminal_host.dart';
 
 /// 程序入口。=> 是单表达式函数的简写，等价于 { runApp(...); }。
 /// const 创建不可变配置；运行中的可变数据由下面的 State 保存。
@@ -36,10 +39,14 @@ class PillxaiApp extends StatefulWidget {
     this.model,
     this.initiallySignedIn = false,
     this.demo = false,
+    this.backend,
+    this.terminalHost,
   });
   final DemoModel? model;
   final bool demo;
   final bool initiallySignedIn;
+  final BackendConnection? backend;
+  final TerminalHost? terminalHost;
   @override
   State<PillxaiApp> createState() => _PillxaiAppState();
 }
@@ -80,6 +87,8 @@ class _PillxaiAppState extends State<PillxaiApp> {
     home: _previewMode
         ? LayoutBuilder(builder: _buildHome)
         : ConnectedWorkspace(
+            backend: widget.backend,
+            terminalHost: widget.terminalHost,
             accent: accent,
             onAccentChanged: (value) => setState(() => accent = value),
           ),
@@ -130,44 +139,29 @@ class _PillxaiAppState extends State<PillxaiApp> {
   /// 顶栏显示当前页标题，摆药页额外显示设备入口；设置页有自己的标题。
   /// 只有标题订阅任务模型，计数变化不需要重新构建整个工作区。
   Widget _buildHeader(BuildContext context, double windowWidth) {
-    return Container(
-      key: const ValueKey('workspace-header'),
-      color: Theme.of(context).scaffoldBackgroundColor,
-      constraints: const BoxConstraints(minHeight: 88),
-      padding: EdgeInsets.symmetric(
-        horizontal: windowWidth < 900 ? 20 : 32,
-        vertical: 16,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: ListenableBuilder(
-              listenable: model,
-              builder: (context, _) {
-                final String title;
-                if (page == 0) {
-                  title = '处方管理';
-                } else {
-                  title = model.active ? '正在分药' : '摆药';
-                }
-                return PageTitle(
-                  title,
-                  key: ValueKey(
-                    'page-title-${page == 0 ? 'prescriptions' : 'dispensing'}',
-                  ),
-                );
-              },
-            ),
+    return WorkspaceHeader(
+      title: ListenableBuilder(
+        listenable: model,
+        builder: (context, _) => PageTitle(
+          page == 0
+              ? '处方管理'
+              : model.active
+              ? '正在分药'
+              : '摆药',
+          key: ValueKey(
+            'page-title-${page == 0 ? 'prescriptions' : 'dispensing'}',
           ),
-          if (page == 1) ...[
-            const SizedBox(width: 16),
-            DeviceStatusButton(
-              devices: devices,
-              onPressed: () => _openDevices(context),
-            ),
-          ],
-        ],
+        ),
       ),
+      actions: [
+        if (page == 1) ...[
+          const SizedBox(width: 16),
+          DeviceStatusButton(
+            devices: devices,
+            onPressed: () => _openDevices(context),
+          ),
+        ],
+      ],
     );
   }
 

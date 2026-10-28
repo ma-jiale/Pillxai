@@ -72,7 +72,7 @@ def test_barcode_collection_requires_ordered_close_evidence(world):
     token = tokens["admin"]
     f = setup(client, token)
     profile = client.get(f"/residents/{f['rid']}", headers=token).json()
-    code = f["rid"].replace("-", "")
+    code = profile["data"]["barcode"]
     assert (
         client.put(
             f"/residents/{f['rid']}",

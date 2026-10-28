@@ -1,6 +1,5 @@
 # ruff: noqa: F811
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
 
 from sqlalchemy import create_engine, delete
 from test_business import world  # noqa: F401
@@ -13,8 +12,8 @@ def test_barcode_only_claim_and_start_snapshot(world):
     client, tokens, _, settings = world
     token = tokens["admin"]
     f = setup(client, token)
-    code = "000010" + uuid4().hex
     profile = client.get(f"/residents/{f['rid']}", headers=token).json()
+    code = profile["data"]["barcode"]
     response = client.put(
         f"/residents/{f['rid']}",
         headers=token,

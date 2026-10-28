@@ -36,7 +36,11 @@ class PrescriptionRepository {
         resident.id,
         api.SaveResident(
           expectedRevision: resident.revision,
-          data: api.ResidentData(name: resident.name, bed: resident.bed),
+          data: api.ResidentData(
+            name: resident.name,
+            bed: resident.bed,
+            avatar: resident.avatarAsset ?? '',
+          ),
         ),
       ),
     );
@@ -75,6 +79,8 @@ Resident residentFromApi(api.ResidentView row) => Resident(
   bed: row.data.bed,
   medicines: [],
   revision: row.revision,
+  barcode: row.data.barcode ?? '',
+  avatarAsset: row.data.avatar?.isNotEmpty == true ? row.data.avatar : null,
 );
 
 const mealLabels = {

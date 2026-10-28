@@ -13,7 +13,10 @@ import '../data/terminal_controller.dart';
 import '../data/terminal_host.dart';
 import '../theme/app_page.dart';
 import '../widgets/workspace_sidebar.dart';
-import '../widgets/dispenser_icon.dart';
+import '../widgets/workspace_header.dart';
+import '../widgets/collection_banner.dart';
+import 'task_history_dialog.dart';
+import '../widgets/device_connection_button.dart';
 import '../widgets/prescription_forms.dart';
 import 'login_page.dart';
 import 'prescriptions_page.dart';
@@ -22,7 +25,6 @@ import 'plan_preview_page.dart';
 import 'terminal_device_dialog.dart';
 import 'device_mapping_dialog.dart';
 import 'terminal_execution_panel.dart';
-import 'task_history_dialog.dart';
 
 class ConnectedWorkspace extends StatefulWidget {
   const ConnectedWorkspace({
@@ -210,61 +212,47 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
                 child: Column(
                   children: [
                     if (page != 2)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: ListenableBuilder(
-                                listenable: terminal!,
-                                builder: (context, _) => PageTitle(
-                                  page == 1 &&
-                                          terminal!.active &&
-                                          ![
-                                            'collecting',
-                                            'closing',
-                                            'completed',
-                                            'cancelled',
-                                          ].contains(terminal!.phase)
-                                      ? '正在分药'
-                                      : ['处方管理', '摆药', '设置'][page],
-                                ),
-                              ),
+                      WorkspaceHeader(
+                        title: ListenableBuilder(
+                          listenable: terminal!,
+                          builder: (context, _) => PageTitle(
+                            page == 1 &&
+                                    terminal!.active &&
+                                    ![
+                                      'collecting',
+                                      'closing',
+                                      'completed',
+                                      'cancelled',
+                                    ].contains(terminal!.phase)
+                                ? '正在分药'
+                                : ['处方管理', '摆药', '设置'][page],
+                            key: ValueKey(
+                              'page-title-${page == 0 ? 'prescriptions' : 'dispensing'}',
                             ),
-                            if (page == 0 && controller != null)
-                              IconButton(
-                                tooltip: '刷新资料',
-                                onPressed: controller!.refresh,
-                                icon: const Icon(Icons.refresh_rounded),
-                              ),
-                            if (page == 1 && terminal != null) ...[
-                              IconButton(
-                                tooltip: '执行记录',
-                                icon: const Icon(Icons.history_rounded),
+                          ),
+                        ),
+                        actions: [
+                          if (page == 0 && controller != null)
+                            IconButton(
+                              tooltip: '刷新资料',
+                              onPressed: controller!.refresh,
+                              icon: const Icon(Icons.refresh_rounded),
+                            ),
+                          if (page == 1 && terminal != null) ...[
+                            const SizedBox(width: 16),
+                            ListenableBuilder(
+                              listenable: terminal!,
+                              builder: (context, _) => DeviceConnectionButton(
+                                label: terminal!.connected ? '已连接' : '未连接',
                                 onPressed: () => showDialog<void>(
                                   context: context,
                                   builder: (_) =>
-                                      TaskHistoryDialog(terminal: terminal!),
+                                      TerminalDeviceDialog(terminal: terminal!),
                                 ),
                               ),
-                              ListenableBuilder(
-                                listenable: terminal!,
-                                builder: (context, _) => OutlinedButton.icon(
-                                  label: Text(
-                                    terminal!.connected ? '已连接' : '未连接',
-                                  ),
-                                  icon: const DispenserIcon(size: 22),
-                                  onPressed: () => showDialog<void>(
-                                    context: context,
-                                    builder: (_) => TerminalDeviceDialog(
-                                      terminal: terminal!,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ],
-                        ),
+                        ],
                       ),
                     Expanded(
                       child: IndexedStack(
@@ -297,49 +285,52 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
 
   Widget _execution() => ListenableBuilder(
     listenable: terminal!,
-    builder: (context, _) =>
-        terminal!.active &&
-            [
-              'collecting',
-              'closing',
-              'completed',
-              'cancelled',
-              'deleting',
-            ].contains(terminal!.phase)
-        ? Column(
-            children: [
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * .45,
-                ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: TerminalExecutionPanel(terminal: terminal!),
-                ),
-              ),
-              Expanded(
-                child: PlanPreviewPage(
-                  backend: backend,
-                  residents: controller!,
-                  settings: settings!,
-                  terminal: terminal,
-                ),
-              ),
-            ],
-          )
-        : terminal!.active
-        ? SingleChildScrollView(
-            padding: AppPage.insets(context),
-            child: TerminalExecutionPanel(terminal: terminal!),
-          )
-        : PlanPreviewPage(
-            backend: backend,
-            residents: controller!,
-            settings: settings!,
-            terminal: terminal,
+    builder: (context, _) {
+      final current = terminal!;
+      final collecting = [
+        'collecting',
+        'closing',
+        'completed',
+        'cancelled',
+        'deleting',
+      ].contains(current.phase);
+      if (current.active && (!collecting || current.task == null)) {
+        return SingleChildScrollView(
+          padding: AppPage.insets(context),
+          child: TerminalExecutionPanel(
+            terminal: current,
+            residentAvatar: controller!.residents
+                .where((r) => r.id == current.task?.plan.residentId)
+                .firstOrNull
+                ?.avatarAsset,
           ),
+        );
+      }
+      return PlanPreviewPage(
+        key: ValueKey(current.active ? current.task?.id : 'idle'),
+        backend: backend,
+        residents: controller!,
+        settings: settings!,
+        terminal: current,
+        status: current.active
+            ? CollectionBanner(
+                title: current.task!.plan.residentName,
+                message:
+                    current.error ??
+                    current.state['message'] as String? ??
+                    '等待设备反馈',
+                action: TextButton(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => TaskHistoryDialog(terminal: current),
+                  ),
+                  child: const Text('结果详情'),
+                ),
+              )
+            : null,
+      );
+    },
   );
-
   Widget _prescriptions() {
     final current = controller;
     if (current == null) {
@@ -371,6 +362,13 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
             PrescriptionsPage(
               key: ObjectKey(current),
               model: current,
+              onHistory: (resident) => showDialog<void>(
+                context: context,
+                builder: (_) => TaskHistoryDialog(
+                  terminal: terminal!,
+                  residentId: resident.id,
+                ),
+              ),
               onVersions: (resident, medicine) =>
                   _versions(current.repository, resident, medicine),
             ),

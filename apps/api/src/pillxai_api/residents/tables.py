@@ -7,6 +7,7 @@ from sqlalchemy import (
     Integer,
     String,
     Table,
+    Text,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -21,6 +22,7 @@ residents = Table(
     Column("name", String(30), nullable=False),
     Column("bed", String(40), nullable=False),
     Column("barcode", String(128), nullable=False, server_default=""),
+    Column("avatar", Text(), nullable=False, server_default=""),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     Column("updated_by", UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False),
     CheckConstraint("revision > 0"),

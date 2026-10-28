@@ -181,9 +181,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('模拟长者 · 已完成'));
+    await tester.tap(find.byKey(const ValueKey('history-task')));
     await tester.pumpAndSettle();
-    expect(find.text('计划 14 颗 · 反馈 14 颗 · 收到完成反馈'), findsOneWidget);
+    expect(find.text('计划 14 颗'), findsOneWidget);
+    expect(find.text('反馈 14 颗'), findsOneWidget);
+    expect(find.text('收到完成反馈'), findsOneWidget);
     expect(find.text('以下是机器累计计数；不代表逐格实测数量。'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     terminal.dispose();
@@ -237,17 +239,21 @@ void main() {
       await tester.tap(find.text('继续'));
       await tester.pumpAndSettle();
       expect(host.operations, contains('resume'));
-      await tester.ensureVisible(find.text('查看设备'));
+      await tester.ensureVisible(find.byTooltip('更多操作'));
+      await tester.tap(find.byTooltip('更多操作'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('查看设备'));
       await tester.pumpAndSettle();
       expect(find.byType(TerminalDeviceDialog), findsOneWidget);
+      await tester.tap(find.byTooltip('配置设备'));
+      await tester.pumpAndSettle();
       expect(
         tester
             .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '保存连接'))
             .onPressed,
         isNull,
       );
-      await tester.tap(find.text('关闭'));
+      await tester.tap(find.byTooltip('关闭我的设备'));
       await tester.pumpAndSettle();
       (host.value['state'] as Map).addAll(<String, Object>{
         'phase': 'collecting',
@@ -333,7 +339,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.text('添加或配置设备'));
+        await tester.tap(find.byTooltip('配置设备'));
         await tester.pumpAndSettle();
         expect(find.text('Android 蓝牙 HC-06'), findsOneWidget);
         expect(find.text('已配对设备的蓝牙地址'), findsOneWidget);

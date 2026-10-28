@@ -397,6 +397,13 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
             },
           ),
           const SizedBox(height: 24),
+          if (resident.barcode.isNotEmpty) ...[
+            SelectableText(
+              '条形码  ${resident.barcode}',
+              style: const TextStyle(fontSize: 13, color: Color(0xff777777)),
+            ),
+            const SizedBox(height: 16),
+          ],
           const Divider(height: 1),
           const SizedBox(height: 24),
           Wrap(

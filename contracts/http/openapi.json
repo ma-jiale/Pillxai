@@ -4710,6 +4710,18 @@
               }
             ],
             "title": "Barcode"
+          },
+          "avatar": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 360000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar"
           }
         },
         "additionalProperties": false,

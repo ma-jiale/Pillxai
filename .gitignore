@@ -257,4 +257,5 @@ apps/desktop/src-tauri/resources/
 coverage/
 test-results/
 playwright-report/
+apps/client/test/failures/
 release/

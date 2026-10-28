@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pillxai_api_client/api.dart' as api;
 
 import '../data/terminal_controller.dart';
+import '../widgets/app_menu.dart';
 
 class DeviceMappingDialog extends StatefulWidget {
   const DeviceMappingDialog({super.key, required this.terminal});
@@ -67,28 +68,22 @@ class _DeviceMappingDialogState extends State<DeviceMappingDialog> {
                   for (var index = 0; index < slots.length; index++)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: DropdownButtonFormField<int>(
+                      child: AppSelect<int>(
                         key: ValueKey('${slots[index]}-${rows[index]}'),
-                        initialValue: rows[index],
-                        decoration: InputDecoration(
-                          labelText: '${slots[index]}对应机器行',
-                        ),
-                        items: [
+                        value: rows[index],
+                        label: '${slots[index]}对应机器行',
+                        showLabel: true,
+                        enabled: editable,
+                        options: [
                           for (var row = 0; row < 4; row++)
-                            DropdownMenuItem(
-                              value: row,
-                              child: Text('第 $row 行'),
-                            ),
+                            AppSelectOption(row, '第 $row 行'),
                         ],
-                        onChanged: editable
-                            ? (value) => setState(() {
-                                if (value == null) return;
-                                final other = rows.indexOf(value);
-                                rows[other] = rows[index];
-                                rows[index] = value;
-                                verified = false;
-                              })
-                            : null,
+                        onChanged: (value) => setState(() {
+                          final other = rows.indexOf(value);
+                          rows[other] = rows[index];
+                          rows[index] = value;
+                          verified = false;
+                        }),
                       ),
                     ),
                   SwitchListTile(

@@ -18,6 +18,8 @@ class TerminalController extends ChangeNotifier {
   List<api.DeviceView> devices = [];
   List<String> ports = [];
   Map<String, String> portNames = {};
+  List<Map<String, dynamic>> nearbyDevices = [];
+  String? deviceSetupStatus;
   api.TaskView? task;
   String? error;
   String? syncError;
@@ -119,6 +121,56 @@ class TerminalController extends ChangeNotifier {
     await refreshDevices();
   });
 
+  Future<void> discoverDevices() => run(() async {
+    if (active || !canMaintain) return;
+    deviceSetupStatus = '正在搜索摆药机…';
+    nearbyDevices = [];
+    final found = await host.command('discover_devices') as List;
+    nearbyDevices = found
+        .map((value) => Map<String, dynamic>.from(value as Map))
+        .where(
+          (value) => !devices.any(
+            (d) => d.configuration.identity.toUpperCase() == value['address'],
+          ),
+        )
+        .toList();
+  });
+
+  Future<void> addBluetoothDevice(String address, String name) => run(() async {
+    if (active || !canMaintain) return;
+    deviceSetupStatus = '正在添加 $name… 如有系统提示，请确认配对（默认码 1234）。';
+    notifyListeners();
+    await host.command('pair_device', {'address': address});
+    if (active) throw const SaveFailure('请先完成当前摆药，再添加设备。');
+    final existing = devices
+        .where(
+          (d) =>
+              d.configuration.identity.toUpperCase() == address.toUpperCase(),
+        )
+        .firstOrNull;
+    await saveDevice(
+      existing?.configuration.copyWith(terminalId: terminalId) ??
+          api.DeviceConfiguration(
+            name: name,
+            identity: address,
+            terminalId: terminalId,
+            mode: api.DeviceMode.hardware,
+            rows: [2, 1, 0, 3],
+            reverseColumns: false,
+            positionsVerified: false,
+            trayPresentLine: '',
+            trayAbsentLine: '',
+            readyLine: '',
+            feedbackVerified: false,
+            barcodeRemovalCloses: false,
+          ),
+      port: address,
+      existing: existing,
+    );
+    await host.command('connect');
+    _accept(Map<String, dynamic>.from(await host.command('view') as Map));
+  });
+
   Future<void> run(Future<void> Function() action) async {
     if (busy || _disposed) return;
     busy = true;
@@ -130,6 +182,7 @@ class TerminalController extends ChangeNotifier {
       error = failure.toString();
     } finally {
       busy = false;
+      deviceSetupStatus = null;
       if (!_disposed) notifyListeners();
     }
   }

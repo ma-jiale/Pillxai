@@ -225,14 +225,19 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.tap(find.widgetWithText(FilledButton, '关闭'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(Switch));
+      expect(find.byType(Switch), findsNothing);
+      expect(find.text('餐食分盘  已开启'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('plan-days')));
       await tester.pumpAndSettle();
-      expect(requests.last['split_meals'], isFalse);
+      await tester.tap(find.text('2 天').last);
+      await tester.pumpAndSettle();
+      expect(requests.last['days'], 2);
+      expect(requests.last['split_meals'], isNull);
       residents.updateBedtime(true);
       await tester.pumpAndSettle();
       expect(
         tester
-            .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '预览摆药图案'))
+            .widget<FilledButton>(find.widgetWithText(FilledButton, '预览摆药图案'))
             .onPressed,
         isNull,
       );

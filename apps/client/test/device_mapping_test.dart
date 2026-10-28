@@ -73,9 +73,11 @@ void main() {
           MaterialApp(home: DeviceMappingDialog(terminal: terminal)),
         );
         final morning = find.byKey(const ValueKey('早-2'));
-        await tester.tap(morning);
+        await tester.tap(
+          find.descendant(of: morning, matching: find.byType(OutlinedButton)),
+        );
         await tester.pumpAndSettle();
-        await tester.tap(find.text('第 1 行').last);
+        await tester.tap(find.widgetWithText(MenuItemButton, '第 1 行'));
         await tester.pumpAndSettle();
         expect(
           tester.widget<CheckboxListTile>(find.byType(CheckboxListTile)).value,
