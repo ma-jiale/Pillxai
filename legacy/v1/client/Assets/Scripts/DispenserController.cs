@@ -63,6 +63,7 @@ namespace EZDose.Hardware
         private string currentRfidUid;
         private bool isRfidCardPresent;
         public RfidRemovalMonitor RfidRemoval { get; } = new RfidRemovalMonitor();
+        private readonly BarcodePresenceMonitor barcodePresence = new BarcodePresenceMonitor();
         
         // 接收缓冲区
         private StringBuilder receiveBuffer = new StringBuilder();
@@ -83,6 +84,8 @@ namespace EZDose.Hardware
         public event Action<string, string> OnRfidCardChanged;
         // Raised for every hardware UID/NO CARD report, including unchanged states.
         public event Action<bool, string> OnRfidPresenceReported;
+        public event Action<string> OnBarcodeAppeared;
+        public event Action<string> OnBarcodeDisappeared;
 
         
         // Bluetooth device discovery events
@@ -664,6 +667,14 @@ namespace EZDose.Hardware
                     HandleRfidNoCard();
                     break;
 
+                case FeedbackType.BarcodeAppeared:
+                    HandleBarcodeAppeared(feedback.Barcode);
+                    break;
+
+                case FeedbackType.BarcodeDisappeared:
+                    HandleBarcodeDisappeared(feedback.Barcode);
+                    break;
+
                 case FeedbackType.MachineInit:
                     EZLog.I(EZLog.Module.Dispenser, "Machine initialization detected");
                     OnMachineInit?.Invoke();
@@ -757,13 +768,37 @@ namespace EZDose.Hardware
             OnRfidCardRemoved?.Invoke(removedUid);
         }
 
+        private void HandleBarcodeAppeared(string barcode)
+        {
+            if (!barcodePresence.ReportAppeared(barcode))
+            {
+                return;
+            }
+
+            EZLog.I(EZLog.Module.Dispenser, $"Camera barcode appeared: {barcodePresence.CurrentBarcode}");
+            OnBarcodeAppeared?.Invoke(barcodePresence.CurrentBarcode);
+        }
+
+        private void HandleBarcodeDisappeared(string barcode)
+        {
+            if (!barcodePresence.ReportDisappeared(barcode))
+            {
+                EZLog.D(EZLog.Module.Dispenser, $"Ignoring stale barcode disappearance: {barcode}");
+                return;
+            }
+
+            EZLog.I(EZLog.Module.Dispenser, $"Camera barcode disappeared: {barcode}");
+            OnBarcodeDisappeared?.Invoke(barcode);
+        }
+
         private void ClearRfidStateWithoutEvent()
         {
-            // Called before OPEN_TRAY, after CLOSE_TRAY and on disconnect. A cached
-            // empty/default state from another opening must never authorize closing.
+            // Called before OPEN_TRAY, after CLOSE_TRAY and on disconnect. Neither
+            // RFID nor barcode observations from an earlier tray session stay valid.
             RfidRemoval.Reset();
             currentRfidUid = null;
             isRfidCardPresent = false;
+            barcodePresence.Reset();
         }
 
         #endregion
@@ -1301,6 +1336,9 @@ namespace EZDose.Hardware
         public int TotalPills => totalPills;
         public string CurrentRfidUid => currentRfidUid;
         public bool IsRfidCardPresent => isRfidCardPresent;
+        public string CurrentBarcode => barcodePresence.CurrentBarcode;
+        public bool IsBarcodePresent => barcodePresence.IsPresent;
+        public bool HasSeenBarcodeThisTray => barcodePresence.HasSeenBarcode;
 
         /// <summary>
         /// Attempt to reconnect if not connected (call before operations)
