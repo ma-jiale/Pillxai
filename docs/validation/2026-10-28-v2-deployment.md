@@ -19,15 +19,21 @@
 | V2 部署工具单元测试 | 10 项通过；Docker 命令模拟，覆盖 V1 路径/端口隔离、制品篡改、活动任务、迁移失败、首次失败、数据库版本变更与回退条件 |
 | Ruff | 新后端与部署代码通过 |
 | OpenAPI/Dart SDK | `scripts/contracts.ps1 -Check` 重新生成检查通过，无契约漂移 |
-| GitHub 工作流 | 本机 actionlint 通过，学校自定义 Runner 标签按已知配置校验 |
+| GitHub 工作流 | 原始部署条件通过本机 actionlint；当前按用户范围将部署条件固定为 false，actionlint 对该常量条件的不可达提示是有意保留的部署锁 |
 | Compose | 本机官方 Compose `config --quiet` 通过 |
 | 学校 Runner | GitHub 页面观察 `user-Super-Server`，标签 `self-hosted Linux X64 pillxa-server`，状态 Idle |
 | 本机 Docker 镜像/容器 | 本机无 Docker Engine，未运行；必须由 GitHub 构建实际证明 |
+| GitHub V2 CI / 镜像制品 | [Actions #5](https://github.com/ma-jiale/Pillxai/actions/runs/40679227511) 成功，代码提交 `668c37b31ef647e91f6b588a29a369071c5ace07`；test 1m26s，package 2m53s，deploy skipped |
+| GitHub 实际 Docker / Compose | 镜像 HTTP、认证、重启后会话、隔离备份恢复通过；正式 Compose 首次初始化、非超级用户数据库账号、二次更新、数据库容器 ID 与管理员凭据保留、发布前备份及临时库恢复通过；仅在 GitHub 临时主机执行 |
 | 学校 V2 内部服务 | 尚未部署 |
 | HTTPS、新旧共存、恢复演练 | 尚未实测 |
 
 ## 发布状态
 
-首次推送被自动审批拦截后，用户先选择仅保留本地。随后用户明确授权推送到 `ma-jiale/Pillxai`，运行 CI 与镜像验证，暂不开启服务器部署。已将工作流的 `deploy` job 显式设为 false，确保即使仓库存在部署变量也不会进入学校 Runner。远程验证结果将在本记录中补充；V1、学校服务、GitHub 部署环境/变量及系统代理均不在本轮变更范围。
+首次推送被自动审批拦截后，用户先选择仅保留本地。随后用户明确授权推送到 `ma-jiale/Pillxai`，运行 CI 与镜像验证，暂不开启服务器部署。已推送 `codex/v2-server-deployment`，工作流的 `deploy` job 显式设为 false，确保即使仓库存在部署变量也不会进入学校 Runner。Actions #5 已确认 deploy skipped（0s）；V1、学校服务、GitHub 部署环境/变量及系统代理没有修改。
+
+镜像制品 [v2-server-668c37b31ef647e91f6b588a29a369071c5ace07](https://github.com/ma-jiale/Pillxai/actions/runs/40679227511/artifacts/12811643957) 已上传，252 MB，保留 14 天；GitHub 制品摘要 `sha256:cd99835b889e0c844103e5bb00f67e07d65530deae95f59fc41e9c4836439629`。这表示 CI 制品可下载，不表示学校服务器已经上线。后续本记录的文档提交不改变该已验证代码提交。
+
+实际 CI 暴露并修复了三个本地模拟无法验证的问题：API 需要额外 ingress 网络才能发布宿主端口，数据库继续留在内部网络；使用 Docker 临时端口的测试须在重启后重新读取映射；PostgreSQL 18 的挂载父目录须允许 postgres 用户穿过（0755），其实际 `18/docker` 数据目录仍为 PostgreSQL 所有、0700，宿主 shared 仍为 0700。失败日志现在先脱敏再输出。前四轮失败保留在 Actions 中，最终结论以第五轮完整成功为准。
 
 后续以实际 Actions、主机健康与公开入口结果更新本记录，不将配置存在或本地单元测试通过写成上线完成。
