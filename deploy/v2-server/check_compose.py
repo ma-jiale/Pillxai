@@ -3,6 +3,7 @@
 import json
 import os
 import socket
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -69,4 +70,22 @@ def check(artifact, revision):
             record = root / "pending.json"
         if record.exists():
             release = root / "releases" / json.loads(record.read_text())["release"]
+            if sys.exc_info()[0] is not None:
+                logs = manage.compose(
+                    root,
+                    release,
+                    "logs",
+                    "--no-color",
+                    "--tail",
+                    "80",
+                    capture_output=True,
+                    text=True,
+                )
+                diagnostic = logs.stdout + logs.stderr
+                for name in ("postgres-password", "app-password", "database-url"):
+                    diagnostic = diagnostic.replace(
+                        (root / "shared" / name).read_text().strip(), "[redacted]"
+                    )
+                admin = json.loads((root / "shared/initial-admin.json").read_text())
+                print(diagnostic.replace(admin["password"], "[redacted]"))
             manage.compose(root, release, "down", "--timeout", "35")
