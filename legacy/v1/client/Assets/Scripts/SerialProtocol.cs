@@ -235,6 +235,24 @@ namespace EZDose.Hardware
                     }
                 }
 
+                if (TryParseBarcodeMessage(message, "APPEARED,", out string appearedBarcode))
+                {
+                    return new FeedbackMessage
+                    {
+                        Type = FeedbackType.BarcodeAppeared,
+                        Barcode = appearedBarcode
+                    };
+                }
+
+                if (TryParseBarcodeMessage(message, "DISAPPEARED,", out string disappearedBarcode))
+                {
+                    return new FeedbackMessage
+                    {
+                        Type = FeedbackType.BarcodeDisappeared,
+                        Barcode = disappearedBarcode
+                    };
+                }
+
                 // "number:N width:W" (with sequence number from STM32)
                 if (message.StartsWith("number:"))
                 {
@@ -288,6 +306,33 @@ namespace EZDose.Hardware
                     RawMessage = message
                 };
             }
+
+            private static bool TryParseBarcodeMessage(string message, string prefix, out string barcode)
+            {
+                barcode = null;
+                if (!message.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                string value = message.Substring(prefix.Length);
+                if (value.Length == 0 || value.Length > 128)
+                {
+                    return false;
+                }
+
+                for (int i = 0; i < value.Length; i++)
+                {
+                    if (value[i] == ',' || char.IsWhiteSpace(value[i]))
+                    {
+                        return false;
+                    }
+                }
+
+                // Keep the identifier as text. Numeric parsing would drop leading zeroes.
+                barcode = value;
+                return true;
+            }
         }
     }
 
@@ -307,7 +352,9 @@ namespace EZDose.Hardware
         RfidNoCard,
         OptoPulseWidth,
         CleanedPills,
-        MotorStalled
+        MotorStalled,
+        BarcodeAppeared,
+        BarcodeDisappeared
     }
 
     /// <summary>
@@ -324,6 +371,7 @@ namespace EZDose.Hardware
         /// </summary>
         public int SequenceNumber { get; set; } = -1;
         public string RfidUid { get; set; }
+        public string Barcode { get; set; }
         public string RawMessage { get; set; }
     }
 }
