@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../data/app_update_controller.dart';
+import '../widgets/app_update_dialog.dart';
+
 import '../theme/app_page.dart';
 
 import '../models/settings_store.dart';
@@ -25,11 +28,13 @@ class SettingsPage extends StatefulWidget {
     required this.accent,
     required this.onAccentChanged,
     this.onConfigureMapping,
+    this.updates,
   });
   final SettingsStore model;
   final Color accent;
   final ValueChanged<Color> onAccentChanged;
   final VoidCallback? onConfigureMapping;
+  final AppUpdateController? updates;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -51,24 +56,31 @@ class _SettingsPageState extends State<SettingsPage> {
   late final _hexController = TextEditingController(text: _hex(widget.accent));
   _Category _category = _Category.general;
   String? _colorError;
-  late bool _autoUpdate = !widget.model.persistent;
   bool _saving = false;
   String? _saveError;
   String? _saveStatus;
 
-  void _checkForUpdates() => showDialog<void>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('检查更新'),
-      content: const Text('当前版本 0.1.0\n\n更新服务尚未接入，暂时无法检查新版本。'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('知道了'),
-        ),
-      ],
-    ),
-  );
+  void _checkForUpdates() {
+    final updates = widget.updates;
+    if (updates != null && !updates.downloading && !updates.installing) {
+      updates.check();
+    }
+    showDialog<void>(
+      context: context,
+      builder: (context) => widget.updates != null
+          ? AppUpdateDialog(updates: widget.updates!)
+          : AlertDialog(
+              title: const Text('检查更新'),
+              content: const Text('当前版本 0.1.0\n\n更新服务尚未接入，暂时无法检查新版本。'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('知道了'),
+                ),
+              ],
+            ),
+    );
+  }
 
   String _hex(Color color) =>
       '#${(color.toARGB32() & 0xffffff).toRadixString(16).padLeft(6, '0').toUpperCase()}';
@@ -157,7 +169,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: widget.model,
+    listenable: Listenable.merge([
+      widget.model,
+      if (widget.updates != null) widget.updates!,
+    ]),
     builder: (context, _) => LayoutBuilder(
       builder: (context, bounds) {
         if (bounds.maxWidth < 720) {
@@ -543,18 +558,21 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       wideControl: true,
     ),
-    const _SettingItem(
+    _SettingItem(
       _Category.about,
       '应用信息',
       'Pillxai',
       '处方管理与摆药',
-      Text('0.1.0', style: TextStyle(fontSize: 13, color: Color(0xff737373))),
+      Text(
+        widget.updates?.version ?? '0.1.0',
+        style: const TextStyle(fontSize: 13, color: Color(0xff737373)),
+      ),
     ),
     _SettingItem(
       _Category.about,
       '软件更新',
       '检查更新',
-      '检查是否有可用的新版本。',
+      widget.updates?.message ?? '检查是否有可用的新版本。',
       OutlinedButton(
         key: const ValueKey('check-for-updates'),
         onPressed: _checkForUpdates,
@@ -564,14 +582,14 @@ class _SettingsPageState extends State<SettingsPage> {
     _SettingItem(
       _Category.about,
       '软件更新',
-      '自动更新',
-      widget.model.persistent ? '当前由维护人员安装更新。' : '有新版本时，在空闲状态下自动下载并安装；摆药期间不安装。',
+      '自动下载更新',
+      '空闲时自动下载；安装前需要确认，摆药期间不安装。',
       Switch(
         key: const ValueKey('auto-update'),
-        value: _autoUpdate,
-        onChanged: widget.model.persistent
-            ? null
-            : (value) => setState(() => _autoUpdate = value),
+        value: widget.updates?.autoDownload ?? false,
+        onChanged: widget.updates?.supported == true && !widget.updates!.busy
+            ? widget.updates!.setAutoDownload
+            : null,
       ),
     ),
   ];

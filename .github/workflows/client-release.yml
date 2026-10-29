@@ -1,0 +1,108 @@
+name: Android Client Release
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: Display version, for example 0.2.0
+        required: true
+      version_code:
+        description: Strictly increasing Android build number
+        required: true
+      api_url:
+        description: Deployment HTTPS API base URL (including path prefix)
+        required: true
+      notes_file:
+        description: Repository-relative UTF-8 release notes file
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: android-client-release
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: android-client-release
+    timeout-minutes: 40
+    env:
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+      VERSION_NAME: ${{ inputs.version_name }}
+      VERSION_CODE: ${{ inputs.version_code }}
+      API_URL: ${{ inputs.api_url }}
+      NOTES_FILE: ${{ inputs.notes_file }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with: {python-version: '3.12'}
+      - name: Validate inputs and prepare the pinned Flutter toolchain
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, pathlib, re
+          from urllib.parse import urlparse
+          assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', os.environ['VERSION_NAME']), 'Stable versions only'
+          assert 1 <= int(os.environ['VERSION_CODE']) <= 2100000000
+          url = urlparse(os.environ['API_URL'])
+          assert url.scheme == 'https' and url.hostname and url.username is None and url.password is None and not url.query and not url.fragment
+          notes = pathlib.Path(os.environ['NOTES_FILE']).resolve()
+          assert notes.is_relative_to(pathlib.Path.cwd()) and notes.is_file()
+          PY
+          echo "PUB_CACHE=$GITHUB_WORKSPACE/.tools/pub-cache" >> "$GITHUB_ENV"
+          echo "GRADLE_USER_HOME=$GITHUB_WORKSPACE/.tools/gradle" >> "$GITHUB_ENV"
+          echo "ANDROID_USER_HOME=$GITHUB_WORKSPACE/.tools/android-user" >> "$GITHUB_ENV"
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          git init .tools/flutter
+          git -C .tools/flutter remote add origin https://github.com/flutter/flutter.git
+          git -C .tools/flutter fetch --depth 1 origin 6655482ec06e547f90abf8ae7590466f4415978d
+          git -C .tools/flutter checkout --detach FETCH_HEAD
+          python -m pip install -r apps/api/requirements.lock
+      - name: Verify client and execution runtime
+        shell: bash
+        run: |
+          FLUTTER="$GITHUB_WORKSPACE/.tools/flutter/bin/flutter"
+          DART="$GITHUB_WORKSPACE/.tools/flutter/bin/dart"
+          cd apps/client
+          "$FLUTTER" pub get --enforce-lockfile
+          "$FLUTTER" analyze --no-pub
+          "$FLUTTER" test --no-pub test/app_update_test.dart test/business_ui_test.dart test/box_recognition_test.dart test/terminal_ui_test.dart
+          cd ../../packages/device_runtime
+          "$DART" pub get --enforce-lockfile
+          "$DART" test
+      - name: Build and verify a signed universal APK
+        shell: bash
+        env:
+          SIGNING_BASE64: ${{ secrets.ANDROID_SIGNING_STORE_BASE64 }}
+          PILLXAI_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
+          PILLXAI_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          PILLXAI_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+          SIGNING_CERT_SHA256: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
+        run: |
+          umask 077
+          mkdir -p .tools/signing
+          export PILLXAI_SIGNING_STORE="$GITHUB_WORKSPACE/.tools/signing/client.jks"
+          trap 'rm -f "$PILLXAI_SIGNING_STORE"' EXIT
+          test -n "$SIGNING_BASE64"
+          test -n "$SIGNING_CERT_SHA256"
+          printf '%s' "$SIGNING_BASE64" | base64 --decode > "$PILLXAI_SIGNING_STORE"
+          cd apps/client
+          ../../.tools/flutter/bin/flutter build apk --release --no-pub \
+            --build-name="$VERSION_NAME" --build-number="$VERSION_CODE" \
+            --dart-define="PILLXAI_API_URL=$API_URL"
+          cd ../..
+          BUILD_TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          python scripts/publish-client-release.py \
+            --apk apps/client/build/app/outputs/flutter-apk/app-release.apk \
+            --output release/android --notes "$NOTES_FILE" \
+            --aapt "$BUILD_TOOLS/aapt" --apksigner "$BUILD_TOOLS/apksigner" \
+            --expected-certificate-sha256 "$SIGNING_CERT_SHA256"
+          git rev-parse HEAD > release/android/source-revision.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: android-client-${{ inputs.version_code }}
+          path: release/android/
+          if-no-files-found: error
+          retention-days: 30

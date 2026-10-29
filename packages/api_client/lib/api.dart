@@ -34,11 +34,14 @@ part 'api/execution_api.dart';
 part 'api/identity_api.dart';
 part 'api/planning_api.dart';
 part 'api/prescriptions_api.dart';
+part 'api/releases_api.dart';
 part 'api/residents_api.dart';
 part 'api/settings_api.dart';
 
 part 'model/account_view.dart';
 part 'model/action_result.dart';
+part 'model/android_release.dart';
+part 'model/android_update_info.dart';
 part 'model/api_error.dart';
 part 'model/app_settings.dart';
 part 'model/batch_plan.dart';

@@ -16,6 +16,7 @@ from .identity.routes import router as identity_router
 from .login_limit import LoginLimit
 from .planning.routes import router as planning_router
 from .prescriptions.routes import router as prescriptions_router
+from .releases import router as releases_router
 from .residents.routes import router as residents_router
 from .storage import RevisionConflict, read_sample, save_sample
 from .tasks.routes import router as tasks_router
@@ -39,6 +40,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         root_path=settings.root_path,
     )
     app.state.engine = engine
+    app.state.client_releases_directory = settings.client_releases_directory
     if settings.login_limit_per_minute > 0:
         app.add_middleware(LoginLimit, limit=settings.login_limit_per_minute)
     if settings.enable_contract_probe:
@@ -55,6 +57,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(residents_router)
     app.include_router(prescriptions_router)
     app.include_router(tasks_router)
+    app.include_router(releases_router)
 
     @app.exception_handler(BusinessError)
     async def business_error(request, exception):

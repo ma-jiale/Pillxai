@@ -39,6 +39,12 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "pillxai/updates")
+            .setMethodCallHandler { call, result ->
+                if (!visible && call.method in listOf("install", "confirm", "permission")) {
+                    result.error("background", "请回到应用后安装更新。", null)
+                } else AppUpdater.handle(this, service, call, result)
+            }
         terminal = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "pillxai/terminal")
         terminal.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -64,8 +70,8 @@ class MainActivity : FlutterActivity() {
                             "request_access" -> result.success("null")
                             "discover_devices", "pair_device" -> {
                                 val snapshot = JSONObject(service?.latest ?: "{}")
-                                if (!snapshot.isNull("task") || !snapshot.isNull("claim_intent")) {
-                                    result.error("busy", "请先完成当前摆药，再添加设备。", null)
+                                if (!snapshot.isNull("task") || !snapshot.isNull("claim_intent") || !snapshot.isNull("update_lock")) {
+                                    result.error("busy", "请先完成当前摆药或更新安装，再添加设备。", null)
                                 } else if (operation == "discover_devices") bluetoothSetup.discover(result)
                                 else bluetoothSetup.pair((arguments["data"] as Map<*, *>)["address"] as String, result)
                             }

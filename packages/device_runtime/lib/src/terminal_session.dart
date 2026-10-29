@@ -31,7 +31,11 @@ class TerminalSession {
   bool _closed = false;
   String _previous = '';
 
-  Map<String, dynamic> view() => {...engine.view(), 'platform': platform};
+  Map<String, dynamic> view() => {
+    ...engine.view(),
+    'platform': platform,
+    'update_lock': journal.setting('update_lock'),
+  };
 
   void _publish() {
     final encoded = jsonEncode(view());
@@ -75,7 +79,41 @@ class TerminalSession {
     String operation, [
     Map<String, dynamic> data = const {},
   ]) => _enqueue(() async {
+    // Durable and serialized with claims/device commands, not a UI-only check.
+    if (journal.setting('update_lock') != null &&
+        ![
+          'view',
+          'ports',
+          'pending',
+          'acknowledge',
+          'update_unlock',
+        ].contains(operation)) {
+      throw StateError('正在安装更新，请先完成或取消安装。');
+    }
     switch (operation) {
+      case 'update_lock':
+        await engine.tick();
+        if (engine.active ||
+            journal.active() != null ||
+            journal.setting('claim_intent') != null ||
+            journal.totalPendingCount != 0 ||
+            engine.storageFailed ||
+            engine.state.trayPresent ||
+            engine.state.uid != null ||
+            engine.state.barcode != null ||
+            engine.state.pending != null ||
+            engine.state.phase != ExecutionPhase.idle) {
+          throw StateError('请先完成任务、取盒收仓和结果同步，再安装更新。');
+        }
+        final token = data['token'];
+        if (token is! String || token.isEmpty) throw ArgumentError('缺少安装标识。');
+        journal.setSetting('update_lock', token);
+        await engine.disconnect();
+      case 'update_unlock':
+        if (journal.setting('update_lock') != data['token']) {
+          throw StateError('安装标识不匹配，保留更新锁。');
+        }
+        journal.setSetting('update_lock', null);
       case 'view':
         return jsonDecode(jsonEncode(view()));
       case 'ports':
