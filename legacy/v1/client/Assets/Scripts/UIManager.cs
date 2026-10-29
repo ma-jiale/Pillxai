@@ -1064,6 +1064,10 @@ namespace EZDose.UI
         {
             var checker = pillBoxChecker;
             if (checker == null) return false;
+            // Only the operator's pre-dispense cancellation can close an unused tray.
+            // Completion and every session that observed a box still require removal.
+            if (!completion && !deviceLostDialogVisible && checker.CanCancelWithoutRemoval)
+                return true;
             bool removed = await checker.WaitForRemovalAsync(120);
             if (this == null || checker != pillBoxChecker || deviceLostDialogVisible) return false;
             if (removed) return true;

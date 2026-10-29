@@ -51,6 +51,8 @@ EZ-Dose 是智能分药系统。本仓库当前主线是 Unity Android 平板端
 
 ## 药盒扫描与分药交互流程
 
+2026-10-29 平板开仓入口：Home 场景的 `LogoPanel/img - logo` 药丸图案添加 uGUI Button，绑定 UIManager 已有的 `autoScanButton`。点击沿用 `StartAutoRecognitionFlowAsync`（连接检查、开仓、防重复、自动识别）；原尺寸、位置和图像不变，按下轻微变暗，流程中禁用按钮。键盘快捷键原本位于 Windows 条件编译块，Android 通过本次触摸入口使用。场景引用、射线接收和布局静态检查通过；尚未构建新 APK 或进行平板触摸/实机开仓验收。
+
 目前的交互设计如下：
 1. **选择患者或自动识别**：用户在 Home 场景选择长者，也可启动自动识别。
 2. **开仓并识别**：系统先调用 `main.OpenTrayAsync()`。开仓后可通过 STM32 机载扫码、平板摄像头（`CheckPillBoxController`）或 RFID 读取药盒身份；自动识别和选定长者两种流程共用 `PillBoxIdentificationCoordinator`。
@@ -66,7 +68,14 @@ EZ-Dose 是智能分药系统。本仓库当前主线是 Unity Android 平板端
 - 当前补丁只将 STM32 条码接入摆药前的识别。分药完成后的条码药盒取出监测仍使用 V1 的平板摄像头逻辑；没有改动原有 1.5 秒稳定等待规则。
 - 本次未运行自动回归；`APPEARED/DISAPPEARED` 真实串口和新安装包仍需现场验收。
 
-### 分药完成后的取盒规则
+### 准备阶段空舱取消（2026-10-29）
+
+- 用户明确要求：本次开仓后没放过药盒，点击关闭直接收仓；放过药盒则保留取盒检查。选定长者和自动识别入口均适用。
+- `PillBoxUnionChecker.CanCancelWithoutRemoval` 仅在有效等待放盒会话、至少一个识别通道可用、没有历史在位观察且当前各通道均不报告在位时成立。软件的“没放过”依据识别观察；未识别出的实体物体不在软件可观测范围内。
+- `UIManager.WaitForPillBoxRemovalAsync(false)` 只在用户取消准备流程、无设备失联提示时使用上述快捷分支；收仓仍经过原 `CloseTrayAsync`，失败保留重试。分药完成调用 `true`，不使用该分支。已经取出、错盒、未绑定药盒的在位历史均不能视为从未放盒。
+- 回归入口：`pwsh -NoProfile -File legacy/v1/client/tools/test-empty-tray-cancel.ps1`。31 项隔离检查通过，执行实际检查器及从 UIManager 提取的取消/等待方法；`-VerifyBeforeFix` 在内存中撤去快捷分支后成功复现原故障。不连接硬件；未完成 Unity 全工程编译、APK 构建安装或实机验收。详情见 `docs/validation/2026-10-29-v1-empty-tray-cancel.md`。
+
+### 分药完成后的取盒规则（保持原逻辑）
 
 - 摄像头二维码/条形码药盒：分药完成并打开轨道后立即使用最初扫码成功的同一台摄像头持续检测；条码连续消失 1 秒后自动收回轨道，无需再次确认。摄像头无有效画面或持续解码失败时必须保持轨道打开。
 - RFID 药盒：完成弹窗出现后自动检测，不需要按确认键。收到 STM32 `NO CARD` 后，无卡状态稳定 1500 毫秒自动收回；任何 UID 上报均取消当前无卡计时，之后需重新收到 `NO CARD` 并稳定 1500 毫秒。重复 `NO CARD` 不重置计时。
