@@ -211,6 +211,31 @@ class ExecutionEngine {
     await _send('open');
   }
 
+  Future<void> cancelPreparation() async {
+    // Consume queued presence changes before deciding whether closing is safe.
+    await tick();
+    if (!active ||
+        state.permitted ||
+        task!.state != api.TaskState.claimed ||
+        ![
+          ExecutionPhase.recognizing,
+          ExecutionPhase.ready,
+        ].contains(state.phase) ||
+        !state.connected ||
+        state.pending != null ||
+        storageFailed) {
+      throw StateError('当前不能关闭准备，请等待设备反馈或核对现场。');
+    }
+    if (state.trayPresent || state.uid != null || state.barcode != null) {
+      throw StateError('轨道上还有药盒，请先取出药盒，再点击关闭。');
+    }
+    // The explicit close action also abandons an empty opening session.
+    // Once a box has appeared, trayPresent stays true until its removal is observed.
+    state.phase = ExecutionPhase.closingPreparation;
+    state.message = '正在收仓并取消本次准备。';
+    await _send('close_preparation');
+  }
+
   Future<void> begin(api.TaskView permitted) async {
     if (state.phase != ExecutionPhase.ready ||
         !recognized ||
@@ -436,6 +461,13 @@ class ExecutionEngine {
   }
 
   Future<void> _feedback(DeviceEvent event) async {
+    if ([
+      ExecutionPhase.cancelled,
+      ExecutionPhase.completed,
+      ExecutionPhase.deleting,
+    ].contains(state.phase)) {
+      return;
+    }
     if (event.kind == DeviceEventKind.rfid) {
       observedUid = event.uid;
       observedAt = DateTime.now().toUtc();
@@ -489,6 +521,14 @@ class ExecutionEngine {
       return;
     }
     final config = task!.device.configuration;
+    if (state.phase == ExecutionPhase.closingPreparation &&
+        [
+          DeviceEventKind.rfid,
+          DeviceEventKind.barcodeAppeared,
+        ].contains(event.kind)) {
+      _fault('收仓期间再次识别到药盒，请核对现场。');
+      return;
+    }
     final collectionCodes = task!.recognitionBindings.where(
       (binding) =>
           binding.source_ == api.RecognitionBindingSource_Enum.barcode &&
@@ -521,17 +561,27 @@ class ExecutionEngine {
       if (event.raw.trim() == config.trayPresentLine) {
         state.trayPresent = true;
         state.absentAt = null;
-        if (state.phase == ExecutionPhase.closing) {
+        if ([
+          ExecutionPhase.closing,
+          ExecutionPhase.closingPreparation,
+        ].contains(state.phase)) {
           _fault('收仓期间检测到药盒重新在轨。');
           return;
         }
       }
       if (event.raw.trim() == config.trayAbsentLine) {
         state.trayPresent = false;
-        if (state.phase == ExecutionPhase.collecting) {
+        if ([
+          ExecutionPhase.collecting,
+          ExecutionPhase.recognizing,
+          ExecutionPhase.ready,
+        ].contains(state.phase)) {
           state.absentAt ??= DateTime.now().toUtc();
         }
-        if (state.phase == ExecutionPhase.ready) {
+        if ([
+          ExecutionPhase.recognizing,
+          ExecutionPhase.ready,
+        ].contains(state.phase)) {
           _clearRecognition();
           state.phase = ExecutionPhase.recognizing;
         }
@@ -552,6 +602,8 @@ class ExecutionEngine {
     ].contains(state.phase)) {
       var recognitionChanged = false;
       if (event.kind == DeviceEventKind.rfid) {
+        state.trayPresent = true;
+        state.absentAt = null;
         state.uid = event.uid;
         state.uidAt = DateTime.now().toUtc();
         recognitionChanged = true;
@@ -560,11 +612,19 @@ class ExecutionEngine {
         state.uidAt = null;
         recognitionChanged = true;
       } else if (event.kind == DeviceEventKind.barcodeAppeared) {
+        state.trayPresent = true;
+        state.absentAt = null;
         state.barcode = event.barcode;
         state.barcodeAt = DateTime.now().toUtc();
         recognitionChanged = true;
       } else if (event.kind == DeviceEventKind.barcodeDisappeared &&
           state.barcode == event.barcode) {
+        // Explicit preparation cancellation uses observed removal regardless of
+        // the separate policy for automatic collection after dispensing.
+        if (!state.permitted || config.barcodeRemovalCloses) {
+          state.trayPresent = false;
+          state.absentAt = DateTime.now().toUtc();
+        }
         state.barcode = null;
         state.barcodeAt = null;
         recognitionChanged = true;
@@ -583,7 +643,7 @@ class ExecutionEngine {
               ? '已识别：${task!.plan.residentName}，请核对并开始。'
               : state.uid == null && state.barcode == null
               ? '请放入药盒，等待识别。'
-              : '当前药盒未匹配这位长者。';
+              : '药盒与${task!.plan.residentName}不匹配，请核对并更换正确的药盒。';
         }
         _save(recognized ? 'recognition' : 'recognition_lost', {
           'source': event.barcode != null ? 'barcode' : 'rfid',
@@ -598,13 +658,23 @@ class ExecutionEngine {
         !state.acknowledged) {
       state.acknowledged = true;
       _save('ack', {'command': state.pending});
-      if (!['open', 'close', 'exit'].contains(state.pending)) {
+      if (![
+        'open',
+        'close',
+        'close_preparation',
+        'exit',
+      ].contains(state.pending)) {
         _commandCompleted();
       }
     } else if (event.kind == DeviceEventKind.actionDone &&
         state.pending != null &&
         state.acknowledged &&
-        ['open', 'close', 'exit'].contains(state.pending)) {
+        [
+          'open',
+          'close',
+          'close_preparation',
+          'exit',
+        ].contains(state.pending)) {
       _commandCompleted();
     }
     if (event.kind == DeviceEventKind.count &&
@@ -726,10 +796,18 @@ class ExecutionEngine {
       case 'stop_cancel':
         state.phase = ExecutionPhase.awaitingSafeConfirmation;
         state.message = '已收到停转确认，请核对机器、药盒和药物后结束。';
+      case 'close_preparation':
+        _save('command_done', {'command': command});
+        _clearRecognition();
+        state.phase = ExecutionPhase.cancelled;
+        state.message = '轨道已收回，本次准备已取消。';
+        _save('cancelled', {'physical_scene_safe': true});
+        return;
       case 'close':
         state.closeDone = true;
-        if (task!.device.configuration.barcodeRemovalCloses)
+        if (task!.device.configuration.barcodeRemovalCloses) {
           state.readyObserved = true;
+        }
       case 'manual_gate':
         state.message = '开口设置已下发，请核对现场。';
     }
@@ -746,7 +824,7 @@ class ExecutionEngine {
     }
     final Uint8List bytes = switch (command) {
       'open' => Stm32Commands.openTray(),
-      'close' => Stm32Commands.closeTray(),
+      'close' || 'close_preparation' => Stm32Commands.closeTray(),
       'turntable' => Stm32Commands.setTurntable(
         batch.parameters.turntable.toDouble(),
       ),

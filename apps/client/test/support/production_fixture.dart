@@ -231,6 +231,14 @@ class ProductionHost extends FakeHost {
     String operation, [
     Map<String, dynamic> data = const {},
   ]) async {
+    if (operation == 'cancel_preparation') {
+      operations.add(operation);
+      if ((value['state'] as Map)['barcode'] != null) {
+        throw StateError('轨道上还有药盒，请先取出药盒，再点击关闭。');
+      }
+      feedback('closingPreparation', recognized: false);
+      return null;
+    }
     if (operation == 'pause' || operation == 'resume') {
       operations.add(operation);
       feedback(operation == 'pause' ? 'paused' : 'running');

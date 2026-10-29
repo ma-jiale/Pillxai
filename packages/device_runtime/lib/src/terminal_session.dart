@@ -108,6 +108,8 @@ class TerminalSession {
         await engine.begin(api.TaskView.fromJson(data)!);
       case 'continue_tray':
         await engine.continueTray();
+      case 'cancel_preparation':
+        await engine.cancelPreparation();
       case 'pause':
         await engine.pause();
       case 'resume':
