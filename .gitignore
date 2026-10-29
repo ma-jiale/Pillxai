@@ -41,6 +41,10 @@ crashlytics-build.properties
 
 # Android 相关
 *.keystore
+*.jks
+*.p12
+*.pfx
+.signing/
 !*.keystore.meta
 
 # TextMesh Pro

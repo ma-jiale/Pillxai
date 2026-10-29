@@ -11,6 +11,7 @@ lib/api/execution_api.dart
 lib/api/identity_api.dart
 lib/api/planning_api.dart
 lib/api/prescriptions_api.dart
+lib/api/releases_api.dart
 lib/api/residents_api.dart
 lib/api/settings_api.dart
 lib/api_client.dart
@@ -23,6 +24,8 @@ lib/auth/http_bearer_auth.dart
 lib/auth/oauth.dart
 lib/model/account_view.dart
 lib/model/action_result.dart
+lib/model/android_release.dart
+lib/model/android_update_info.dart
 lib/model/api_error.dart
 lib/model/app_settings.dart
 lib/model/batch_plan.dart

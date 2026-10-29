@@ -158,6 +158,13 @@ def runtime_environment(root, release):
 
 
 def compose(root, release, *arguments, **kwargs):
+    environment = runtime_environment(root, release)
+    # Public APKs only, separately mounted from credentials. Empty is a valid
+    # unpublished state; an existing deployment gains this directory on upgrade.
+    client_releases = root / "shared/client-releases"
+    if client_releases.is_symlink():
+        raise ValueError("Client releases must not redirect outside this deployment")
+    client_releases.mkdir(mode=0o755, exist_ok=True)
     return run(
         [
             "docker",
@@ -170,7 +177,7 @@ def compose(root, release, *arguments, **kwargs):
             str(release / "compose.yaml"),
             *arguments,
         ],
-        env=runtime_environment(root, release),
+        env=environment,
         **kwargs,
     )
 

@@ -96,6 +96,17 @@ class DeploymentTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             manage.configuration(self.root)
 
+    def test_client_releases_directory_survives_repeated_compose_calls(self):
+        directory = self.root / "shared/client-releases"
+        with (
+            patch.object(manage, "runtime_environment", return_value={}),
+            patch.object(manage, "run"),
+        ):
+            manage.compose(self.root, self.artifact, "ps")
+            (directory / "current.json").write_text("existing release")
+            manage.compose(self.root, self.artifact, "ps")
+        self.assertEqual((directory / "current.json").read_text(), "existing release")
+
     def test_artifact_rejects_changed_bytes_or_revision(self):
         manage.verify_artifact(self.artifact, REVISION)
         with self.assertRaises(ValueError):

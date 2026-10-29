@@ -3090,6 +3090,80 @@
         }
       }
     },
+    "/releases/android": {
+      "get": {
+        "tags": [
+          "releases"
+        ],
+        "summary": "Get Android Update",
+        "operationId": "get_android_update",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AndroidUpdateInfo"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/releases/android/packages/{digest}": {
+      "get": {
+        "tags": [
+          "releases"
+        ],
+        "summary": "Download Android Release",
+        "operationId": "download_android_release",
+        "parameters": [
+          {
+            "name": "digest",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Digest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/vnd.android.package-archive": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
     "/health/live": {
       "get": {
         "summary": "Live",
@@ -3296,6 +3370,107 @@
         },
         "type": "object",
         "title": "ActionResult"
+      },
+      "AndroidRelease": {
+        "properties": {
+          "version_code": {
+            "type": "integer",
+            "maximum": 2100000000.0,
+            "minimum": 1.0,
+            "title": "Version Code"
+          },
+          "version_name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Version Name"
+          },
+          "package_name": {
+            "type": "string",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$",
+            "title": "Package Name"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "maximum": 536870912.0,
+            "minimum": 1.0,
+            "title": "Size Bytes"
+          },
+          "min_android_sdk": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 23.0,
+            "title": "Min Android Sdk"
+          },
+          "abis": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Abis"
+          },
+          "min_api": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Min Api"
+          },
+          "max_api": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Max Api"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 8000,
+            "title": "Notes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version_code",
+          "version_name",
+          "package_name",
+          "sha256",
+          "size_bytes",
+          "min_android_sdk",
+          "abis",
+          "min_api",
+          "max_api",
+          "notes"
+        ],
+        "title": "AndroidRelease"
+      },
+      "AndroidUpdateInfo": {
+        "properties": {
+          "api_compatibility": {
+            "type": "integer",
+            "title": "Api Compatibility"
+          },
+          "release": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AndroidRelease"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "api_compatibility",
+          "release"
+        ],
+        "title": "AndroidUpdateInfo"
       },
       "ApiError": {
         "properties": {

@@ -98,7 +98,8 @@ void main() {
     expect(find.text('演示与关于'), findsNothing);
     expect(find.text('本机设备'), findsNothing);
     final autoUpdate = find.byKey(const ValueKey('auto-update'));
-    expect(tester.widget<Switch>(autoUpdate).value, isTrue);
+    expect(tester.widget<Switch>(autoUpdate).value, isFalse);
+    expect(tester.widget<Switch>(autoUpdate).onChanged, isNull);
     await tester.ensureVisible(autoUpdate);
     await tester.tap(autoUpdate);
     await tester.pumpAndSettle();

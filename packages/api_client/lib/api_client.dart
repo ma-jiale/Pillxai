@@ -187,6 +187,10 @@ class ApiClient {
           return AccountView.fromJson(value);
         case 'ActionResult':
           return ActionResult.fromJson(value);
+        case 'AndroidRelease':
+          return AndroidRelease.fromJson(value);
+        case 'AndroidUpdateInfo':
+          return AndroidUpdateInfo.fromJson(value);
         case 'ApiError':
           return ApiError.fromJson(value);
         case 'AppSettings':

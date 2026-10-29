@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:pillxai_api_client/api.dart' as api;
 
 import '../data/backend_connection.dart';
+import '../data/app_update_controller.dart';
 import '../data/prescription_repository.dart';
 import '../models/prescription_controller.dart';
 import '../models/prescription_store.dart';
@@ -48,6 +49,7 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
   PrescriptionController? controller;
   SettingsController? settings;
   TerminalController? terminal;
+  AppUpdateController? updates;
   static const window = MethodChannel('pillxai/window');
   int page = 1;
   bool signingOut = false;
@@ -99,6 +101,7 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
     WidgetsBinding.instance.removeObserver(this);
     controller?.dispose();
     settings?.dispose();
+    updates?.dispose();
     terminal?.dispose();
     window.setMethodCallHandler(null);
     if (widget.backend == null) backend.dispose();
@@ -107,7 +110,10 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) terminal?.refreshAfterResume();
+    if (state == AppLifecycleState.resumed) {
+      terminal?.refreshAfterResume();
+      updates?.resumed();
+    }
   }
 
   Future<void> _login(String username, String password) async {
@@ -135,11 +141,21 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
       );
     });
     controller!.refresh();
-    terminal!.initialize();
+    await terminal!.initialize();
+    if (!mounted) return;
+    updates?.dispose();
+    final updater = AppUpdateController(backend, terminal!);
+    setState(() => updates = updater);
+    await updater.initialize();
   }
 
   Future<void> _logout() async {
     if (signingOut) return;
+    if (updates?.installing == true) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('请先完成或取消更新安装。')));
+      return;
+    }
     final retainTerminal =
         terminal?.active == true &&
         terminal?.ownTask == false &&
@@ -158,10 +174,12 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
       if (!mounted) return;
       controller?.dispose();
       settings?.dispose();
+      updates?.dispose();
       if (!retainTerminal) terminal?.dispose();
       setState(() {
         controller = null;
         settings = null;
+        updates = null;
         if (!retainTerminal) terminal = null;
       });
     } catch (error) {
@@ -262,6 +280,7 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
                           _execution(),
                           SettingsPage(
                             model: settings!,
+                            updates: updates,
                             accent: widget.accent,
                             onAccentChanged: widget.onAccentChanged,
                             onConfigureMapping: () => showDialog<void>(

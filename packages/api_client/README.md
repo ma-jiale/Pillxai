@@ -91,6 +91,8 @@ Class | Method | HTTP request | Description
 *PrescriptionsApi* | [**listPrescriptionVersions**](doc//PrescriptionsApi.md#listprescriptionversions) | **GET** /residents/{resident_id}/prescriptions/{prescription_id}/versions | Versions
 *PrescriptionsApi* | [**listPrescriptions**](doc//PrescriptionsApi.md#listprescriptions) | **GET** /residents/{resident_id}/prescriptions | List Prescriptions
 *PrescriptionsApi* | [**savePrescription**](doc//PrescriptionsApi.md#saveprescription) | **PUT** /residents/{resident_id}/prescriptions/{prescription_id} | Put
+*ReleasesApi* | [**downloadAndroidRelease**](doc//ReleasesApi.md#downloadandroidrelease) | **GET** /releases/android/packages/{digest} | Download Android Release
+*ReleasesApi* | [**getAndroidUpdate**](doc//ReleasesApi.md#getandroidupdate) | **GET** /releases/android | Get Android Update
 *ResidentsApi* | [**getResident**](doc//ResidentsApi.md#getresident) | **GET** /residents/{resident_id} | Get
 *ResidentsApi* | [**listResidentVersions**](doc//ResidentsApi.md#listresidentversions) | **GET** /residents/{resident_id}/versions | Versions
 *ResidentsApi* | [**listResidents**](doc//ResidentsApi.md#listresidents) | **GET** /residents | List Residents
@@ -103,6 +105,8 @@ Class | Method | HTTP request | Description
 
  - [AccountView](doc//AccountView.md)
  - [ActionResult](doc//ActionResult.md)
+ - [AndroidRelease](doc//AndroidRelease.md)
+ - [AndroidUpdateInfo](doc//AndroidUpdateInfo.md)
  - [ApiError](doc//ApiError.md)
  - [AppSettings](doc//AppSettings.md)
  - [BatchPlan](doc//BatchPlan.md)

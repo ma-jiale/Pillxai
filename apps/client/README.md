@@ -16,13 +16,13 @@
 
 默认入口是 `ConnectedWorkspace`，通过生成的 Dart SDK 访问 API。账号与操作权限由服务端校验，登录后直接进入摆药待准备清单；长者/处方列表由 `PrescriptionController` 持有，`PrescriptionRepository` 映射 HTTP 契约。保存等待服务端成功，冲突与网络失败保留草稿，处方修改/停用/恢复产生独立版本。`SettingsController` 保存通用规则，保留已保存版本与失败草稿；`PlanPreviewPage` 请求服务器计划，`ServerPlanPattern` 只渲染快照矩阵。真实资料不传入 DemoModel。Windows 已接入设备配置、新 UID 绑定、每处方参数、领取/识别/开始、暂停恢复、双盘、取盒与结果补传；本机执行由独立 Isolate/SQLite 持有。Android 已接入独立前台服务、经典蓝牙适配与后台事件补传，Android 15 模拟器双盘、关屏和强制停止恢复通过。图片上传、异常人工补齐与实体平板/机器验收仍未完成。
 
-2026-10-26 新增测试入口：管理员登录后，在原有“设置 → 通用”修改准备天数、从次日开始、餐食分盘或睡前格；每次修改自动保存，成功后显示“设置已保存”，重新登录可读取。冲突或连接失败保留草稿，可重试或放弃并重新加载；工作人员只读。规则作用于之后生成的预览。外观强调色仍为会话偏好；正式模式自动更新开关禁用，更新服务未实现。
+2026-10-26 新增测试入口：管理员登录后，在原有“设置 → 通用”修改准备天数、从次日开始、餐食分盘或睡前格；每次修改自动保存，成功后显示“设置已保存”，重新登录可读取。冲突或连接失败保留草稿，可重试或放弃并重新加载；工作人员只读。规则作用于之后生成的预览。外观强调色仍为会话偏好；Android 应用内更新按 R15 实现，发布配置见 deploy/android-client/README.md。
 
 在“处方管理”维护有效处方，再进入“摆药”点击对应长者的“开始摆药”；可调整本次天数与分盘、查看完整日期、各药颗粒与原片等价量，再打开“预览摆药图案”。本次调整不改长期设置。回到应用或打开图案前核对服务端版本，资料/设置/业务日期变化后提示重新生成。预览本身不产生动作；Android 和 Windows 本机版可直接“开仓放入药盒”，识别匹配再开始；标签绑定和独立参数可从“药盒与出药设置”维护。网页仅保留资料与预览。可使用新建的“计划联调虚构长者”测试。
 
 ## Android 当前入口
 
-2026-10-27：仓库根执行 `scripts/run-android.ps1` 构建普通 Android Debug APK；可指定 `-DeviceId` 安装，使用同机 API 时加 `-ReverseLocalApi`。输出为 `build/app/outputs/flutter-apk/app-debug.apk`。这是开发签名联调包，实体平板/HC-06 和正式签名仍待验收。操作步骤见 [Android 指南](../../docs/android-machine-test.md)。
+2026-10-29：日常平板只使用 `main` 正式签名 Release，见 [Android 发布说明](../../deploy/android-client/README.md)。`scripts/run-android.ps1` 构建独立 `.development` Debug 包，只允许向模拟器安装；同机 API 可加 `-ReverseLocalApi`。输出 `build/app/outputs/flutter-apk/app-debug.apk` 仅用于工程验证。操作步骤见 [Android 指南](../../docs/android-machine-test.md)。
 
 后台执行由 Android `TerminalService` 的独立 FlutterEngine 持有，复用 `TerminalSession/ExecutionEngine`；蓝牙 SPP、SQLite、通知和事件补传不依赖页面。记录存入应用私有 no-backup 目录，令牌只留内存。Android USB 尚未实现。`scripts/check-android.ps1` 只用于专用模拟器的独立验证包，不能交付给工作人员。
 
@@ -42,7 +42,7 @@ node .\scripts\serve-preview.cjs
 
 打开 `http://127.0.0.1:5180/`。本机开发 API 允许该来源及 `http://localhost:5180`；其他来源默认不允许。原生入口可运行 `flutter.cmd run -d windows`；当前 Windows Release 可由 scripts/run-windows.ps1 启动（尚无生产安装包）。服务地址通过编译参数 `--dart-define=PILLXAI_API_URL=http://127.0.0.1:8000` 指定；平板不能直接使用电脑的 localhost，网络和安装另行验证。
 
-按用户最新要求，当前不提供账号管理或改密界面；保留真实登录与服务端权限。设置与演示模式共用原来的 `SettingsPage`：通用／外观／关于、搜索、分组列表及自定义强调色。真实模式通过 `SettingsStore` 读取和保存通用规则，不创建 DemoModel；权限、版本与持久化由服务端负责。强调色和自动更新偏好仅保留本次会话，更新服务尚未实现。凭据只留在进程内存，重载页面须重新登录。
+按用户最新要求，当前不提供账号管理或改密界面；保留真实登录与服务端权限。设置与演示模式共用原来的 `SettingsPage`：通用／外观／关于、搜索、分组列表及自定义强调色。真实模式通过 `SettingsStore` 读取和保存通用规则，不创建 DemoModel；权限、版本与持久化由服务端负责。强调色仍为会话偏好；Android 自动下载更新偏好持久化在本机。凭据只留在进程内存，重载页面须重新登录。
 
 已运行（2026-10-26）：后端 20 项、Flutter 85 项、静态检查、SDK 漂移检查与 Web release 构建通过。`tool/check_business.dart` 验证资料和版本，`tool/check_planning.dart` 验证真实设置保存/重读、双药双盘、半片颗粒、预览覆盖参数和不可变快照。页面测试覆盖 1280×800、390×844 下的设置冲突草稿、重载、计划数量、图案和失效提示；原有三尺寸 UI 回归全部通过。当前没有 Windows GUI/Android 真机或生产硬件验收。
 
@@ -62,7 +62,7 @@ node .\scripts\serve-preview.cjs
 | --- | --- |
 | 处方管理 | 统一展示带彩色简笔画头像的长者，按姓名和床位搜索，新增及编辑资料；维护分时段剂量、餐食、投料形态和用药日期，停用与恢复药物条目 |
 | 摆药 | 待准备/提前准备清单、默认 7 天的文字确认、独立药格图案；执行页支持暂停继续、自动切药、调整开口、跳过当前药并可人工标记已摆好，或跳过该长者全部剩余药物 |
-| 设置 | 通用、外观、关于与跨分类搜索；关于提供版本、检查更新及自动更新开关；去掉本机设备、图片显示和重置演示入口 |
+| 设置 | 通用、外观、关于与跨分类搜索；关于提供版本、检查更新及自动下载更新开关；去掉本机设备、图片显示和重置演示入口 |
 
 主体采用白色或浅灰背景，灰色区分层级。黑色是默认强调色，可在设置中更改；药品图片保留原色。设置变化仅用于交互体验，尚不参与生产计划计算。
 
@@ -72,7 +72,7 @@ node .\scripts\serve-preview.cjs
 
 摆药、处方管理及执行页的主标题由工作区顶栏显示，正文不重复标题。移除页面说明小标题和待摆清单顶部日期。设置页标题仅放在左侧分类栏顶部，与主侧边栏、分类栏共用 `AppPage.navigationBackground` 浅灰色；右侧不设顶栏，白色分组内容区直接延伸到顶部。设置页采用左侧分类、右侧分组列表，提供通用、外观、关于三类；窄屏保留顶部标题，使用分类选择器。搜索跨分类筛选设置，切换分类保留未应用的颜色输入。不再展示“本机设备”分类、无法操作的“图片显示”整组说明或演示重置。设备管理统一从摆药界面右上角状态按钮进入。
 
-“关于”展示当前版本、“检查更新”按钮与默认开启的“自动更新”开关，开关状态仅在本次会话保存。自动更新的目标行为是空闲时自动下载并安装，摆药期间不安装。当前仅实现 UI；点击检查更新提示“更新服务尚未接入”，不会显示“已是最新版本”，也不会下载或安装软件。
+Android 正式入口的“关于”展示实际安装版本、检查更新和持久化的“自动下载更新”开关。登录及运行期间定时检查当前部署的 HTTPS 发布接口，空闲时下载并校验完整 APK；工作人员确认安装，执行宿主持久化锁阻止新任务，Android 处理系统确认。演示模式不下载或安装；其他平台显示暂不支持。首次生产签名、发布配置与恢复规则见 [Android 发布说明](../../deploy/android-client/README.md)。
 
 姓名必填、床位选填；所有已登记长者的非空床位不能重复。用药表单校验正剂量、整片/半片匹配、有效日期和睡前格设置，取消修改时保护未保存输入。修改处方不会改写已经创建的演示任务。图片上传、标签和历史版本持久化尚未实现。
 
@@ -162,15 +162,15 @@ node .\scripts\serve-preview.cjs
 .\scripts\flutter.cmd run -d chrome --dart-define=PILLXAI_DEMO=true
 ```
 
-查看已连接终端、运行到指定设备，以及构建 Android 调试包：
+查看已连接终端、运行到开发模拟器，以及构建独立 Android 开发包：
 
 ```powershell
 .\scripts\flutter.cmd devices
-.\scripts\flutter.cmd run -d <device-id>
+.\scripts\run-android.ps1 -DeviceId <emulator-id>
 .\scripts\flutter.cmd build apk --debug
 ```
 
-将 `<device-id>` 替换为设备列表中的实际 ID。Android Debug APK 输出为 [build/app/outputs/flutter-apk/app-debug.apk](build/app/outputs/flutter-apk/app-debug.apk)，可复制到 Android 平板手动安装体验。它是调试预览包，不是正式签名发布包。
+将 `<emulator-id>` 替换为设备列表中的模拟器 ID，例如 `emulator-5554`。Android Debug APK 输出为 [build/app/outputs/flutter-apk/app-debug.apk](build/app/outputs/flutter-apk/app-debug.apk)，包名为 `com.pillxai.pillxai_client.development`、名称为“Pillxai 开发”，不向日常使用的平板分发。正式安装及更新只使用 [Android Client Release](../../deploy/android-client/README.md) 制品。
 
 ## 目录与责任
 

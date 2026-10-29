@@ -127,6 +127,9 @@ class ExecutionJournal {
             [id],
           ).first['n']
           as int;
+  int get totalPendingCount =>
+      db.select('SELECT COUNT(*) AS n FROM outbox WHERE uploaded=0').first['n']
+          as int;
   void acknowledge(String id, int sequence) => db.execute(
     'UPDATE outbox SET uploaded=1 WHERE task_id=? AND sequence<=?',
     [id, sequence],

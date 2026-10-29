@@ -7,10 +7,20 @@ plugins {
 }
 
 // Isolated package for the explicit emulator-only verification entrypoint.
-val runtimeCheck = providers.gradleProperty("dart-defines").orNull
-    ?.split(",")?.any {
-        String(Base64.getDecoder().decode(it)) == "PILLXAI_RUNTIME_CHECK=true"
-    } == true
+val dartDefines = providers.gradleProperty("dart-defines").orNull
+    ?.split(",")?.map { String(Base64.getDecoder().decode(it)) }.orEmpty()
+val runtimeCheck = "PILLXAI_RUNTIME_CHECK=true" in dartDefines
+
+// Release identity is provided by the publishing environment, never committed.
+val signingPath = providers.environmentVariable("PILLXAI_SIGNING_STORE").orNull
+val allowDebugRelease = providers.environmentVariable("PILLXAI_ALLOW_DEBUG_SIGNING").orNull == "true"
+val releaseRequested = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
+if (releaseRequested && !runtimeCheck && (allowDebugRelease || "PILLXAI_DEMO=true" in dartDefines)) {
+    throw GradleException("The production package cannot use debug signing or demo mode. Use the isolated runtimecheck package for tests.")
+}
+if (releaseRequested && signingPath == null && !(runtimeCheck && allowDebugRelease)) {
+    throw GradleException("Release signing is required. Set PILLXAI_SIGNING_STORE, PILLXAI_SIGNING_STORE_PASSWORD, PILLXAI_SIGNING_KEY_ALIAS and PILLXAI_SIGNING_KEY_PASSWORD.")
+}
 
 android {
     namespace = "com.pillxai.pillxai_client"
@@ -23,8 +33,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = if (runtimeCheck) "com.pillxai.pillxai_client.runtimecheck" else "com.pillxai.pillxai_client"
+        manifestPlaceholders["pillxaiLabel"] = if (runtimeCheck) "Pillxai 测试" else "Pillxai"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -35,13 +45,33 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        testInstrumentationRunner = "com.pillxai.pillxai_client.OtaInstrumentation"
     }
 
+    signingConfigs {
+        if (signingPath != null) {
+            create("production") {
+                storeFile = file(signingPath)
+                storePassword = providers.environmentVariable("PILLXAI_SIGNING_STORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("PILLXAI_SIGNING_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("PILLXAI_SIGNING_KEY_PASSWORD").get()
+            }
+        }
+    }
+    sourceSets.getByName("androidTest").assets.srcDir(rootProject.file("../../../.var/ota-fixtures"))
     buildTypes {
+        configureEach {
+            if (name == "debug" || name == "profile") {
+                if (!runtimeCheck) applicationIdSuffix = ".development"
+                manifestPlaceholders["pillxaiLabel"] = if (runtimeCheck) "Pillxai 测试" else "Pillxai 开发"
+            }
+        }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = when {
+                signingPath != null -> signingConfigs.getByName("production")
+                runtimeCheck && allowDebugRelease -> signingConfigs.getByName("debug")
+                else -> null
+            }
         }
     }
 }

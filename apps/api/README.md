@@ -60,3 +60,7 @@ Conda 前缀为仓库 `.tools/conda/backend`；环境和下载缓存不入库、
 测试仅使用 `pillxai_test`，开发检查使用 `pillxai_dev`，只新建明确标记的虚构联调资料。2026-10-26 当前 20 项测试通过，包含资料权限与历史、机构移除、设置并发版本、半片换算、未来和有限疗程、中间空日期、睡前需求、分盘、预览重读与失效。`check_planning.dart` 已经通过真实 SDK/API/PostgreSQL 验证设置保存、新客户端重读、双药双盘计划、日期数组、快照不变与设置修改后失效，并恢复测试前设置。测试库须先迁移；backend.ps1 test 要求测试数据库 URL，直接 pytest 缺少该 URL 时跳过集成用例不能算通过。
 
 当前锁定组合仍产生一条 Starlette 对 httpx 测试客户端的弃用提示；后续升级测试适配时处理，不以隐藏警告代替兼容验证。基础数据库重启验证见 [M0 报告](../../docs/validation/2026-10-26-m0.md)，本轮业务与浏览器验证见 [M1 报告](../../docs/validation/2026-10-26-m1.md)。
+
+## Android 应用发布
+
+`releases.py` 提供只读 `GET /releases/android` 与当前 APK 下载，公开类型纳入生成式契约。配置 `PILLXAI_CLIENT_RELEASES_DIRECTORY` 指向发布目录，未配置或无清单返回尚未发布；发布工具复用同一模型，详见 `deploy/android-client/README.md`。不依赖数据库、不读取长者资料、不提供线上写入发布入口。

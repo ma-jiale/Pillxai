@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
@@ -13,9 +14,10 @@
     <application
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
-        android:label="Pillxai"
+        android:label="${pillxaiLabel}"
         android:name="${applicationName}"
         android:icon="@drawable/pillxai_brand">
+        <receiver android:name=".UpdateInstallReceiver" android:exported="false"/>
         <service
             android:name=".TerminalService"
             android:exported="false"

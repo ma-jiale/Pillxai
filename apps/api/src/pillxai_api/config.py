@@ -10,6 +10,7 @@ class Settings:
     service_version: str = "0.1.0"
     root_path: str = ""
     login_limit_per_minute: int = 0
+    client_releases_directory: Path | None = None
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -24,4 +25,9 @@ class Settings:
             service_version=environ.get("PILLXAI_SERVICE_VERSION", "0.1.0"),
             root_path=environ.get("PILLXAI_ROOT_PATH", ""),
             login_limit_per_minute=int(environ.get("PILLXAI_LOGIN_LIMIT_PER_MINUTE", "0")),
+            client_releases_directory=(
+                Path(environ["PILLXAI_CLIENT_RELEASES_DIRECTORY"])
+                if environ.get("PILLXAI_CLIENT_RELEASES_DIRECTORY")
+                else None
+            ),
         )

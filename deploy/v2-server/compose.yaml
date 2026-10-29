@@ -11,7 +11,7 @@ x-api: &api
   mem_limit: 1g
   cpus: 1.0
   pids_limit: 128
-  environment:
+  environment: &api-environment
     PILLXAI_DATABASE_URL_FILE: /run/secrets/database-url
     PILLXAI_ROOT_PATH: ${V2_ROOT_PATH:-/dispenser-v2}
     PILLXAI_ENABLE_CONTRACT_PROBE: 'false'
@@ -30,6 +30,20 @@ x-api: &api
 services:
   api:
     <<: *api
+    environment:
+      <<: *api-environment
+      PILLXAI_CLIENT_RELEASES_DIRECTORY: /client-releases
+    volumes:
+      - type: bind
+        source: ${V2_SHARED}/database-url
+        target: /run/secrets/database-url
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${V2_SHARED}/client-releases
+        target: /client-releases
+        read_only: true
+        bind: {create_host_path: false}
     restart: unless-stopped
     networks: [backend, ingress]
     ports:
