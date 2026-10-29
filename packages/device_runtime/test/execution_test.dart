@@ -52,6 +52,156 @@ void main() {
     dir.deleteSync(recursive: true);
   });
 
+  for (final autoClose in [false, true]) {
+    test(
+      'empty preparation can close explicitly, auto-close=$autoClose',
+      () async {
+        final machine = MachineSimulator(uid: null);
+        final engine = ExecutionEngine(journal);
+        await engine.connect(machine);
+        final base = fixture(journal.terminalId, batches: 1);
+        final task = base.copyWith(
+          device: base.device.copyWith(
+            configuration: base.device.configuration.copyWith(
+              barcodeRemovalCloses: autoClose,
+              feedbackVerified: false,
+            ),
+          ),
+        );
+        await engine.attach(task);
+        await engine.tick();
+        expect(engine.state.barcode, isNull);
+        expect(engine.state.absentAt, isNull);
+        expect(machine.writes.where((b) => b[2] == 4), isEmpty);
+        await engine.cancelPreparation();
+        expect(machine.writes.where((b) => b[2] == 4), hasLength(1));
+        await engine.tick();
+        expect(engine.state.phase, ExecutionPhase.cancelled);
+        expect(machine.writes.where((b) => b[2] == 5), isEmpty);
+      },
+    );
+    for (final code in ['000010', '000011', 'unbound']) {
+      for (final outcome in [
+        'cancel',
+        'replace',
+        'reappeared',
+        'missing_ack',
+      ]) {
+        test(
+          'preparation auto-close=$autoClose box=$code outcome=$outcome: removal never closes without explicit cancel',
+          () async {
+            final machine = MachineSimulator(uid: null);
+            final engine = ExecutionEngine(journal);
+            await engine.connect(machine);
+            final base = fixture(journal.terminalId, batches: 1);
+            final task = base.copyWith(
+              device: base.device.copyWith(
+                configuration: base.device.configuration.copyWith(
+                  barcodeRemovalCloses: autoClose,
+                  feedbackVerified: false,
+                ),
+              ),
+              recognitionBindings: [
+                api.RecognitionBinding(
+                  source_: api.RecognitionBindingSource_Enum.barcode,
+                  value: '000010',
+                  residentId: base.plan.residentId,
+                ),
+                api.RecognitionBinding(
+                  source_: api.RecognitionBindingSource_Enum.barcode,
+                  value: '000011',
+                  residentId: newExecutionId(),
+                ),
+              ],
+            );
+            await engine.attach(task);
+            await engine.tick();
+            machine.emit('APPEARED,$code');
+            await engine.tick();
+            expect(engine.recognized, code == '000010');
+            if (code != '000010') {
+              await expectLater(
+                engine.begin(task.copyWith(state: api.TaskState.started)),
+                throwsStateError,
+              );
+            }
+            await expectLater(
+              engine.cancelPreparation(),
+              throwsStateError,
+            ); // Box still present.
+            machine.emit(
+              'DISAPPEARED,000012',
+            ); // A different/stale removal cannot close.
+            await engine.tick();
+            await expectLater(engine.cancelPreparation(), throwsStateError);
+            expect(machine.writes.where((b) => b[2] == 4), isEmpty);
+            machine.emit('DISAPPEARED,$code');
+            machine.emit('DISAPPEARED,$code');
+            await engine.tick();
+            expect(machine.writes.where((b) => b[2] == 4), isEmpty);
+            expect(engine.state.phase, ExecutionPhase.recognizing);
+            expect(engine.active, isTrue);
+            expect(engine.state.permitted, isFalse);
+            expect(machine.writes.where((b) => b[2] == 5), isEmpty);
+            expect(
+              journal
+                  .pending(task.id)
+                  .where((e) => e['kind'] == 'collection_ready'),
+              isEmpty,
+            );
+            if (outcome != 'replace') {
+              machine.omitAck = true;
+              machine.omitDone = true;
+              await engine.cancelPreparation();
+              expect(engine.state.phase, ExecutionPhase.closingPreparation);
+              await expectLater(engine.cancelPreparation(), throwsStateError);
+              expect(machine.writes.where((b) => b[2] == 4), hasLength(1));
+              if (outcome == 'reappeared') {
+                machine.emit('APPEARED,000010');
+                await engine.tick();
+                expect(engine.state.phase, ExecutionPhase.recovery);
+                return;
+              }
+              if (outcome == 'missing_ack') {
+                machine.emit('DONE');
+                await engine.tick();
+                expect(engine.state.phase, ExecutionPhase.closingPreparation);
+                expect(
+                  journal
+                      .pending(task.id)
+                      .where((e) => e['kind'] == 'cancelled'),
+                  isEmpty,
+                );
+                return;
+              }
+              machine.emit('ACK');
+              machine.emit('DONE');
+              machine.emit('DISAPPEARED,$code');
+              await engine.tick();
+              expect(engine.state.phase, ExecutionPhase.cancelled);
+              expect(journal.pending(task.id).last['kind'], 'cancelled');
+              engine.acknowledge(
+                engine.state.sequence,
+                taskState: api.TaskState.cancelled,
+              );
+              expect(engine.active, isFalse);
+              return;
+            }
+            machine.emit('APPEARED,000010');
+            await engine.tick();
+            expect(engine.recognized, isTrue);
+            await engine.begin(task.copyWith(state: api.TaskState.started));
+            await until(
+              engine,
+              () => engine.state.phase == ExecutionPhase.running,
+            );
+            expect(machine.writes.where((b) => b[2] == 5), hasLength(1));
+          },
+        );
+      }
+    }
+  }
+
   for (final outcome in [
     'complete',
     'missing_ack',

@@ -46,6 +46,15 @@ class TerminalExecutionPanel extends StatelessWidget {
       final task = terminal.task;
       final batch = terminal.batch;
       final phase = terminal.phase;
+      final preparing =
+          [
+            'opening',
+            'recognizing',
+            'ready',
+            'changingTray',
+            'closingPreparation',
+          ].contains(phase) ||
+          terminal.state['permitted'] != true;
       final waiting = [
         'collecting',
         'closing',
@@ -86,7 +95,9 @@ class TerminalExecutionPanel extends StatelessWidget {
                 avatar: residentAvatar,
                 name: task.plan.residentName,
                 bed: task.plan.bed,
-                stage: batch == null
+                stage: preparing
+                    ? '药盒识别'
+                    : batch == null
                     ? ''
                     : '${batch.purpose} · 第 ${batch.index + 1} / ${task.batches.length} 药',
               ),
@@ -96,7 +107,7 @@ class TerminalExecutionPanel extends StatelessWidget {
                   padding: EdgeInsets.only(bottom: 12),
                   child: Text('模拟演练'),
                 ),
-              if (!waiting && batch != null) ...[
+              if (!waiting && !preparing && batch != null) ...[
                 ExecutionMedicineCard(
                   batch: batch,
                   count: terminal.count,
@@ -128,7 +139,17 @@ class TerminalExecutionPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
               ],
-              if (waiting || batch == null)
+              if (preparing && !waiting) ...[
+                Text(
+                  '请核对${task.plan.residentName}的药盒',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (waiting || preparing || batch == null)
                 Text(terminal.state['message'] as String? ?? ''),
               if (!terminal.ownTask) const Text('当前任务属于其他账号，请使用原账号登录。'),
               if (!terminal.ownTask) const SizedBox(height: 16),
@@ -137,6 +158,17 @@ class TerminalExecutionPanel extends StatelessWidget {
                 runSpacing: 12,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
+                  if (preparing && terminal.state['permitted'] != true)
+                    FilledButton(
+                      onPressed:
+                          terminal.busy ||
+                              !terminal.ownTask ||
+                              !terminal.connected ||
+                              !['recognizing', 'ready'].contains(phase)
+                          ? null
+                          : () => terminal.action('cancel_preparation'),
+                      child: const Text('关闭准备'),
+                    ),
                   if (phase == 'ready')
                     DispensingPrimaryButton(
                       label: terminal.state['permitted'] == true
@@ -305,7 +337,7 @@ class TerminalExecutionPanel extends StatelessWidget {
     builder: (context) => AlertDialog(
       title: const Text('调整出药开口'),
       content: SizedBox(
-        width: 420,
+        width: 360,
         child: ListenableBuilder(
           listenable: terminal,
           builder: (context, _) => _GateControl(
@@ -366,6 +398,7 @@ class _GateControlState extends State<_GateControl> {
 
   @override
   Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
     children: [
       Text('开口刻度 ${value.toStringAsFixed(2)}（数值越小，开口越大）'),
       Slider(

@@ -91,6 +91,7 @@ class _PlanPreviewPageState extends State<PlanPreviewPage>
   Future<void> prepare(api.PreparationItem item) async {
     await showDialog<void>(
       context: context,
+      barrierDismissible: false,
       builder: (_) => ServerPlanDialog(
         backend: widget.backend,
         resident: Resident(
@@ -261,6 +262,8 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
   int? days;
   int generation = 0;
   late final planning = api.PlanningApi(widget.backend.client);
+  bool closingPreparation = false;
+  bool popping = false;
 
   @override
   void initState() {
@@ -285,6 +288,16 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
       preview != null && widget.terminal?.task?.planId == preview!.snapshot.id;
 
   void _terminalChanged() {
+    if (mounted &&
+        closingPreparation &&
+        !popping &&
+        (widget.terminal?.task == null ||
+            widget.terminal?.phase == 'cancelled')) {
+      popping = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.pop(context);
+      });
+    }
     if (mounted) setState(() {});
   }
 
@@ -399,6 +412,20 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
     }
   }
 
+  Future<void> _close() async {
+    if (!claimed || widget.terminal?.phase == 'recovery') {
+      // Unknown physical state must remain owned by the recovery controls.
+      // Dismissing here neither closes the tray nor releases the task.
+      Navigator.pop(context);
+      return;
+    }
+    closingPreparation = true;
+    await widget.terminal!.action('cancel_preparation');
+    if (!mounted) return;
+    if (widget.terminal!.error != null) closingPreparation = false;
+    _terminalChanged();
+  }
+
   Future<void> _maintain() async {
     if (!await _checkVersion() || !mounted) return;
     await showDialog<bool>(
@@ -417,6 +444,21 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
     final snapshot = preview?.snapshot;
     final terminal = widget.terminal;
     final enabled = snapshot != null && preview!.current && !loading;
+    final failure = error ?? terminal?.error;
+    final statusMessage =
+        failure ??
+        (preview != null && !preview!.current
+            ? preview!.message
+            : terminal?.supported == true
+            ? claimed
+                  ? terminal!.recognized
+                        ? '药盒匹配，已确认 ${snapshot!.residentName}'
+                        : terminal.state['message'] as String? ??
+                              '请放入${widget.resident.name}的药盒'
+                  : terminal!.connected
+                  ? '核对后开仓，放入${widget.resident.name}的药盒'
+                  : '摆药机未连接，请先连接设备'
+            : null);
     final rows = <PreparationMedicineRow>[
       if (snapshot != null)
         for (final tray in snapshot.trays)
@@ -442,162 +484,163 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
                   '${medicine.totalParticles} 颗 · 原片／粒等价量 ${medicine.originalUnits}',
             ),
     ];
-    return PreparationConfirmation(
-      children: [
-        const Text(
-          '确认摆药信息',
-          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 16),
-        ResidentIdentity(
-          asset: widget.resident.avatarAsset,
-          name: snapshot?.residentName ?? widget.resident.name,
-          bed: snapshot?.bed ?? widget.resident.bed,
-          size: 44,
-          nameSize: 18,
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 20,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            if (snapshot != null)
-              Text(
-                '覆盖日期  ${formatDate(snapshot.dates.first)} — ${formatDate(snapshot.dates.last)}',
-              ),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('本次天数  '),
-                SizedBox(
-                  width: 94,
-                  child: AppSelect<int>(
-                    key: const ValueKey('plan-days'),
-                    value: days ?? widget.backend.settings!.preparationDays,
-                    label: '本次天数',
-                    enabled: !loading && !claimed,
-                    options: [
-                      for (var day = 1; day <= 7; day++)
-                        AppSelectOption(day, '$day 天'),
-                    ],
-                    onChanged: (value) {
-                      days = value;
-                      _generate();
-                    },
-                  ),
+    return PopScope(
+      canPop: !claimed && !loading,
+      child: PreparationConfirmation(
+        children: [
+          const Text(
+            '确认摆药信息',
+            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 16),
+          ResidentIdentity(
+            asset: widget.resident.avatarAsset,
+            name: snapshot?.residentName ?? widget.resident.name,
+            bed: snapshot?.bed ?? widget.resident.bed,
+            size: 44,
+            nameSize: 18,
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 20,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (snapshot != null)
+                Text(
+                  '覆盖日期  ${formatDate(snapshot.dates.first)} — ${formatDate(snapshot.dates.last)}',
                 ),
-              ],
-            ),
-            Text(
-              '餐食分盘  ${(snapshot?.splitMeals ?? widget.backend.settings!.splitMeals) ? "已开启" : "未开启"}',
-            ),
-          ],
-        ),
-        const Divider(),
-        Row(
-          children: [
-            Expanded(child: Text('本次用药 · ${snapshot?.sources.length ?? 0} 种')),
-            const SizedBox(width: 12),
-            FilledButton.icon(
-              key: const ValueKey('pattern-open'),
-              onPressed: enabled ? _openPattern : null,
-              icon: const Icon(Icons.grid_on_rounded, size: 18),
-              label: const Text('预览摆药图案'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 18),
-        if (loading) const LinearProgressIndicator(),
-        if (snapshot != null)
-          Flexible(
-            child: PreparationMedicineTable(
-              rows: rows,
-              slots: [
-                '早',
-                '午',
-                '晚',
-                if (snapshot.settings.bedtimeEnabled) '睡前',
-              ],
-            ),
-          ),
-        const SizedBox(height: 12),
-        if (error != null || terminal?.error != null)
-          Text(
-            error ?? terminal!.error!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-        if (preview != null && !preview!.current) Text(preview!.message),
-        if (terminal?.supported == true)
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xfff5f5f5),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              claimed
-                  ? terminal!.recognized
-                        ? '药盒匹配，已确认 ${snapshot!.residentName}'
-                        : terminal.state['message'] as String? ??
-                              '请放入${widget.resident.name}的药盒'
-                  : terminal!.connected
-                  ? '核对后开仓，放入${widget.resident.name}的药盒'
-                  : '摆药机未连接，请先连接设备',
-            ),
-          ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 8,
-          alignment: WrapAlignment.end,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            if (!claimed && (error != null || preview?.current != true))
-              TextButton(
-                onPressed: loading ? null : _generate,
-                child: const Text('刷新计划'),
-              ),
-            if (terminal?.supported == true &&
-                terminal!.canMaintain &&
-                !claimed)
-              AppActionMenu(
-                tooltip: '更多准备操作',
-                actions: [
-                  AppMenuAction(
-                    '药盒与出药设置',
-                    enabled && !terminal.active ? _maintain : null,
-                    icon: Icons.tune_rounded,
-                  ),
-                  AppMenuAction(
-                    '刷新计划',
-                    loading ? null : _generate,
-                    icon: Icons.refresh_rounded,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('本次天数  '),
+                  SizedBox(
+                    width: 94,
+                    child: AppSelect<int>(
+                      key: const ValueKey('plan-days'),
+                      value: days ?? widget.backend.settings!.preparationDays,
+                      label: '本次天数',
+                      enabled: !loading && !claimed,
+                      options: [
+                        for (var day = 1; day <= 7; day++)
+                          AppSelectOption(day, '$day 天'),
+                      ],
+                      onChanged: (value) {
+                        days = value;
+                        _generate();
+                      },
+                    ),
                   ),
                 ],
               ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('关闭'),
-            ),
-            if (terminal?.supported == true)
-              FilledButton(
-                key: const ValueKey('confirm-dispense'),
-                onPressed: claimed
-                    ? terminal!.phase == 'ready' &&
-                              terminal.recognized &&
-                              !terminal.busy &&
-                              terminal.ownTask
-                          ? _start
-                          : null
-                    : enabled && !terminal!.active && !terminal.busy
-                    ? _prepareBox
-                    : null,
-                child: Text(claimed ? '开始摆药' : '开仓放入药盒'),
+              Text(
+                '餐食分盘  ${(snapshot?.splitMeals ?? widget.backend.settings!.splitMeals) ? "已开启" : "未开启"}',
               ),
-          ],
-        ),
-      ],
+            ],
+          ),
+          const Divider(),
+          Row(
+            children: [
+              Expanded(
+                child: Text('本次用药 · ${snapshot?.sources.length ?? 0} 种'),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                key: const ValueKey('pattern-open'),
+                onPressed: enabled ? _openPattern : null,
+                icon: const Icon(Icons.grid_on_rounded, size: 18),
+                label: const Text('预览摆药图案'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          if (loading) const LinearProgressIndicator(),
+          if (snapshot != null)
+            Flexible(
+              child: PreparationMedicineTable(
+                rows: rows,
+                slots: [
+                  '早',
+                  '午',
+                  '晚',
+                  if (snapshot.settings.bedtimeEnabled) '睡前',
+                ],
+              ),
+            ),
+          const SizedBox(height: 12),
+          if (statusMessage != null)
+            Container(
+              key: const ValueKey('preparation-box-status'),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xfff5f5f5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                statusMessage,
+                style: failure == null
+                    ? null
+                    : TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (!claimed && (error != null || preview?.current != true))
+                TextButton(
+                  onPressed: loading ? null : _generate,
+                  child: const Text('刷新计划'),
+                ),
+              if (terminal?.supported == true &&
+                  terminal!.canMaintain &&
+                  !claimed)
+                AppActionMenu(
+                  tooltip: '更多准备操作',
+                  actions: [
+                    AppMenuAction(
+                      '药盒与出药设置',
+                      enabled && !terminal.active ? _maintain : null,
+                      icon: Icons.tune_rounded,
+                    ),
+                    AppMenuAction(
+                      '刷新计划',
+                      loading ? null : _generate,
+                      icon: Icons.refresh_rounded,
+                    ),
+                  ],
+                ),
+              TextButton(
+                onPressed:
+                    loading ||
+                        terminal?.busy == true ||
+                        terminal?.phase == 'closingPreparation'
+                    ? null
+                    : _close,
+                child: const Text('关闭'),
+              ),
+              if (terminal?.supported == true)
+                FilledButton(
+                  key: const ValueKey('confirm-dispense'),
+                  onPressed: claimed
+                      ? terminal!.phase == 'ready' &&
+                                terminal.recognized &&
+                                !terminal.busy &&
+                                terminal.ownTask
+                            ? _start
+                            : null
+                      : enabled && !terminal!.active && !terminal.busy
+                      ? _prepareBox
+                      : null,
+                  child: Text(claimed ? '开始摆药' : '开仓放入药盒'),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

@@ -3,6 +3,7 @@ enum ExecutionPhase {
   idle,
   opening,
   recognizing,
+  closingPreparation,
   ready,
   starting,
   running,
