@@ -64,6 +64,25 @@ namespace EZDose.PillBoxUnion
         public PillBoxFeedback Feedback { get { return feedback; } }
         public double RemovalHoldSeconds { get; private set; }
 
+        /// <summary>
+        /// Explicit cancellation before any box was observed needs no removal event.
+        /// This is not proof of removal and must not be used for dispensing completion.
+        /// Presence history survives removal and identity rejection until EndSession.
+        /// </summary>
+        public bool CanCancelWithoutRemoval
+        {
+            get
+            {
+                if (Phase != PillBoxPhase.AwaitingBox || !IsUsable || confirmedPresence.Count != 0)
+                    return false;
+                foreach (IPillBoxChannel channel in channels)
+                {
+                    if (channel.IsPresent) return false;
+                }
+                return true;
+            }
+        }
+
         /// <summary>Raised once per box, with the canonical patient id.</summary>
         public event Action<string> Verified;
         /// <summary>Raised when the operator-facing state changes.</summary>
