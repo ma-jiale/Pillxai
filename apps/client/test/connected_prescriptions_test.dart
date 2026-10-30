@@ -1,3 +1,4 @@
+import 'support/navigation.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -228,13 +229,13 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('nav-1')));
       await tester.pumpAndSettle();
       expect(find.text('开始摆药'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('nav-2')));
+      await openSettings(tester);
       await tester.pumpAndSettle();
       expect(find.text('创建机构'), findsNothing);
       expect(find.text('账号管理'), findsNothing);
       expect(find.text('修改本人密码'), findsNothing);
       expect(find.byKey(const ValueKey('page-title-settings')), findsOneWidget);
-      expect(find.text('设置'), findsNWidgets(2));
+      expect(find.text('设置'), findsOneWidget);
       expect(find.byKey(const ValueKey('settings-search')), findsOneWidget);
       expect(find.text('准备周期'), findsOneWidget);
       expect(find.text('药盒布局'), findsOneWidget);

@@ -13,7 +13,7 @@ import '../data/settings_controller.dart';
 import '../data/terminal_controller.dart';
 import '../data/terminal_host.dart';
 import '../theme/app_page.dart';
-import '../widgets/workspace_sidebar.dart';
+import '../widgets/workspace_layout.dart';
 import '../widgets/workspace_header.dart';
 import '../widgets/collection_banner.dart';
 import 'task_history_dialog.dart';
@@ -216,86 +216,80 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
     return Scaffold(
       body: SafeArea(
         child: LayoutBuilder(
-          builder: (context, bounds) => Row(
-            children: [
-              WorkspaceSidebar(
-                selected: page,
-                compact: bounds.maxWidth < 600,
-                displayName: account.displayName,
-                roleLabel: roleLabel,
-                onSelect: (value) => setState(() => page = value),
-                onSignOut: _logout,
-              ),
-              Expanded(
-                child: Column(
-                  children: [
-                    if (page != 2)
-                      WorkspaceHeader(
-                        title: ListenableBuilder(
+          builder: (context, bounds) => WorkspaceLayout(
+            selected: page,
+            narrow: bounds.maxWidth < 600,
+            displayName: account.displayName,
+            roleLabel: roleLabel,
+            onSelect: (value) => setState(() => page = value),
+            onSignOut: _logout,
+            child: Column(
+              children: [
+                if (page != 2)
+                  WorkspaceHeader(
+                    title: ListenableBuilder(
+                      listenable: terminal!,
+                      builder: (context, _) => PageTitle(
+                        page == 1 &&
+                                terminal!.active &&
+                                ![
+                                  'collecting',
+                                  'closing',
+                                  'completed',
+                                  'cancelled',
+                                ].contains(terminal!.phase)
+                            ? '正在分药'
+                            : ['处方管理', '摆药', '设置'][page],
+                        key: ValueKey(
+                          'page-title-${page == 0 ? 'prescriptions' : 'dispensing'}',
+                        ),
+                      ),
+                    ),
+                    actions: [
+                      if (page == 0 && controller != null)
+                        IconButton(
+                          tooltip: '刷新资料',
+                          onPressed: controller!.refresh,
+                          icon: const Icon(Icons.refresh_rounded),
+                        ),
+                      if (page == 1 && terminal != null) ...[
+                        const SizedBox(width: 16),
+                        ListenableBuilder(
                           listenable: terminal!,
-                          builder: (context, _) => PageTitle(
-                            page == 1 &&
-                                    terminal!.active &&
-                                    ![
-                                      'collecting',
-                                      'closing',
-                                      'completed',
-                                      'cancelled',
-                                    ].contains(terminal!.phase)
-                                ? '正在分药'
-                                : ['处方管理', '摆药', '设置'][page],
-                            key: ValueKey(
-                              'page-title-${page == 0 ? 'prescriptions' : 'dispensing'}',
+                          builder: (context, _) => DeviceConnectionButton(
+                            label: terminal!.connected ? '已连接' : '未连接',
+                            onPressed: () => showDialog<void>(
+                              context: context,
+                              builder: (_) =>
+                                  TerminalDeviceDialog(terminal: terminal!),
                             ),
                           ),
                         ),
-                        actions: [
-                          if (page == 0 && controller != null)
-                            IconButton(
-                              tooltip: '刷新资料',
-                              onPressed: controller!.refresh,
-                              icon: const Icon(Icons.refresh_rounded),
-                            ),
-                          if (page == 1 && terminal != null) ...[
-                            const SizedBox(width: 16),
-                            ListenableBuilder(
-                              listenable: terminal!,
-                              builder: (context, _) => DeviceConnectionButton(
-                                label: terminal!.connected ? '已连接' : '未连接',
-                                onPressed: () => showDialog<void>(
-                                  context: context,
-                                  builder: (_) =>
-                                      TerminalDeviceDialog(terminal: terminal!),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
+                      ],
+                    ],
+                  ),
+                Expanded(
+                  child: IndexedStack(
+                    index: page,
+                    children: [
+                      _prescriptions(),
+                      _execution(),
+                      SettingsPage(
+                        model: settings!,
+                        updates: updates,
+                        accent: widget.accent,
+                        onAccentChanged: widget.onAccentChanged,
+                        onConfigureMapping: () => showDialog<void>(
+                          context: context,
+                          builder: (_) =>
+                              DeviceMappingDialog(terminal: terminal!),
+                        ),
                       ),
-                    Expanded(
-                      child: IndexedStack(
-                        index: page,
-                        children: [
-                          _prescriptions(),
-                          _execution(),
-                          SettingsPage(
-                            model: settings!,
-                            updates: updates,
-                            accent: widget.accent,
-                            onAccentChanged: widget.onAccentChanged,
-                            onConfigureMapping: () => showDialog<void>(
-                              context: context,
-                              builder: (_) =>
-                                  DeviceMappingDialog(terminal: terminal!),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

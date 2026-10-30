@@ -1,3 +1,4 @@
+import 'support/navigation.dart';
 import 'support/tasks.dart';
 
 import 'package:flutter/material.dart';
@@ -30,7 +31,11 @@ void main() {
     addTearDown(model.dispose);
     await tester.pumpWidget(PillxaiApp(model: model, initiallySignedIn: true));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(ValueKey('nav-$page')));
+    if (page == 2) {
+      await openSettings(tester);
+    } else {
+      await tester.tap(find.byKey(ValueKey('nav-$page')));
+    }
     await tester.pumpAndSettle();
     return model;
   }
@@ -220,7 +225,7 @@ void main() {
         .toList();
     expect(originalImages, isNotEmpty);
 
-    await tapVisible(tester, find.byKey(const ValueKey('nav-2')));
+    await openSettings(tester);
     await tapVisible(tester, find.byKey(const ValueKey('settings-appearance')));
     final customColor = find.byKey(const ValueKey('custom-accent-input'));
     await tester.enterText(customColor, '#XYZ');

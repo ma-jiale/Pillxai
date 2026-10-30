@@ -5,3 +5,5 @@
 `ui_visual_test.dart` 每次等待药品图片和字体加载后逐像素比较执行页与图案。共享组件抽取应保留此结果。失败时检查真实差异，不通过更新金图来接受漂移。只有用户明确更改设计时才更新基准，并记录对应决定。
 
 正式入口的七药双盘测试在 `production_visual_test.dart`，使用 `PillxaiApp`、真实控制器和纯测试传输。它检查识别与开始许可、固定底部按钮、暂停恢复、跨页状态、换药动画、换盘与释放；截图使用 `--dart-define=PRODUCTION_CAPTURE=true` 输出到仓库 `.tools/ui-review/restored-*.png`。这些候选截图不自动成为用户确认的新基准。
+
+2026-10-30 用户明确要求将设置移入账户菜单，并增加可折叠侧栏。`ui_visual_test.dart` 因此使用独立的 `sidebar-2026-10-30-*` 回归图；原 `approved-*` 文件保留为此前设计依据，不覆盖。新图用于检验此次已要求的导航变更，不表示用户已逐图验收。账户菜单和折叠/窄屏展开截图由 `sidebar_navigation_test.dart` 配合 `--dart-define=SIDEBAR_CAPTURE=true` 输出到 `.var/sidebar-review/`。

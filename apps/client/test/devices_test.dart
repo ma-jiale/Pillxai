@@ -1,3 +1,4 @@
+import 'support/navigation.dart';
 import 'support/tasks.dart';
 
 import 'dart:io';
@@ -138,7 +139,7 @@ void main() {
       await tester.pumpAndSettle();
       await tapKey('nav-0');
       expect(status.hitTestable(), findsNothing);
-      await tapKey('nav-2');
+      await openSettings(tester);
       expect(status.hitTestable(), findsNothing);
       await tapKey('nav-1');
       expect(
@@ -202,7 +203,7 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    await tap('nav-2');
+    await openSettings(tester);
     expect(find.text('本机设备'), findsNothing);
     expect(
       find.byKey(const ValueKey('device-status')).hitTestable(),
