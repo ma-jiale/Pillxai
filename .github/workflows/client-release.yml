@@ -57,8 +57,10 @@ jobs:
           echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
           git init .tools/flutter
           git -C .tools/flutter remote add origin https://github.com/flutter/flutter.git
-          git -C .tools/flutter fetch --depth 1 origin 6655482ec06e547f90abf8ae7590466f4415978d
-          git -C .tools/flutter checkout --detach FETCH_HEAD
+          # Flutter derives its SDK version from Git tags, even for a pinned commit.
+          git -C .tools/flutter fetch --depth 1 origin refs/tags/3.47.1:refs/tags/3.47.1
+          test "$(git -C .tools/flutter rev-parse '3.47.1^{commit}')" = 6655482ec06e547f90abf8ae7590466f4415978d
+          git -C .tools/flutter checkout --detach 6655482ec06e547f90abf8ae7590466f4415978d
           python -m pip install -r apps/api/requirements.lock
       - name: Verify client and execution runtime
         shell: bash

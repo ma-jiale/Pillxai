@@ -19,7 +19,7 @@
 - Secrets：`ANDROID_SIGNING_STORE_BASE64`、`ANDROID_SIGNING_STORE_PASSWORD`、`ANDROID_SIGNING_KEY_ALIAS`、`ANDROID_SIGNING_KEY_PASSWORD`。
 - 环境变量：`ANDROID_SIGNING_CERT_SHA256`，对应上面的公开证书指纹。
 
-没有创建每次发布的额外审批要求。正式发布工作流仍为手动触发；合并到 main 不会自动向平板发布 APK。构建成功后发布工具检查正式包名、稳定版本名、非调试构建及证书指纹。GitHub 界面只能核对 Secret 名称和保存状态，值不可读回；远端工作流取用这些 Secrets 的完整构建尚待 main 合入后验证。
+没有创建每次发布的额外审批要求。正式发布工作流仍为手动触发；合并到 main 不会自动向平板发布 APK。构建成功后发布工具检查正式包名、稳定版本名、非调试构建及证书指纹。GitHub 界面只能核对 Secret 名称和保存状态，值不可读回；2026-10-30 首次运行在 Flutter 版本识别阶段失败，远端工作流取用这些 Secrets 的完整构建仍待验证。
 
 ## 本机保管与恢复
 
@@ -40,4 +40,4 @@
 
 已使用该密钥完成本地通用 Release 构建（0.2.0 / 2），`apksigner verify --verbose --print-certs` 通过，签名方案 v2，签名者数量 1，证书 SHA-256 与以上记录一致。构建来自当前功能分支，仅验证签名配置，不作为正式发布证据。
 
-GitHub 环境保存、分支规则和四项 Secrets 名称已验证；尚未运行远端正式发布工作流、上传到更新服务器或安装到实体平板。本轮配置不替代 HTTPS 下载和目标设备系统安装验收。
+GitHub 环境保存、分支规则和四项 Secrets 名称已验证。2026-10-30 首次远端正式构建在签名步骤之前失败；随后用本机工具链从相同 main 内容构建正式 0.2.0 / 2，正式证书验签通过，并按用户授权清除旧测试版后安装到华为平板，正常启动至登录页。实际安装包及验证见 [平板安装记录](../../docs/validation/2026-10-30-pad-release.md)。尚未上传更新服务器，不替代 HTTPS 下载和应用内系统安装验收。

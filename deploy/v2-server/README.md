@@ -1,6 +1,6 @@
 # V2 服务器独立部署
 
-V2 使用学校现有 `pillxa-server` Runner 接收 GitHub 构建的 Docker 制品，与 V1 同机运行。V1 的 `/dispenser/`、5068、`pillxa-v1` 和 SQLite 数据保持独立。V2 使用 `/dispenser-v2/`、8068、`pillxai-v2` 及专用 PostgreSQL 18 数据库；不导入 V1 或开发电脑上的业务资料。
+V2 使用学校现有 `pillxa-server` Runner 接收 GitHub 构建的 Docker 制品，与 V1 同机运行。V1 的 `/dispenser/`、5068、`pillxa-v1` 和 SQLite 数据保持独立。2026-10-29 用户确认 V2 公网入口已改为 `/pillxai/`，使用 8068、`pillxai-v2` 及专用 PostgreSQL 18 数据库；不导入 V1 或开发电脑上的业务资料。
 
 ## 发布与目录
 
@@ -54,15 +54,17 @@ API 限制 1 CPU/1 GiB，数据库 1 CPU/2 GiB，备份容器 0.5 CPU/256 MiB；
 
 ## HTTPS 代理与客户端
 
-`nginx-location.conf` 是待管理员应用到**现有 HTTPS server 块**的新增片段，不是完整站点配置。新增 `/dispenser-v2/` 后运行 `nginx -t`，通过才 reload；不能替换现有 `/dispenser/` location。代理配置属于系统变更，需用户明确同意具体范围后实施。
+`nginx-location.conf` 是待管理员应用到**现有 HTTPS server 块**的片段，不是完整站点配置。当前公开路径为 `/pillxai/`；变更配置后运行 `nginx -t`，通过才 reload，不能替换现有 `/dispenser/` location。代理配置属于系统变更，需用户明确同意具体范围后实施。
 
-预期公开就绪地址为 `https://ixd.sjtu.edu.cn/dispenser-v2/health/ready`。API `/health/ready` 验证数据库修订，返回 `0.1.0+<完整提交号>`，同时检查本机和 HTTPS 入口；本机 ready 不代表代理已经上线。
+当前公开就绪地址为 `https://ixd.sjtu.edu.cn/pillxai/health/ready`。2026-10-29 已实测返回 200，版本为 `0.1.0+701d6b31fd0d33cb1aeb3d3e512c11712a64a189`。API `/health/ready` 验证数据库修订，同时检查本机和 HTTPS 入口；本机 ready 不代表代理已经上线。
 
-平板构建 `PILLXAI_API_URL=https://ixd.sjtu.edu.cn/dispenser-v2`（末尾无斜线）。更换服务器前必须完成任务、取盒和全部补传；新库不认识开发库任务、账号及设备身份。重新建立新版服务器资料与设备配置，不能把旧队列上传到新库。
+平板构建及 Android Client Release 的 `api_url` 使用 `https://ixd.sjtu.edu.cn/pillxai`（末尾无斜线）。更换服务器前必须完成任务、取盒和全部补传；新库不认识开发库任务、账号及设备身份。重新建立新版服务器资料与设备配置，不能把旧队列上传到新库。
+
+当前待统一项：同日读取线上 OpenAPI，`servers` 仍声明 `/dispenser-v2`，仓库部署工具也仍将该值作为内部 `V2_ROOT_PATH` 的校验值。公网 `/pillxai` 已可用，不代表内部路径元数据已经修改；后续需连同部署校验和模板统一，不能只修改现有 `server.env`。更新接口曾因发布目录权限为 0700 返回 500；用户将目录改为 0755 后，已实测 `https://ixd.sjtu.edu.cn/pillxai/releases/android` 返回 200 和空发布清单。
 
 ## 更新和失败处理
 
-2026-10-29 增加 Android APK 只读托管：新版部署工具保留或创建 `shared/client-releases`，API 只读挂载；未放置 `current.json` 时明确返回尚未发布。发布客户端不需要重启 API，也不与 main 的服务端 CD 同步推送。签名、发布制品、目录权限与撤回操作见 [Android 客户端发布](../android-client/README.md)。新增接口上线和实际 APK 发布分别验收。
+2026-10-29 增加 Android APK 只读托管：部署工具保留或创建 `shared/client-releases`，并明确设置目录权限 0755，避免 `umask 077` 或已有 0700 目录阻止容器 UID 访问。此设置仅作用于公开 APK 目录，父目录和凭据权限保持不变；API 只读挂载。可访问目录中未放置 `current.json` 时返回尚未发布；已配置目录丢失、不可读或发布内容无效时返回 503。发布客户端不需要重启 API，也不与 main 的服务端 CD 同步推送。签名、发布制品、目录权限与撤回操作见 [Android 客户端发布](../android-client/README.md)。新增接口上线和实际 APK 发布分别验收。
 
 部署按 V2 环境串行排队，主机文件锁再次防止重复更新。先校验和加载镜像；活动任务存在时拒绝更新。暂停 API 后再次检查活动任务，消除检查与停止之间的领取竞态；备份成功后执行 Alembic，再启动 API 并检查准确版本。迁移与运行使用同一镜像，API 不自动建表。
 
@@ -92,7 +94,7 @@ docker ps --filter label=com.docker.compose.project=pillxai-v2
 docker logs --tail 80 pillxai-v2-api-1
 docker logs --tail 80 pillxai-v2-backup-1
 curl --fail http://127.0.0.1:8068/health/ready
-curl --fail https://ixd.sjtu.edu.cn/dispenser-v2/health/ready
+curl --fail https://ixd.sjtu.edu.cn/pillxai/health/ready
 curl --fail http://127.0.0.1:5068/__deployment_health
 ```
 
