@@ -2,6 +2,8 @@
 
 适用 V2 Flutter Android；OTA 已由 PR #13 合入 `main`。首次安装由维护人员提供，后续自动检查/下载、人工确认安装。Android 的未知来源授权与系统安装确认必须如实处理，不承诺静默安装。
 
+2026-10-30 当前已通过 Runner 发布正式 **0.2.3 / 5**，公开更新清单、完整 APK 下载、哈希及与 0.2.2 相同的正式证书均已独立验证。平板可在用户菜单 → 设置 → 关于 → 检查更新执行覆盖升级；实际平板安装与数据保留尚待现场确认。来源、失败排查与验证见 [Runner 发布记录](../../docs/validation/2026-10-30-ota-runner.md)。
+
 2026-10-29 用户确认当前学校服务地址为 `https://ixd.sjtu.edu.cn/pillxai`，正式打包的 `api_url` 使用此值。就绪接口 `/pillxai/health/ready` 已实测返回 200；更新接口曾因发布目录权限为 0700 返回 500，用户将目录改为 0755 后，已实测返回 200 和 `{"api_compatibility":1,"release":null}`，表示尚未发布 APK。
 
 2026-10-29 用户确认日常只使用正式版：分发入口仅接受 `main` 的正式签名 Release，版本名为 `主.次.修订`，不发布 alpha/beta/rc。普通 Debug/Profile 使用独立 `.development` 包名和“Pillxai 开发”名称，模拟器验证使用 `.runtimecheck` 和“Pillxai 测试”；两者都不能通过正式发布工具。`run-android.ps1` 仅用于开发模拟器，不用于平板交付。
