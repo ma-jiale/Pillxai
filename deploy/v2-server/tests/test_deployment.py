@@ -1,5 +1,7 @@
 import io
 import json
+import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -106,6 +108,35 @@ class DeploymentTests(unittest.TestCase):
             (directory / "current.json").write_text("existing release")
             manage.compose(self.root, self.artifact, "ps")
         self.assertEqual((directory / "current.json").read_text(), "existing release")
+
+    def test_client_releases_directory_is_readable_under_restrictive_umask(self):
+        directory = self.root / "shared/client-releases"
+        previous_umask = os.umask(0o077)
+        try:
+            with (
+                patch.object(manage, "runtime_environment", return_value={}),
+                patch.object(manage, "run"),
+            ):
+                manage.compose(self.root, self.artifact, "ps")
+        finally:
+            os.umask(previous_umask)
+        self.assertEqual(stat.S_IMODE(directory.stat().st_mode), 0o755)
+
+    def test_existing_release_directory_permissions_are_repaired_without_touching_secrets(self):
+        shared = self.root / "shared"
+        directory = shared / "client-releases"
+        directory.mkdir(mode=0o700)
+        (directory / "current.json").write_text("existing release")
+        before = {name: (shared / name).stat().st_mode for name in ("database-url", "server.env")}
+        with (
+            patch.object(manage, "runtime_environment", return_value={}),
+            patch.object(manage, "run"),
+        ):
+            manage.compose(self.root, self.artifact, "ps")
+        self.assertEqual(stat.S_IMODE(directory.stat().st_mode), 0o755)
+        self.assertEqual(stat.S_IMODE(shared.stat().st_mode), 0o700)
+        self.assertEqual((directory / "current.json").read_text(), "existing release")
+        self.assertEqual(before, {name: (shared / name).stat().st_mode for name in before})
 
     def test_artifact_rejects_changed_bytes_or_revision(self):
         manage.verify_artifact(self.artifact, REVISION)

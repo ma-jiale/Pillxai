@@ -48,11 +48,18 @@ def release_directory(request: Request) -> Path | None:
 
 
 def load_release(directory: Path | None) -> AndroidRelease | None:
-    if directory is None or not (directory / "current.json").exists():
+    if directory is None:
         return None
     try:
+        if not directory.is_dir():
+            raise ValueError("Missing release directory")
         manifest = directory / "current.json"
-        if manifest.stat().st_size > 65536:
+        try:
+            manifest_size = manifest.stat().st_size
+        except FileNotFoundError:
+            # An accessible directory without a manifest has no published release.
+            return None
+        if manifest_size > 65536:
             raise ValueError("Oversized manifest")
         release = AndroidRelease.model_validate_json(manifest.read_bytes())
         artifact = directory / f"{release.sha256}.apk"

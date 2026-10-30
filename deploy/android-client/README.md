@@ -1,10 +1,14 @@
 # Android 客户端发布与应用内更新
 
-适用 V2 Flutter Android；当前分支 `feat/ota-client`。首次安装由维护人员提供，后续自动检查/下载、人工确认安装。Android 的未知来源授权与系统安装确认必须如实处理，不承诺静默安装。
+适用 V2 Flutter Android；OTA 已由 PR #13 合入 `main`。首次安装由维护人员提供，后续自动检查/下载、人工确认安装。Android 的未知来源授权与系统安装确认必须如实处理，不承诺静默安装。
+
+2026-10-29 用户确认当前学校服务地址为 `https://ixd.sjtu.edu.cn/pillxai`，正式打包的 `api_url` 使用此值。就绪接口 `/pillxai/health/ready` 已实测返回 200；更新接口曾因发布目录权限为 0700 返回 500，用户将目录改为 0755 后，已实测返回 200 和 `{"api_compatibility":1,"release":null}`，表示尚未发布 APK。
 
 2026-10-29 用户确认日常只使用正式版：分发入口仅接受 `main` 的正式签名 Release，版本名为 `主.次.修订`，不发布 alpha/beta/rc。普通 Debug/Profile 使用独立 `.development` 包名和“Pillxai 开发”名称，模拟器验证使用 `.runtimecheck` 和“Pillxai 测试”；两者都不能通过正式发布工具。`run-android.ps1` 仅用于开发模拟器，不用于平板交付。
 
 ## 发布身份与构建
+
+2026-10-30 已按用户授权在华为平板清除旧测试版并安装正式 0.2.0 / 2。首次 CI 构建因 Flutter 版本标签缺失失败，本次使用同一已合并 main 内容和固定工具链在本机构建、验签后经 USB 安装，未上传更新服务器；验证及构建来源见 [平板安装记录](../../docs/validation/2026-10-30-pad-release.md)。工作流标签修复已在本地完成，尚待合入及远端复验。
 
 包名固定为 `com.pillxai.pillxai_client`。`versionName` 用于展示，`versionCode` 必须严格递增。正式构建必须使用长期保管的正式签名；不要提交私钥、密码或密钥库。当前测试平板曾用 debug 签名，正式签名包不能直接覆盖它；首次切换须先确定已有 V2 本机数据的保留方案，不能卸载清数据作为日常升级。
 
@@ -13,11 +17,11 @@
 - `PILLXAI_SIGNING_STORE`：密钥库绝对路径。
 - `PILLXAI_SIGNING_STORE_PASSWORD`、`PILLXAI_SIGNING_KEY_ALIAS`、`PILLXAI_SIGNING_KEY_PASSWORD`：通过进程环境或 CI Secrets 提供。
 
-正式交付使用下述 `main` CI 制品。维护人员本地复验可调用 `scripts/flutter.cmd build apk --release --no-pub --build-name=0.2.0 --build-number=2 --dart-define=PILLXAI_API_URL=https://服务器/部署路径`，不以本地未审查构建替代正式发布。正式包拒绝无签名、演示模式或调试签名绕过；`PILLXAI_ALLOW_DEBUG_SIGNING=true` 只在同时显式启用 `PILLXAI_RUNTIME_CHECK=true` 的隔离包中有效。发布工具没有允许调试包的开关。该例中的版本号须高于已安装的实际构建号。
+正式交付使用下述 `main` CI 制品。维护人员本地复验可调用 `scripts/flutter.cmd build apk --release --no-pub --build-name=0.2.0 --build-number=2 --dart-define=PILLXAI_API_URL=https://ixd.sjtu.edu.cn/pillxai`，不以本地未审查构建替代正式发布。正式包拒绝无签名、演示模式或调试签名绕过；`PILLXAI_ALLOW_DEBUG_SIGNING=true` 只在同时显式启用 `PILLXAI_RUNTIME_CHECK=true` 的隔离包中有效。发布工具没有允许调试包的开关。该例中的版本号须高于已安装的实际构建号。
 
 GitHub 的 **Android Client Release** 工作流为手动触发，仅 `main` 可以运行构建，其他分支跳过，不随 main push 发布客户端。配置 `android-client-release` environment，将 Deployment branches and tags 限制为 `main`，并配置四个 Secret：`ANDROID_SIGNING_STORE_BASE64`、`ANDROID_SIGNING_STORE_PASSWORD`、`ANDROID_SIGNING_KEY_ALIAS`、`ANDROID_SIGNING_KEY_PASSWORD`。输入展示版本、构建号、HTTPS API 地址及仓库内 UTF-8 更新说明文件。工作流固定 Flutter 提交，运行客户端/执行测试，构建完整 APK 并上传发布制品。构建完成不代表已向平板发布。Environment 限制和 Secrets 需要在 GitHub 实际设置，仓库内的分支判断不代替环境保护。
 
-2026-10-29 已实际建立上述环境、四项 Secrets 和仅 `main` 分支规则，并添加环境变量 `ANDROID_SIGNING_CERT_SHA256`。发布工具必须核对 APK 证书与该指纹一致，不能仅凭“不是 debug 签名”放行。证书身份、本地保管与验签结果见 [正式签名记录](signing.md)。工作流代码仍须合入 `main` 后才能运行，环境配置本身不触发发布。
+2026-10-29 已实际建立上述环境、四项 Secrets 和仅 `main` 分支规则，并添加环境变量 `ANDROID_SIGNING_CERT_SHA256`。发布工具必须核对 APK 证书与该指纹一致，不能仅凭“不是 debug 签名”放行。证书身份、本地保管与验签结果见 [正式签名记录](signing.md)。工作流代码已合入 `main`，环境配置及合并本身不触发 Android 发布。
 
 ## 清单与服务器托管
 
