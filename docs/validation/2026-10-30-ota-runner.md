@@ -1,6 +1,6 @@
 # 2026-10-30 Runner OTA 发布
 
-目标：使用已有服务器 Runner 发布正式 0.2.3 / 5，供平板从 OTA 更新；不使用 USB 安装。
+目标：使用已有服务器 Runner 发布正式 0.2.3 / 5，供用户当前 0.2.2 / 4 平板从 OTA 更新；不使用 USB 安装。
 
 ## 原因与变更
 
@@ -16,4 +16,7 @@
 
 ## 远端与平板
 
-待记录实际 main CI 构建、Runner 发布及公开 HTTP 下载结果。平板 OTA 安装与数据保留待实测，不能由服务器发布成功推断。
+- [PR #15](https://github.com/ma-jiale/Pillxai/pull/15) 检查通过并合入 main，正式构建源码为 `1b097902dd9b124d6d71bed9db57dc6d80bba15c`。
+- [V2 Server CI and CD](https://github.com/ma-jiale/Pillxai/actions/runs/41007624230) 成功；公开就绪接口 HTTP 200、`status=ready`，服务版本对应上述提交。
+- [Android Client Release #2](https://github.com/ma-jiale/Pillxai/actions/runs/41013305963) 已实际触发 `0.2.3 / 5`；工具链准备、客户端检查/测试和执行模块 74 项测试通过，签名 APK 构建进行中。
+- 平板 OTA 安装与数据保留待实测；当前没有 ADB 连接，不能由服务器发布成功推断设备安装成功。
