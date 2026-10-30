@@ -1,3 +1,4 @@
+import 'support/navigation.dart';
 import 'support/tasks.dart';
 
 import 'dart:io';
@@ -9,7 +10,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pillxai_client/main.dart';
 import 'package:pillxai_client/models/demo_model.dart';
+import 'package:pillxai_client/models/preparation_plan.dart';
 import 'package:pillxai_client/widgets/profile_avatar.dart';
+
+class _VisualModel extends DemoModel {
+  _VisualModel() : super(autoTick: false);
+
+  @override
+  PreparationPlan planFor(Resident resident, {int days = 7, DateTime? now}) =>
+      super.planFor(resident, days: days, now: DateTime(2026, 10, 27));
+}
 
 void main() {
   setUpAll(() async {
@@ -33,7 +43,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      final model = DemoModel(autoTick: false);
+      final model = _VisualModel();
       addTearDown(model.dispose);
       const root = ValueKey('capture-root');
       await tester.pumpWidget(
@@ -120,7 +130,9 @@ void main() {
       await capture('pattern');
       await expectLater(
         find.byKey(root),
-        matchesGoldenFile('goldens/approved-${size.width.toInt()}-pattern.png'),
+        matchesGoldenFile(
+          'goldens/sidebar-2026-10-30-${size.width.toInt()}-pattern.png',
+        ),
       );
       expect(find.text('计划 · 1 点 = 1 颗'), findsNothing);
       expect(
@@ -143,7 +155,7 @@ void main() {
         ),
         titleOrigin,
       );
-      await tester.tap(find.byKey(const ValueKey('nav-2')));
+      await openSettings(tester);
       await tester.pumpAndSettle();
       await capture('settings');
       expect(
@@ -161,7 +173,7 @@ void main() {
       await expectLater(
         find.byKey(root),
         matchesGoldenFile(
-          'goldens/approved-${size.width.toInt()}-execution.png',
+          'goldens/sidebar-2026-10-30-${size.width.toInt()}-execution.png',
         ),
       );
       final currentBounds = tester.getRect(

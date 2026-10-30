@@ -13,6 +13,7 @@ class WorkspaceSidebar extends StatelessWidget {
     required this.selected,
     required this.onSelect,
     required this.compact,
+    required this.onToggle,
     required this.onSignOut,
     this.displayName = '管理员',
     this.roleLabel = '管理员',
@@ -20,12 +21,14 @@ class WorkspaceSidebar extends StatelessWidget {
   final int selected;
   final ValueChanged<int> onSelect;
   final bool compact;
+  final VoidCallback onToggle;
   final VoidCallback onSignOut;
   final String displayName;
   final String roleLabel;
 
   @override
   Widget build(BuildContext context) => Container(
+    key: const ValueKey('workspace-sidebar'),
     width: compact ? 76 : 232,
     decoration: BoxDecoration(
       color: selected == 2 ? AppPage.navigationBackground : Colors.white,
@@ -42,20 +45,43 @@ class WorkspaceSidebar extends StatelessWidget {
               children: [
                 Padding(
                   padding: EdgeInsets.symmetric(
-                    vertical: compact ? 24 : 32,
-                    horizontal: compact ? 10 : 32,
+                    vertical: 24,
+                    horizontal: compact ? 13 : 14,
                   ),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Text(
-                      'Pillxai',
-                      textAlign: compact ? TextAlign.center : TextAlign.left,
-                      style: TextStyle(
-                        fontSize: compact ? 14 : 20,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -.8,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (!compact)
+                        const Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(left: 10),
+                            child: Text(
+                              'Pillxai',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -.8,
+                              ),
+                            ),
+                          ),
+                        ),
+                      IconButton(
+                        key: const ValueKey('toggle-sidebar'),
+                        tooltip: compact ? '展开侧栏' : '收起侧栏',
+                        constraints: const BoxConstraints.tightFor(
+                          width: 48,
+                          height: 48,
+                        ),
+                        onPressed: onToggle,
+                        icon: Icon(
+                          compact
+                              ? Icons.chevron_right_rounded
+                              : Icons.chevron_left_rounded,
+                          size: 21,
+                          color: const Color(0xff777777),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 48),
@@ -63,7 +89,6 @@ class WorkspaceSidebar extends StatelessWidget {
                 const SizedBox(height: 12),
                 _item(0, Icons.article_outlined, '处方管理'),
                 const Spacer(),
-                _item(2, Icons.settings_outlined, '设置'),
                 _accountMenu(),
               ],
             ),
@@ -87,23 +112,28 @@ class WorkspaceSidebar extends StatelessWidget {
             size: 32,
           ),
           SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                displayName,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-              SizedBox(height: 3),
-              Text(
-                roleLabel,
-                style: TextStyle(fontSize: 11, color: Color(0xff858585)),
-              ),
-            ],
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  roleLabel,
+                  style: TextStyle(fontSize: 11, color: Color(0xff858585)),
+                ),
+              ],
+            ),
           ),
         ],
       ),
-      actions: [AppMenuAction('退出当前用户', onSignOut, icon: Icons.logout_rounded)],
+      actions: [
+        AppMenuAction('设置', () => onSelect(2), icon: Icons.settings_outlined),
+        AppMenuAction('退出当前用户', onSignOut, icon: Icons.logout_rounded),
+      ],
       child: Padding(
         padding: EdgeInsets.zero,
         child: Row(
@@ -153,62 +183,59 @@ class WorkspaceSidebar extends StatelessWidget {
     final color = active ? const Color(0xff242424) : const Color(0xff777777);
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 12),
-      child: Semantics(
-        selected: active,
-        child: Material(
-          color: active ? const Color(0xffefeff1) : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          child: InkWell(
-            key: ValueKey('nav-$index'),
+      child: Tooltip(
+        message: compact ? label : '',
+        child: Semantics(
+          label: compact ? label : null,
+          button: true,
+          selected: active,
+          child: Material(
+            color: active ? const Color(0xffefeff1) : Colors.transparent,
             borderRadius: BorderRadius.circular(16),
-            overlayColor: const WidgetStatePropertyAll(Color(0x08000000)),
-            onTap: () => onSelect(index),
-            child: Container(
-              constraints: BoxConstraints(minHeight: compact ? 72 : 56),
-              width: double.infinity,
-              padding: compact
-                  ? const EdgeInsets.symmetric(vertical: 8)
-                  : const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Flex(
-                mainAxisSize: MainAxisSize.min,
-                direction: compact ? Axis.vertical : Axis.horizontal,
-                mainAxisAlignment: compact
-                    ? MainAxisAlignment.center
-                    : MainAxisAlignment.start,
-                children: [
-                  if (index == 1)
-                    SvgPicture.asset(
-                      'assets/icons/capsule.svg',
-                      width: 22,
-                      height: 22,
-                      excludeFromSemantics: true,
-                    )
-                  else
-                    Icon(icon, size: 22, color: color),
-                  SizedBox(height: compact ? 9 : 0, width: compact ? 0 : 14),
-                  if (compact)
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: compact ? 11 : 14,
-                        color: color,
-                        fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                      ),
-                    )
-                  else
-                    Flexible(
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: color,
-                          fontWeight: active
-                              ? FontWeight.w600
-                              : FontWeight.w400,
+            child: InkWell(
+              key: ValueKey('nav-$index'),
+              borderRadius: BorderRadius.circular(16),
+              overlayColor: const WidgetStatePropertyAll(Color(0x08000000)),
+              onTap: () => onSelect(index),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 56),
+                width: double.infinity,
+                padding: compact
+                    ? const EdgeInsets.symmetric(vertical: 8)
+                    : const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Flex(
+                  mainAxisSize: MainAxisSize.min,
+                  direction: Axis.horizontal,
+                  mainAxisAlignment: compact
+                      ? MainAxisAlignment.center
+                      : MainAxisAlignment.start,
+                  children: [
+                    if (index == 1)
+                      SvgPicture.asset(
+                        'assets/icons/capsule.svg',
+                        width: 22,
+                        height: 22,
+                        excludeFromSemantics: true,
+                      )
+                    else
+                      Icon(icon, size: 22, color: color),
+                    if (!compact) ...[
+                      const SizedBox(width: 14),
+                      Flexible(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: color,
+                            fontWeight: active
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                    ],
+                  ],
+                ),
               ),
             ),
           ),

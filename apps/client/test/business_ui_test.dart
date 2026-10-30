@@ -1,3 +1,4 @@
+import 'support/navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -83,7 +84,7 @@ void main() {
     final model = DemoModel(autoTick: false);
     addTearDown(model.dispose);
     await tester.pumpWidget(PillxaiApp(model: model, initiallySignedIn: true));
-    await tester.tap(find.byKey(const ValueKey('nav-2')));
+    await openSettings(tester);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('settings-appearance')));
     await tester.pumpAndSettle();
@@ -105,7 +106,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('nav-0')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('nav-2')));
+    await openSettings(tester);
     await tester.pumpAndSettle();
     expect(tester.widget<Switch>(autoUpdate).value, isFalse);
     final check = find.byKey(const ValueKey('check-for-updates'));

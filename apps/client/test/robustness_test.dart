@@ -1,3 +1,4 @@
+import 'support/navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -177,7 +178,7 @@ void main() {
 
   testWidgets('白色强调色保留填充原色，文字按钮仍清楚可读', (tester) async {
     await openApp(tester);
-    await tap(tester, find.byKey(const ValueKey('nav-2')));
+    await openSettings(tester);
     await tap(tester, find.byKey(const ValueKey('settings-appearance')));
     await tester.enterText(
       find.byKey(const ValueKey('custom-accent-input')),
@@ -242,9 +243,9 @@ void main() {
     await openApp(tester, size: const Size(390, 844));
     expect(
       tester.getSize(find.byKey(const ValueKey('nav-0'))).height,
-      greaterThan(72),
+      greaterThanOrEqualTo(48),
     );
-    await tap(tester, find.byKey(const ValueKey('nav-2')));
+    await openSettings(tester);
     expect(find.text('设置'), findsWidgets);
     expect(tester.takeException(), isNull);
   });

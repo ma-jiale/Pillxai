@@ -1,3 +1,4 @@
+import 'support/navigation.dart';
 import 'support/tasks.dart';
 
 import 'package:flutter/material.dart';
@@ -33,11 +34,15 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('confirm-dispense')));
     model.advance();
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('toggle-sidebar')));
+    await tester.pumpAndSettle();
+    expect(model.stage, DispenseStage.running);
+    expect(model.count, 1);
     await tester.tap(find.byKey(const ValueKey('nav-0')));
     await tester.pumpAndSettle();
     expect(find.text('王奶奶'), findsWidgets);
     expect(model.count, 1);
-    await tester.tap(find.byKey(const ValueKey('nav-2')));
+    await openSettings(tester);
     await tester.pumpAndSettle();
     expect(model.stage, DispenseStage.running);
     await tester.tap(find.byKey(const ValueKey('nav-1')));
@@ -147,7 +152,11 @@ void main() {
       );
       await tester.pumpAndSettle();
       for (final page in [0, 1, 2]) {
-        await tester.tap(find.byKey(ValueKey('nav-$page')));
+        if (page == 2) {
+          await openSettings(tester);
+        } else {
+          await tester.tap(find.byKey(ValueKey('nav-$page')));
+        }
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: '$size, page $page');
       }
@@ -227,7 +236,7 @@ void main() {
     final model = DemoModel(autoTick: false);
     addTearDown(model.dispose);
     await tester.pumpWidget(PillxaiApp(model: model, initiallySignedIn: true));
-    await tester.tap(find.byKey(const ValueKey('nav-2')));
+    await openSettings(tester);
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('settings-search')), '睡前');
     await tester.pumpAndSettle();
@@ -278,7 +287,7 @@ void main() {
       await tester.pumpWidget(
         PillxaiApp(model: model, initiallySignedIn: true),
       );
-      await tester.tap(find.byKey(const ValueKey('nav-2')));
+      await openSettings(tester);
       await tester.pumpAndSettle();
       final days = find.byKey(const ValueKey('preparation-days'));
       await tester.ensureVisible(days);

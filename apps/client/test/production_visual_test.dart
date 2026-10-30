@@ -1,3 +1,4 @@
+import 'support/navigation.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -133,7 +134,7 @@ void main() {
         title,
       );
       await capture('prescriptions');
-      await tap(find.byKey(const ValueKey('nav-2')));
+      await openSettings(tester);
       expect(find.text('已连接'), findsNothing);
       await capture('settings');
       await tap(find.byKey(const ValueKey('nav-1')));

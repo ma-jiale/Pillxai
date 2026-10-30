@@ -18,7 +18,7 @@ import 'screens/connected_workspace.dart';
 import 'models/prescription_store.dart';
 import 'theme/app_theme.dart';
 import 'theme/app_page.dart';
-import 'widgets/workspace_sidebar.dart';
+import 'widgets/workspace_layout.dart';
 import 'widgets/workspace_header.dart';
 import 'data/backend_connection.dart';
 import 'data/terminal_host.dart';
@@ -114,23 +114,17 @@ class _PillxaiAppState extends State<PillxaiApp> {
 
     return Scaffold(
       body: SafeArea(
-        child: Row(
-          children: [
-            WorkspaceSidebar(
-              selected: page,
-              compact: bounds.maxWidth < 600,
-              onSignOut: () => _signOut(context),
-              onSelect: (value) => setState(() => page = value),
-            ),
-            Expanded(
-              child: Column(
-                children: [
-                  if (page != 2) _buildHeader(context, bounds.maxWidth),
-                  Expanded(child: _buildPages(context)),
-                ],
-              ),
-            ),
-          ],
+        child: WorkspaceLayout(
+          selected: page,
+          narrow: bounds.maxWidth < 600,
+          onSignOut: () => _signOut(context),
+          onSelect: (value) => setState(() => page = value),
+          child: Column(
+            children: [
+              if (page != 2) _buildHeader(context, bounds.maxWidth),
+              Expanded(child: _buildPages(context)),
+            ],
+          ),
         ),
       ),
     );
