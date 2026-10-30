@@ -1,5 +1,6 @@
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,7 +14,7 @@ def releases(tmp_path):
     app = create_app(
         Settings("postgresql+psycopg://unused@localhost/unused", client_releases_directory=tmp_path)
     )
-    with TestClient(app) as client:
+    with TestClient(app, raise_server_exceptions=False) as client:
         yield client, tmp_path
 
 
@@ -43,6 +44,28 @@ def test_unpublished_is_explicit(releases):
     response = client.get("/releases/android")
     assert response.json() == {"api_compatibility": 1, "release": None}
     assert response.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.parametrize("endpoint", ["/releases/android", "/releases/android/packages/unknown"])
+def test_unreadable_release_directory_reports_unavailable(releases, monkeypatch, endpoint):
+    client, directory = releases
+    original = Path.stat
+
+    def denied(path, *args, **kwargs):
+        if path == directory / "current.json":
+            raise PermissionError("Container cannot traverse the release directory")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", denied)
+    response = client.get(endpoint)
+    assert response.status_code == 503
+    assert response.json() == {"detail": "应用发布信息暂不可用。"}
+
+
+def test_missing_configured_directory_is_not_an_unpublished_release(releases):
+    client, directory = releases
+    directory.rmdir()
+    assert client.get("/releases/android").status_code == 503
 
 
 def test_release_and_package_match_without_database(releases):

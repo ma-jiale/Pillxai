@@ -165,6 +165,9 @@ def compose(root, release, *arguments, **kwargs):
     if client_releases.is_symlink():
         raise ValueError("Client releases must not redirect outside this deployment")
     client_releases.mkdir(mode=0o755, exist_ok=True)
+    # mkdir respects umask (the CLI uses 077) and leaves existing modes unchanged.
+    # The API's separate UID needs access to this public, read-only bind mount.
+    client_releases.chmod(0o755)
     return run(
         [
             "docker",

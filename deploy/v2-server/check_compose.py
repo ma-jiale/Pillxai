@@ -5,6 +5,7 @@ import os
 import socket
 import sys
 import tempfile
+import urllib.request
 from pathlib import Path
 from unittest.mock import patch
 
@@ -21,11 +22,18 @@ def check(artifact, revision):
         listener.bind(("127.0.0.1", 0))
         port = listener.getsockname()[1]
     (root / "shared/server.env").write_text(f"V2_PORT={port}\nV2_ROOT_PATH=/dispenser-v2\n")
+    update_url = f"http://127.0.0.1:{port}/releases/android"
     try:
         # The surrounding workflow already checked out the exact CI commit.
         # No production command has this bypass; only this disposable integration test.
-        with patch.object(manage, "verify_branch"):
-            manage.deploy(root, artifact, revision, "ci/fixture", "main")
+        previous_umask = os.umask(0o077)
+        try:
+            with patch.object(manage, "verify_branch"):
+                manage.deploy(root, artifact, revision, "ci/fixture", "main")
+        finally:
+            os.umask(previous_umask)
+        with urllib.request.urlopen(update_url, timeout=10) as response:
+            assert json.load(response) == {"api_compatibility": 1, "release": None}
         release = manage.current_release(root)
         assert manage.sql(root, release, "SELECT count(*) FROM accounts") == "1"
         assert (
@@ -45,8 +53,12 @@ def check(artifact, revision):
         ).stdout.strip()
         # A second update must preserve credentials/data and validate PostgreSQL ownership.
         before = (root / "shared/initial-admin.json").read_bytes()
+        # Upgrade must also repair a directory created by the previous deployment script.
+        (root / "shared/client-releases").chmod(0o700)
         with patch.object(manage, "verify_branch"):
             manage.deploy(root, artifact, revision, "ci/fixture", "main")
+        with urllib.request.urlopen(update_url, timeout=10) as response:
+            assert json.load(response) == {"api_compatibility": 1, "release": None}
         assert (root / "shared/initial-admin.json").read_bytes() == before
         release = manage.current_release(root)
         assert (
