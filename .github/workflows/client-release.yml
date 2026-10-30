@@ -94,12 +94,30 @@ jobs:
           test -n "$SIGNING_BASE64"
           test -n "$SIGNING_CERT_SHA256"
           printf '%s' "$SIGNING_BASE64" | base64 --decode > "$PILLXAI_SIGNING_STORE"
+          # Check the configured keystore before spending time on the Android build.
+          python - <<'PY'
+          import os, re, subprocess
+          certificate = subprocess.run([
+              os.environ['JAVA_HOME'] + '/bin/keytool', '-J-Duser.language=en',
+              '-list', '-v', '-keystore', os.environ['PILLXAI_SIGNING_STORE'],
+              '-alias', os.environ['PILLXAI_SIGNING_KEY_ALIAS'],
+              '-storepass:env', 'PILLXAI_SIGNING_STORE_PASSWORD',
+          ], check=True, capture_output=True, text=True).stdout
+          actual = re.search(r'SHA256: ([0-9A-Fa-f:]+)', certificate)
+          actual = actual[1].replace(':', '').lower() if actual else None
+          expected = os.environ['SIGNING_CERT_SHA256'].lower()
+          print('Keystore certificate SHA-256:', actual)
+          print('Expected certificate SHA-256:', expected)
+          assert actual == expected, 'CI keystore does not match the production certificate'
+          PY
           cd apps/client
           ../../.tools/flutter/bin/flutter build apk --release --no-pub \
             --build-name="$VERSION_NAME" --build-number="$VERSION_CODE" \
             --dart-define="PILLXAI_API_URL=$API_URL"
           cd ../..
-          BUILD_TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          # Match the locally verified stable verifier; never select an installed preview.
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs apps/client/build/app/outputs/flutter-apk/app-release.apk
           python scripts/publish-client-release.py \
             --apk apps/client/build/app/outputs/flutter-apk/app-release.apk \
             --output release/android --notes "$NOTES_FILE" \
