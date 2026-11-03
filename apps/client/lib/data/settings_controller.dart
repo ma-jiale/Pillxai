@@ -27,6 +27,7 @@ class SettingsController extends ChangeNotifier implements SettingsStore {
   bool get bedtime => _draft.bedtimeEnabled;
   @override
   bool get startTomorrow => _draft.startTomorrow;
+  api.AppSettings get saved => _saved;
 
   @override
   Future<void> saveSettings({
@@ -34,6 +35,8 @@ class SettingsController extends ChangeNotifier implements SettingsStore {
     required bool split,
     required bool night,
     required bool tomorrow,
+    List<int>? boxSlotOrder,
+    int? expectedRevision,
   }) async {
     if (!canSaveRules) throw const SaveFailure('当前无法修改设置。');
     _draft = _draft.copyWith(
@@ -48,7 +51,8 @@ class SettingsController extends ChangeNotifier implements SettingsStore {
       final result = await backend.request(
         backend.settingsApi.saveSettings(
           api.SaveSettings(
-            expectedRevision: _saved.revision,
+            expectedRevision: expectedRevision ?? _saved.revision,
+            boxSlotOrder: boxSlotOrder,
             preparationDays: days,
             splitMeals: split,
             bedtimeEnabled: night,

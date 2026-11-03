@@ -239,7 +239,7 @@ void main() {
       expect(find.byKey(const ValueKey('settings-search')), findsOneWidget);
       expect(find.text('准备周期'), findsOneWidget);
       expect(find.text('药盒布局'), findsOneWidget);
-      expect(find.text('实体位置映射'), findsOneWidget);
+      expect(find.text('药盒格位顺序'), findsOneWidget);
       expect(find.text('设置映射'), findsOneWidget);
       expect(
         tester

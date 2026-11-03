@@ -3,6 +3,7 @@ import 'package:pillxai_api_client/api.dart' as api;
 
 import 'app_menu.dart';
 import 'medicine_pattern.dart';
+import '../models/pillbox_layout.dart';
 
 /// Adapts immutable server counts; does not recompute doses.
 class ServerPlanPattern extends StatefulWidget {
@@ -18,6 +19,7 @@ class _ServerPlanPatternState extends State<ServerPlanPattern> {
   Widget build(BuildContext context) {
     final snapshot = widget.snapshot;
     final tray = snapshot.trays[trayIndex];
+    final order = snapshot.settings.visibleBoxOrder;
     return MedicinePatternDialog(
       key: ValueKey(trayIndex),
       traySelector: snapshot.trays.length < 2
@@ -40,7 +42,7 @@ class _ServerPlanPatternState extends State<ServerPlanPattern> {
         days: snapshot.dates.length,
         dates:
             '${snapshot.dates.first.year}/${snapshot.dates.first.month}/${snapshot.dates.first.day} — ${snapshot.dates.last.year}/${snapshot.dates.last.month}/${snapshot.dates.last.day}',
-        slots: snapshot.slots,
+        slots: [for (final slot in order) snapshot.slots[slot]],
         medicines: [
           for (final medicine in tray.medicines)
             MedicinePatternItem(
@@ -50,7 +52,10 @@ class _ServerPlanPatternState extends State<ServerPlanPattern> {
                   ? '人工预切半片'
                   : '整片／整粒',
               target: medicine.totalParticles,
-              particles: medicine.particles,
+              particles: [
+                for (final day in medicine.particles)
+                  [for (final slot in order) day[slot]],
+              ],
             ),
         ],
       ),

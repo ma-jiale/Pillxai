@@ -26,7 +26,7 @@ import 'prescriptions_page.dart';
 import 'settings_page.dart';
 import 'plan_preview_page.dart';
 import 'terminal_device_dialog.dart';
-import 'device_mapping_dialog.dart';
+import 'pillbox_layout_dialog.dart';
 import 'terminal_execution_panel.dart';
 import 'workspace_lifecycle.dart';
 
@@ -357,7 +357,7 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
                         onConfigureMapping: () => showDialog<void>(
                           context: context,
                           builder: (_) =>
-                              DeviceMappingDialog(terminal: terminal!),
+                              PillboxLayoutDialog(settings: settings!),
                         ),
                       ),
                     ],

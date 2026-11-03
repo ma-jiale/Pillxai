@@ -7,6 +7,7 @@ import '../data/terminal_controller.dart';
 import 'prepare_execution_dialog.dart';
 import 'terminal_device_dialog.dart';
 import '../models/prescription_controller.dart';
+import '../models/pillbox_layout.dart';
 import '../models/prescription_store.dart';
 import '../theme/app_page.dart';
 import '../widgets/preparation_confirmation.dart';
@@ -16,6 +17,11 @@ import '../widgets/preparation_list.dart';
 import 'task_history_dialog.dart';
 import '../widgets/prescription_forms.dart' show formatDate;
 import '../widgets/server_plan_pattern.dart';
+
+String _doseLabel(api.DoseAmounts doses, int slot) {
+  final value = [doses.morning, doses.noon, doses.evening, doses.night][slot];
+  return num.tryParse(value) == 0 ? '—' : value;
+}
 
 /// Queue classification is supplied by the server, including actual coverage.
 class PlanPreviewPage extends StatefulWidget {
@@ -470,14 +476,8 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
                   '${medicine.prescription.data.feedForm == api.FeedForm.half ? '人工预切半片' : '整片／整粒'}'
                   '${snapshot.trays.length > 1 ? ' · ${tray.purpose}' : ''}',
               doses: [
-                for (final value in [
-                  medicine.prescription.data.doses.morning,
-                  medicine.prescription.data.doses.noon,
-                  medicine.prescription.data.doses.evening,
-                  if (snapshot.settings.bedtimeEnabled)
-                    medicine.prescription.data.doses.night,
-                ])
-                  num.tryParse(value) == 0 ? '—' : value,
+                for (final slot in snapshot.settings.visibleBoxOrder)
+                  _doseLabel(medicine.prescription.data.doses, slot),
               ],
               total: '${medicine.totalParticles}颗',
               details:
@@ -560,10 +560,8 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
               child: PreparationMedicineTable(
                 rows: rows,
                 slots: [
-                  '早',
-                  '午',
-                  '晚',
-                  if (snapshot.settings.bedtimeEnabled) '睡前',
+                  for (final slot in snapshot.settings.visibleBoxOrder)
+                    snapshot.slots[slot],
                 ],
               ),
             ),

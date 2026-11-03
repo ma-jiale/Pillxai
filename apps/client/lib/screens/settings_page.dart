@@ -504,8 +504,8 @@ class _SettingsPageState extends State<SettingsPage> {
       _SettingItem(
         _Category.general,
         '药盒布局',
-        '实体位置映射',
-        '设置当前机器的时段行位置和日期列方向。',
+        '药盒格位顺序',
+        '从上到下设置各排时段，应用到所有摆药机的新计划。',
         OutlinedButton(
           onPressed: widget.onConfigureMapping,
           child: const Text('设置映射'),
