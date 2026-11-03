@@ -7,7 +7,7 @@ import 'package:pillxai_client/data/terminal_controller.dart';
 import 'package:pillxai_client/screens/device_mapping_dialog.dart';
 
 import 'connected_prescriptions_test.dart' show connection, jsonResponse;
-import 'terminal_ui_test.dart' show FakeHost;
+import 'terminal_ui_test.dart' show FakeHost, snapshot;
 
 void main() {
   for (final size in [const Size(1280, 900), const Size(390, 844)]) {
@@ -27,7 +27,7 @@ void main() {
             terminalId: 'terminal',
             mode: api.DeviceMode.hardware,
             rows: [2, 1, 0, 3],
-            positionsVerified: true,
+            positionsVerified: false,
             trayPresentLine: 'PRESENT',
             trayAbsentLine: 'ABSENT',
             readyLine: 'READY',
@@ -69,6 +69,12 @@ void main() {
             'configuration': {'device_id': original.id},
             'state': {'connected': true},
           };
+        final plan = api.PlanSnapshot.fromJson(snapshot()['task']['plan'])!;
+        await terminal.claim(plan);
+        expect(terminal.error, contains('实体位置映射'));
+        expect(terminal.active, false);
+        expect(host.operations, isEmpty);
+        expect(writes, 0);
         await tester.pumpWidget(
           MaterialApp(home: DeviceMappingDialog(terminal: terminal)),
         );
@@ -92,6 +98,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('保存映射'));
         await tester.pumpAndSettle();
+        expect(terminal.needsPositionMapping, false);
         expect(writes, 1);
         expect(terminal.device!.configuration.rows, [1, 2, 0, 3]);
         expect(terminal.connected, true);
@@ -116,6 +123,7 @@ void main() {
           ),
           throwsA(isA<Exception>()),
         );
+        expect(terminal.needsPositionMapping, false);
         expect(writes, 1);
         await tester.pumpWidget(const SizedBox());
         terminal.dispose();

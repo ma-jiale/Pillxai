@@ -4,6 +4,24 @@ import 'package:pillxai_api_client/api.dart' as api;
 import '../data/terminal_controller.dart';
 import '../widgets/app_menu.dart';
 
+class RequiredMappingAction extends StatelessWidget {
+  const RequiredMappingAction({super.key, required this.terminal});
+  final TerminalController terminal;
+
+  @override
+  Widget build(BuildContext context) => terminal.canMaintain
+      ? FilledButton(
+          onPressed: terminal.busy || terminal.active
+              ? null
+              : () => showDialog<void>(
+                  context: context,
+                  builder: (_) => DeviceMappingDialog(terminal: terminal),
+                ),
+          child: const Text('核对实体位置映射'),
+        )
+      : const Text('请联系有维护权限的人员核对当前设备的实体位置映射。');
+}
+
 class DeviceMappingDialog extends StatefulWidget {
   const DeviceMappingDialog({super.key, required this.terminal});
   final TerminalController terminal;

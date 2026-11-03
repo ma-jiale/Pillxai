@@ -13,6 +13,7 @@ class ConnectionHost extends FakeHost {
   ConnectionHost(super.value);
   Map<String, dynamic>? connectedConfiguration;
   bool failPair = false;
+  bool failConnect = false;
   @override
   Future<dynamic> command(
     String operation, [
@@ -37,6 +38,7 @@ class ConnectionHost extends FakeHost {
       events.add(value);
     }
     if (operation == 'connect') {
+      if (failConnect) throw StateError('连接失败');
       connectedConfiguration = Map<String, dynamic>.from(
         value['configuration'] as Map,
       );
@@ -111,7 +113,64 @@ void main() {
     await host.close();
     backend.dispose();
   });
-  for (final failure in ['none', 'pair', 'save']) {
+  testWidgets('Windows 添加蓝牙设备后自动连接并返回我的设备', (tester) async {
+    final devices = <Map<String, dynamic>>[];
+    final backend =
+        connection((request) async {
+            if (request.method == 'PUT') {
+              final body = jsonDecode(request.body) as Map;
+              expect(body['configuration']['identity'], '00:25:11:01:13:92');
+              devices.add({
+                'id': request.url.pathSegments.last,
+                'revision': 1,
+                'configuration': body['configuration'],
+              });
+              return jsonResponse(devices.single);
+            }
+            return jsonResponse(devices);
+          })
+          ..account = api.AccountView(
+            id: 'owner',
+            username: 'admin',
+            displayName: '管理员',
+            role: api.Role.admin,
+            canMaintain: true,
+            active: true,
+            revision: 1,
+          );
+    final host = ConnectionHost({
+      'platform': 'windows',
+      'terminal_id': 'terminal',
+      'ports': [
+        {
+          'address': 'COM7',
+          'identity': '00:25:11:01:13:92',
+          'name': 'PillDispenser01',
+          'transport': 'bluetooth',
+        },
+      ],
+    });
+    final terminal = TerminalController(backend, host);
+    await terminal.initialize();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: TerminalDeviceDialog(terminal: terminal)),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('add-device')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('添加'));
+    await tester.pumpAndSettle();
+    expect(terminal.localDevices.single.configuration.name, 'PillDispenser01');
+    expect(find.text('设备配置'), findsNothing);
+    expect(find.text('我的设备'), findsOneWidget);
+    expect(host.connectedConfiguration?['port'], 'COM7');
+    await tester.pumpWidget(const SizedBox());
+    terminal.dispose();
+    await host.close();
+    backend.dispose();
+  });
+  for (final failure in ['none', 'pair', 'save', 'connect']) {
     testWidgets('add unpaired device pairs, persists and connects: $failure', (
       tester,
     ) async {
@@ -165,11 +224,14 @@ void main() {
               active: true,
               revision: 1,
             );
-      final host = ConnectionHost({
-        'platform': 'android',
-        'terminal_id': 'terminal',
-        'state': {'connected': false, 'phase': 'idle'},
-      })..failPair = failure == 'pair';
+      final host =
+          ConnectionHost({
+              'platform': 'android',
+              'terminal_id': 'terminal',
+              'state': {'connected': false, 'phase': 'idle'},
+            })
+            ..failPair = failure == 'pair'
+            ..failConnect = failure == 'connect';
       final terminal = TerminalController(backend, host);
       await terminal.initialize();
       await tester.pumpWidget(
@@ -200,6 +262,10 @@ void main() {
         expect(terminal.localDevices.single.id, 'shared-device');
         expect(find.text('我的设备'), findsOneWidget);
         expect(find.text('设备诊断'), findsNothing);
+      } else if (failure == 'connect') {
+        expect(find.text('我的设备'), findsOneWidget);
+        expect(terminal.localDevices.single.id, 'shared-device');
+        expect(terminal.error, contains('连接失败'));
       } else {
         expect(terminal.localDevices, isEmpty);
         expect(host.operations, isNot(contains('connect')));

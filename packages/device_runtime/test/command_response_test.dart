@@ -45,12 +45,38 @@ void main() {
     await engine.tick();
   }
 
-  Future<void> running() async {
-    final task = fixture(journal.terminalId);
+  Future<void> running({int batches = 2}) async {
+    final task = fixture(journal.terminalId, batches: batches);
     await engine.attach(task);
     await until(engine, () => engine.state.phase == ExecutionPhase.ready);
     await engine.begin(task.copyWith(state: api.TaskState.started));
     await until(engine, () => engine.state.phase == ExecutionPhase.running);
+  }
+
+  for (final acknowledgeStop in [true, false]) {
+    test('final FINISH gates collection on stop ACK: $acknowledgeStop', () async {
+      await running(batches: 1);
+      final before = machine.writes.length;
+      machine.omitAck = true;
+      machine.emit('number:2,width:20');
+      machine.emit('machine_state:FINISH');
+      await advance(0);
+      expect(machine.writes.skip(before).single, [0xaa, 0xbb, 8, 0, 0, 0, 0, 0, 8, 0]);
+      machine.emit('DONE');
+      await advance(0);
+      expect(machine.writes.length, before + 1);
+      if (acknowledgeStop) {
+        machine.emit('ACK');
+        await advance(0);
+        expect(machine.writes.last[2], 3);
+      } else {
+        for (var attempt = 0; attempt < 6; attempt++) {
+          await advance(200);
+        }
+        expect(engine.state.phase, ExecutionPhase.recovery);
+        expect(machine.writes.skip(before).any((bytes) => bytes[2] == 3), isFalse);
+      }
+    });
   }
 
   test('ordinary command: 200ms per attempt, exactly six sends, then one durable loss notice', () async {

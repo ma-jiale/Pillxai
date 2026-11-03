@@ -3,7 +3,6 @@ import 'package:pillxai_api_client/api.dart' as api;
 
 import '../data/terminal_controller.dart';
 import 'device_mapping_dialog.dart';
-import '../widgets/dispenser_icon.dart';
 import '../widgets/device_panel.dart';
 import '../widgets/app_menu.dart';
 
@@ -189,16 +188,7 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
         if (devices.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 80),
-            child: Column(
-              children: [
-                DispenserIcon(size: 64, color: Color(0xffaaaaaa)),
-                SizedBox(height: 20),
-                Text(
-                  '还没有添加设备',
-                  style: TextStyle(color: Color(0xff777777), fontSize: 14),
-                ),
-              ],
-            ),
+            child: DeviceEmptyState('还没有添加设备'),
           ),
         for (final device in devices)
           DevicePanelRow(
@@ -260,64 +250,70 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
 
   Widget _searchBody() => ListView(
     children: [
-      DeviceSearchHeading(
-        instructions: terminal.isAndroid
-            ? '请打开摆药机电源并靠近平板，选择设备即可添加。'
-            : '蓝牙设备请靠近终端；USB 设备请插入数据线。',
-        status: terminal.busy
-            ? terminal.deviceSetupStatus ?? '正在搜索摆药机…'
-            : (terminal.isAndroid
-                  ? terminal.nearbyDevices.isEmpty
-                  : terminal.ports.isEmpty)
-            ? '未找到可用设备'
-            : '选择要添加的摆药机',
-      ),
+      if (terminal.isAndroid
+          ? terminal.nearbyDevices.isEmpty
+          : terminal.ports.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 80),
+          child: DeviceEmptyState(
+            terminal.busy ? terminal.deviceSetupStatus ?? '正在搜索摆药机…' : '未发现摆药机',
+          ),
+        )
+      else if (terminal.busy && terminal.deviceSetupStatus != null)
+        Text(terminal.deviceSetupStatus!, textAlign: TextAlign.center),
       if (terminal.busy) const LinearProgressIndicator(minHeight: 2),
       if (terminal.isAndroid)
         for (final candidate in terminal.nearbyDevices)
-          DevicePanelRow(
-            name: candidate['name'] as String,
-            status: candidate['paired'] == true ? '蓝牙' : '未配对 · 蓝牙',
-            actions: [
-              TextButton(
-                onPressed:
-                    terminal.busy || terminal.active || !terminal.canMaintain
-                    ? null
-                    : () async {
-                        await terminal.addBluetoothDevice(
-                          candidate['address'] as String,
-                          candidate['name'] as String,
-                        );
-                        if (mounted &&
-                            terminal.localDevices.any(
-                              (d) =>
-                                  d.configuration.identity ==
-                                  candidate['address'],
-                            )) {
-                          setState(() => _page = 'list');
-                        }
-                      },
-                child: const Text('添加'),
-              ),
-            ],
+          _candidateRow(
+            candidate['address'] as String,
+            candidate['name'] as String,
+            candidate['paired'] == true ? '蓝牙' : '未配对 · 蓝牙',
           ),
       if (!terminal.isAndroid)
         for (final (index, address) in terminal.ports.indexed)
-          DevicePanelRow(
-            name: terminal.portNames[address] ?? '待确认设备 ${index + 1}',
-            status: _transportLabel(terminal.portTransports[address]) ?? '待确认',
-            actions: [
-              TextButton(
-                onPressed:
-                    terminal.busy || terminal.active || !terminal.canMaintain
-                    ? null
-                    : () => _choosePort(address),
-                child: const Text('添加'),
-              ),
-            ],
+          _candidateRow(
+            address,
+            terminal.portNames[address] ?? '未命名设备 ${index + 1}',
+            _transportLabel(terminal.portTransports[address]) ?? '待确认',
           ),
     ],
   );
+
+  Widget _candidateRow(String address, String name, String status) {
+    final identity = terminal.isAndroid
+        ? address
+        : terminal.portIdentities[address];
+    final added = terminal.localDevices.any(
+      (d) => d.configuration.identity.toUpperCase() == identity?.toUpperCase(),
+    );
+    return DevicePanelRow(
+      name: name,
+      status: status,
+      actions: [
+        TextButton(
+          onPressed:
+              added || terminal.busy || terminal.active || !terminal.canMaintain
+              ? null
+              : () async {
+                  if (terminal.isAndroid) {
+                    await terminal.addBluetoothDevice(address, name);
+                  } else {
+                    await terminal.addWindowsDevice(address, name);
+                  }
+                  if (mounted &&
+                      terminal.localDevices.any(
+                        (d) =>
+                            d.configuration.identity.toUpperCase() ==
+                            identity?.toUpperCase(),
+                      )) {
+                    setState(() => _page = 'list');
+                  }
+                },
+          child: Text(added ? '已添加' : '添加'),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(

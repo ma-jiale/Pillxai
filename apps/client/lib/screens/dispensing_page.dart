@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/medicine_image.dart';
 
 import '../widgets/dispensing_medicine_cards.dart';
+import '../widgets/opening_slider.dart';
 
 import '../models/demo_model.dart';
 import '../theme/app_page.dart';
@@ -231,27 +232,9 @@ class DispensingPage extends StatelessWidget {
         ),
         content: SizedBox(
           width: 380,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                '数值越小，开口越大。',
-                style: TextStyle(fontSize: 13, color: Color(0xff777777)),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                model.opening.toStringAsFixed(2),
-                style: const TextStyle(fontSize: 36),
-              ),
-              Slider(
-                value: model.opening,
-                min: 0,
-                max: 1,
-                divisions: 100,
-                label: model.opening.toStringAsFixed(2),
-                onChanged: model.setOpening,
-              ),
-            ],
+          child: OpeningSlider(
+            gate: model.opening,
+            onChanged: model.setOpening,
           ),
         ),
         actions: [

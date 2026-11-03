@@ -783,6 +783,8 @@ class ExecutionEngine {
           _fault('机器报错前的命令尚未确认，不能重发或继续开仓。');
         } else if (_sendAttempts < 6) {
           await _writePending();
+        } else if (state.pending == 'stop_before_open') {
+          _fault('转盘停转未收到应答，已阻止开仓。请现场停机核对。');
         } else {
           _save('command_no_response', {
             'command': state.pending,
@@ -1166,8 +1168,17 @@ class ExecutionEngine {
         _fault('完成反馈与累计计数不一致。');
         return;
       }
+      final next = state.batch + 1;
+      final needsTrayAccess =
+          next == task!.batches.length || task!.batches[next].tray != batch.tray;
+      if (needsTrayAccess) {
+        state.matrixIssued = false;
+        state.phase = ExecutionPhase.stopping;
+        state.message = '本盘摆药结束，等待转盘停转应答。';
+        _nextCommand = 'stop_before_open';
+      }
       _save('batch_finished', {'feedback': event.raw});
-      _advanceBatch();
+      if (!needsTrayAccess) _advanceBatch();
     }
     if (event.kind == DeviceEventKind.batchFinished &&
         state.matrixIssued &&
@@ -1247,6 +1258,10 @@ class ExecutionEngine {
         state.message = '已暂停，请核对跳过范围。';
       case 'stop_skip':
         _nextCommand = 'exit';
+      case 'stop_before_open':
+        _save('command_done', {'command': command});
+        _advanceBatch();
+        return;
       case 'stop_review':
         state.message = '已收到停转确认，正在退出当前药物。';
         _nextCommand = 'exit';
@@ -1348,6 +1363,7 @@ class ExecutionEngine {
       ),
       'matrix' => Stm32Commands.matrix(batch.matrix),
       'pause' ||
+      'stop_before_open' ||
       'stop_cancel' ||
       'pause_skip' ||
       'stop_review' ||

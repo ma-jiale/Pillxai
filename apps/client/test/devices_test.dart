@@ -119,12 +119,14 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('add-device')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('正在查找可用设备…'), findsOneWidget);
+      expect(find.text('正在搜索摆药机…'), findsOneWidget);
       await capture('searching');
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       await capture('results');
       await tapKey('add-PillDispenser01');
+      expect(find.text('我的设备'), findsOneWidget);
+      await tester.pump();
       await capture('added');
       expect(find.text('正在连接… · 蓝牙'), findsOneWidget);
       await tester.pump(const Duration(seconds: 1));
@@ -170,7 +172,7 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('rescan-devices')));
       await tester.tap(find.byKey(const ValueKey('rescan-devices')));
       await tester.pump();
-      expect(find.text('正在查找可用设备…'), findsOneWidget);
+      expect(find.text('正在搜索摆药机…'), findsOneWidget);
       await tester.tap(find.byTooltip('返回我的设备'));
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 2));
@@ -216,6 +218,7 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       await tap('add-$name');
+      await tester.pump();
       await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
     }

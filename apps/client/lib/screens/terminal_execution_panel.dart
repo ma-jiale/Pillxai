@@ -6,6 +6,7 @@ import 'package:pillxai_api_client/api.dart' as api;
 import '../data/terminal_controller.dart';
 import '../widgets/execution_medicine_card.dart';
 import '../widgets/dispensing_medicine_cards.dart';
+import '../widgets/opening_slider.dart';
 import '../widgets/dispenser_icon.dart';
 import 'skip_medicine_dialog.dart';
 import 'motor_stall_dialog.dart';
@@ -303,7 +304,8 @@ class TerminalExecutionPanel extends StatelessWidget {
                               (terminal.state['stalled_motors'] as List? ?? [])
                                   .isNotEmpty ||
                               terminal.state['reset_observed'] == true ||
-                              terminal.state['open_purpose'] == 'counter_review' ||
+                              terminal.state['open_purpose'] ==
+                                  'counter_review' ||
                               terminal.state['matrix_issued'] != true
                           ? null
                           : () async {
@@ -462,22 +464,15 @@ class _GateControlState extends State<_GateControl> {
   }
 
   @override
-  Widget build(BuildContext context) => Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Text('开口刻度 ${value.toStringAsFixed(2)}（数值越小，开口越大）'),
-      Slider(
-        value: value,
-        divisions: 100,
-        onChanged: widget.terminal.busy
-            ? null
-            : (v) {
-                setState(() => value = v);
-                debounce?.cancel();
-                debounce = Timer(const Duration(milliseconds: 400), send);
-              },
-        onChangeEnd: (_) => send(),
-      ),
-    ],
+  Widget build(BuildContext context) => OpeningSlider(
+    gate: value,
+    onChanged: widget.terminal.busy
+        ? null
+        : (v) {
+            setState(() => value = v);
+            debounce?.cancel();
+            debounce = Timer(const Duration(milliseconds: 400), send);
+          },
+    onChangeEnd: send,
   );
 }

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../models/demo_model.dart';
 import '../models/device_preview_model.dart';
-import '../widgets/dispenser_icon.dart';
 import '../widgets/device_panel.dart';
 import '../widgets/device_connection_button.dart';
 
@@ -161,16 +160,7 @@ class _DevicesPageState extends State<DevicesPage> {
   Widget _deviceList() => ListenableBuilder(
     listenable: widget.devices,
     builder: (context, _) => widget.devices.devices.isEmpty
-        ? const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DispenserIcon(size: 64, color: Color(0xffaaaaaa)),
-                SizedBox(height: 20),
-                Text('还没有添加设备', style: TextStyle(color: _muted, fontSize: 14)),
-              ],
-            ),
-          )
+        ? const Center(child: DeviceEmptyState('还没有添加设备'))
         : ListView(
             children: [
               for (final name in widget.devices.devices) _row(name, false),
@@ -179,10 +169,11 @@ class _DevicesPageState extends State<DevicesPage> {
   );
   Widget _searchBody() => ListView(
     children: [
-      DeviceSearchHeading(
-        instructions: '蓝牙设备请靠近终端；USB 设备请插入数据线。',
-        status: _searching ? '正在查找可用设备…' : '选择要添加的摆药机',
-      ),
+      if (_searching || _nearby.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 80),
+          child: DeviceEmptyState(_searching ? '正在搜索摆药机…' : '未发现摆药机'),
+        ),
       if (_searching)
         const Center(
           child: SizedBox(

@@ -133,54 +133,24 @@ class DevicePanelRow extends StatelessWidget {
   );
 }
 
-class DeviceSearchHeading extends StatelessWidget {
-  const DeviceSearchHeading({
-    super.key,
-    required this.instructions,
-    required this.status,
-  });
-  final String instructions;
-  final String status;
+class DeviceEmptyState extends StatelessWidget {
+  const DeviceEmptyState(this.message, {super.key});
+  final String message;
+
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      const SizedBox(height: 24),
-      Container(
-        width: 112,
-        height: 112,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: const Color(0xfff5f5f5),
-          border: Border.all(color: const Color(0xffe9e9e9)),
-        ),
-        child: const Center(child: DispenserIcon(size: 48)),
-      ),
-      const SizedBox(height: 28),
-      const Text(
-        '确保摆药机已开机',
-        textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-      ),
-      const SizedBox(height: 8),
-      Text(
-        instructions,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          fontSize: 12,
-          color: Color(0xff777777),
-          height: 1.6,
-        ),
-      ),
-      const SizedBox(height: 20),
-      Semantics(
-        liveRegion: true,
-        child: Text(
-          status,
+  Widget build(BuildContext context) => Semantics(
+    liveRegion: true,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const DispenserIcon(size: 64, color: Color(0xffaaaaaa)),
+        const SizedBox(height: 20),
+        Text(
+          message,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 12, color: Color(0xff777777)),
+          style: const TextStyle(color: Color(0xff777777), fontSize: 14),
         ),
-      ),
-      const SizedBox(height: 24),
-    ],
+      ],
+    ),
   );
 }

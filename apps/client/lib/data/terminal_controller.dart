@@ -17,6 +17,7 @@ class TerminalController extends ChangeNotifier {
   Map<String, dynamic> view = {};
   List<api.DeviceView> devices = [];
   List<String> ports = [];
+  Map<String, String> portIdentities = {};
   Map<String, String> portNames = {};
   Map<String, String> portTransports = {};
   List<Map<String, dynamic>> nearbyDevices = [];
@@ -39,6 +40,12 @@ class TerminalController extends ChangeNotifier {
   bool get active => task != null || view['claim_intent'] != null;
   bool get identifying => view['identifying'] == true;
   bool get connected => state['connected'] == true;
+  bool get needsPositionMapping {
+    final config = device?.configuration;
+    return config?.mode == api.DeviceMode.hardware &&
+        config!.positionsVerified != true;
+  }
+
   bool get recognized => view['recognized'] == true;
   int get count => state['count'] as int? ?? 0;
   int get pending => view['pending_count'] as int? ?? 0;
@@ -158,17 +165,32 @@ class TerminalController extends ChangeNotifier {
     notifyListeners();
     await host.command('pair_device', {'address': address});
     if (active) throw const SaveFailure('请先完成当前摆药，再添加设备。');
+    await _saveAndConnectCandidate(address, name, address);
+  });
+
+  Future<void> addWindowsDevice(String port, String name) => run(() async {
+    if (active || !canMaintain) return;
+    final identity = portIdentities[port];
+    if (identity == null) throw const SaveFailure('无法识别设备，请重新搜索。');
+    await _saveAndConnectCandidate(identity, name, port);
+  });
+
+  Future<void> _saveAndConnectCandidate(
+    String identity,
+    String name,
+    String port,
+  ) async {
     final existing = devices
         .where(
           (d) =>
-              d.configuration.identity.toUpperCase() == address.toUpperCase(),
+              d.configuration.identity.toUpperCase() == identity.toUpperCase(),
         )
         .firstOrNull;
     await saveDevice(
       existing?.configuration.copyWith(terminalId: terminalId) ??
           api.DeviceConfiguration(
             name: name,
-            identity: address,
+            identity: identity,
             terminalId: terminalId,
             mode: api.DeviceMode.hardware,
             rows: [2, 1, 0, 3],
@@ -180,12 +202,15 @@ class TerminalController extends ChangeNotifier {
             feedbackVerified: false,
             barcodeRemovalCloses: true,
           ),
-      port: address,
+      port: port,
       existing: existing,
     );
+    _accept(Map<String, dynamic>.from(await host.command('view') as Map));
+    deviceSetupStatus = '正在连接 $name…';
+    notifyListeners();
     await host.command('connect');
     _accept(Map<String, dynamic>.from(await host.command('view') as Map));
-  });
+  }
 
   Future<void> run(Future<void> Function() action) async {
     if (busy || _disposed) return;
@@ -207,14 +232,21 @@ class TerminalController extends ChangeNotifier {
     devices = await backend.request(execution.listDevices()) ?? [];
     if (supported) {
       final candidates = await host.command('ports') as List;
+      portIdentities = {};
       portNames = {};
       portTransports = {};
       ports = candidates.map((value) {
         if (value is Map) {
           final address = value['address'] as String;
+          if (value['identity'] case final String identity) {
+            portIdentities[address] = identity;
+          } else if (value['instance'] case final String instance) {
+            portIdentities[address] = 'win:$terminalId:$instance';
+          }
           if (value['name'] is String) portNames[address] = value['name'];
-          if (value['transport'] is String)
+          if (value['transport'] is String) {
             portTransports[address] = value['transport'];
+          }
           return address;
         }
         return value as String;
@@ -309,6 +341,9 @@ class TerminalController extends ChangeNotifier {
             active ||
             (identifying && scannedBarcode == null)) {
           throw const SaveFailure('请先连接本机设备并结束原任务。');
+        }
+        if (needsPositionMapping) {
+          throw const SaveFailure('请先核对当前摆药机的实体位置映射。');
         }
         final id = newRecordId();
         final data = api.ClaimTask(

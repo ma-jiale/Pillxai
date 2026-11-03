@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:ffi/ffi.dart';
 import 'package:pillxai_execution_core/execution_core.dart';
 import 'package:win32/win32.dart';
@@ -17,6 +19,53 @@ final class WindowsSerialTransport implements DeviceTransport {
 
   final String portName;
   int _handle = INVALID_HANDLE_VALUE;
+
+  static Map<String, String> _bluetoothNames(Arena arena) {
+    final names = <String, String>{};
+    final devices = SetupDiGetClassDevs(
+      GUIDFromString(GUID_DEVCLASS_BLUETOOTH, allocator: arena),
+      nullptr,
+      0,
+      0,
+    );
+    if (devices == INVALID_HANDLE_VALUE) return names;
+    try {
+      final info = arena<SP_DEVINFO_DATA>()
+        ..ref.cbSize = sizeOf<SP_DEVINFO_DATA>();
+      final buffer = arena<Uint16>(1024);
+      final value = buffer.cast<Utf16>();
+      final deviceId = RegExp(r'^BTHENUM\\DEV_([0-9A-F]{12})\\');
+      for (
+        var index = 0;
+        SetupDiEnumDeviceInfo(devices, index, info) != 0;
+        index++
+      ) {
+        if (SetupDiGetDeviceInstanceId(devices, info, value, 1024, nullptr) ==
+            0)
+          continue;
+        final mac = deviceId
+            .firstMatch(value.toDartString().toUpperCase())
+            ?.group(1);
+        if (mac == null) continue;
+        if (SetupDiGetDeviceRegistryProperty(
+              devices,
+              info,
+              SPDRP_FRIENDLYNAME,
+              nullptr,
+              buffer.cast(),
+              2048,
+              nullptr,
+            ) ==
+            0)
+          continue;
+        final name = value.toDartString().trim();
+        if (name.isNotEmpty) names[mac] = name;
+      }
+    } finally {
+      SetupDiDestroyDeviceInfoList(devices);
+    }
+    return names;
+  }
 
   /// Use Windows device metadata for display. Enumerating never opens a port.
   static List<Map<String, String>> deviceCandidates() => using((arena) {
@@ -37,6 +86,7 @@ final class WindowsSerialTransport implements DeviceTransport {
       final value = buffer.cast<Utf16>();
       final length = arena<Uint32>();
       final portName = 'PortName'.toNativeUtf16(allocator: arena);
+      final bluetoothNames = _bluetoothNames(arena);
       for (
         var index = 0;
         SetupDiEnumDeviceInfo(devices, index, info) != 0;
@@ -53,6 +103,13 @@ final class WindowsSerialTransport implements DeviceTransport {
           _ => null,
         };
         if (transport == null) continue;
+        final remote = transport == 'bluetooth'
+            ? RegExp(r'&([0-9A-F]{12})_[0-9A-F]+$')
+                  .firstMatch(instance)
+                  ?.group(1)
+            : null;
+        // The local incoming SPP port has no remote machine to connect to.
+        if (remote == '000000000000') continue;
         final key = SetupDiOpenDevRegKey(
           devices,
           info,
@@ -77,7 +134,18 @@ final class WindowsSerialTransport implements DeviceTransport {
             continue;
           final port = value.toDartString();
           if (!RegExp(r'^COM[1-9][0-9]*$').hasMatch(port)) continue;
-          candidates.add({'address': port, 'transport': transport});
+          final name = bluetoothNames[remote];
+          candidates.add({
+            'address': port,
+            'transport': transport,
+            if (remote != null)
+              'identity': [
+                for (var i = 0; i < 12; i += 2) remote.substring(i, i + 2),
+              ].join(':'),
+            if (remote == null)
+              'instance': sha256.convert(utf8.encode(instance)).toString(),
+            if (name != null) 'name': name,
+          });
         } finally {
           RegCloseKey(key);
         }

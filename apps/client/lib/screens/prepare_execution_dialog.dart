@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../widgets/preparation_confirmation.dart';
 import '../widgets/profile_avatar.dart';
 import 'terminal_device_dialog.dart';
+import 'device_mapping_dialog.dart';
 
 class PrepareExecutionDialog extends StatefulWidget {
   const PrepareExecutionDialog({
@@ -344,17 +345,22 @@ class _PrepareExecutionDialogState extends State<PrepareExecutionDialog> {
               onPressed: terminal.busy ? null : () => Navigator.pop(context),
               child: const Text('取消'),
             ),
-            FilledButton(
-              onPressed:
-                  loading ||
-                      loadError != null ||
-                      terminal.busy ||
-                      !terminal.connected ||
-                      terminal.active
-                  ? null
-                  : claim,
-              child: Text(terminal.busy ? '正在准备…' : '开仓放入药盒'),
-            ),
+            if (terminal.connected &&
+                terminal.needsPositionMapping &&
+                !terminal.active)
+              RequiredMappingAction(terminal: terminal)
+            else
+              FilledButton(
+                onPressed:
+                    loading ||
+                        loadError != null ||
+                        terminal.busy ||
+                        !terminal.connected ||
+                        terminal.active
+                    ? null
+                    : claim,
+                child: Text(terminal.busy ? '正在准备…' : '开仓放入药盒'),
+              ),
           ],
         ),
       ],

@@ -5,6 +5,7 @@ import '../data/backend_connection.dart';
 import '../data/settings_controller.dart';
 import '../data/terminal_controller.dart';
 import 'prepare_execution_dialog.dart';
+import 'device_mapping_dialog.dart';
 import 'terminal_device_dialog.dart';
 import 'scan_resident_dialog.dart';
 import '../models/prescription_controller.dart';
@@ -523,7 +524,9 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
                         ? '药盒匹配，已确认 ${snapshot!.residentName}'
                         : terminal.state['message'] as String? ??
                               '请放入${widget.resident.name}的药盒'
-                  : terminal!.connected
+                  : terminal!.connected && terminal.needsPositionMapping
+                  ? '当前摆药机尚未确认药盒行位置和日期方向。'
+                  : terminal.connected
                   ? widget.scannedBarcode != null
                         ? '已识别${widget.resident.name}的药盒，请核对长者及本次用药后开始。'
                         : '核对后开仓，放入${widget.resident.name}的药盒'
@@ -685,7 +688,13 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
                     : _close,
                 child: const Text('关闭'),
               ),
-              if (terminal?.supported == true)
+              if (terminal?.supported == true &&
+                  !claimed &&
+                  terminal!.connected &&
+                  !terminal.active &&
+                  terminal.needsPositionMapping)
+                RequiredMappingAction(terminal: terminal)
+              else if (terminal?.supported == true)
                 FilledButton(
                   key: const ValueKey('confirm-dispense'),
                   onPressed: claimed
