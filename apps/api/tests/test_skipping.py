@@ -84,6 +84,41 @@ def test_retry_writes_never_replace_ack_or_duplicate_skip_completion():
     assert not confirmed_skip(records[:6] + retries + records[7:-1], 0, detail)
 
 
+@pytest.mark.parametrize("removed_before", [True, False])
+def test_counter_review_upload(world, removed_before):  # noqa: F811
+    client, tokens, _, _ = world
+    token = tokens["admin"]
+    fixture = setup(client, token, mode="hardware")
+    task = claim(client, token, fixture).json()
+    assert start(client, token, fixture, task).status_code == 200
+    values = [
+        event(1, "count", {"count": 1}),
+        event(2, "feedback", {"raw": "machine_state:CNT_ERR"}),
+        event(3, "counter_review_requested"),
+    ]
+    detail = dict(source="counter_review", manual=True, all_remaining=False)
+    for command in ["stop_review", "exit", "open"]:
+        for kind in ["written", "ack", "command_done"]:
+            values.append(event(len(values) + 1, kind, {"command": command}))
+    assert upload(client, token, fixture, task, values[:-1]).status_code == 200
+    rejected = upload(client, token, fixture, task, [event(len(values), "skip_completed", detail)])
+    assert rejected.status_code == 409
+    if removed_before:
+        for kind in ["written", "ack", "command_done"]:
+            values.append(event(len(values) + 1, kind, {"command": "release_stall_3"}))
+    tail = collection_events(task, len(values))[1:]
+    tail.insert(1 if removed_before else 0, event(0, "skip_completed", detail))
+    for i, item in enumerate(tail, len(values) + 1):
+        item["sequence"] = i
+    result = upload(client, token, fixture, task, values + tail)
+    assert result.status_code == 200, result.text
+    assert result.json()["manual_batches"] == [0]
+    assert result.json()["counts"] == [1]
+    assert result.json()["learning_results"] == []
+    assert result.json()["state"] == "completed"
+    assert upload(client, token, fixture, task, values + tail).status_code == 200
+
+
 def test_barcode_collection_retry_keeps_result_but_requires_fresh_removal():
     task = SimpleNamespace(id=uuid4(), batches=[None] * 3,
         recognition_bindings=[SimpleNamespace(source="barcode", value="000010", resident_id="r")],

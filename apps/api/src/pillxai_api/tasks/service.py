@@ -462,6 +462,7 @@ def barcode_collection_confirmed(connection, task, detail):
     if detail != dict(source="barcode", absent=absent, ready="ACK,DONE"):
         return False
     stage = 0
+    waiting_for_review = False
     for record in connection.execute(
         select(events.c.data).where(events.c.task_id == task.id).order_by(events.c.sequence)
     ).scalars():
@@ -472,18 +473,28 @@ def barcode_collection_confirmed(connection, task, detail):
             # Keep settled medicine results, but require a fresh opening and
             # removal/closing sequence after an explicitly retried collection.
             stage = 1 if stage >= 1 else 0
+        elif kind == "counter_review_requested" and record["batch"] == len(task.batches) - 1:
+            # The last medicine's review opening also serves for collection.
+            stage = 1
+            waiting_for_review = True
+        elif kind == "skip_completed" and data.get("source") == "counter_review":
+            waiting_for_review = False
         elif (kind == "batch_finished" and record["batch"] == len(task.batches) - 1) or (
             kind == "skip_completed"
+            and data.get("source") != "counter_review"
             and (record["batch"] == len(task.batches) - 1 or data.get("all_remaining") is True)
         ):
             stage = 1
         elif stage == 1 and kind == "command_done" and data.get("command") == "open":
             stage = 2
         elif stage >= 3 and kind == "feedback" and data.get("kind") == "barcodeAppeared":
-            stage = 0
+            stage = 2 if waiting_for_review and stage == 3 else 0
         elif stage == 2 and kind == "feedback" and data.get("raw") == absent:
             stage = 3
-        elif stage == 3 and kind == "written" and data.get("command") == "close":
+        elif (
+            stage == 3 and not waiting_for_review
+            and kind == "written" and data.get("command") == "close"
+        ):
             stage = 4
         elif stage == 4 and kind == "ack" and data.get("command") == "close":
             stage = 5
