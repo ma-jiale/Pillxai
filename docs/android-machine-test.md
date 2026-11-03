@@ -10,34 +10,22 @@
 # 只构建独立开发包；不安装、不连接机器
 .\scripts\run-android.ps1
 
-# 指定开发模拟器，并将同机 API 映射到模拟器 localhost
-.\scripts\run-android.ps1 -DeviceId emulator-5554 -ReverseLocalApi
-
-# 使用指定服务器
-.\scripts\run-android.ps1 -ApiUrl https://your-server.example -DeviceId emulator-5554
+# 安装到指定开发模拟器，连接学校服务器
+.\scripts\run-android.ps1 -DeviceId emulator-5554
 ```
 
 脚本使用已有 Android SDK，不安装全局工具；Flutter/Gradle/临时缓存留在仓库 `.tools`。输出为 `apps/client/build/app/outputs/flutter-apk/app-debug.apk`，独立包名 `.development`，名称“Pillxai 开发”。脚本拒绝实体设备，检测到开发包进程时拒绝覆盖安装。平板只安装已验证的正式签名制品，升级前须完成任务、取盒和同步；不要清除应用数据或卸载仍有待同步记录的应用。
 
-同机后端按 `apps/api/README.md` 启动。模拟器 reverse 需要保持 ADB 连接。Debug/Profile 允许开发 HTTP；正式 Release 禁止明文 HTTP，须配置 HTTPS 和正式签名，不能再沿用开发密钥。实机验收使用正式制品和对应的 HTTPS 服务。
+开发模拟器与正式平板都使用学校 HTTPS 服务 `https://ixd.sjtu.edu.cn/pillxai`。
 
-开发模拟器使用电脑局域网 API 时，本机已配置的 WSL 镜像网络可提供 API。先停止已有 API 进程，再执行：
-
-```powershell
-.\scripts\backend.ps1 db-start
-.\scripts\backend.ps1 serve -ApiHost 0.0.0.0
-# 在另一个终端构建；地址应替换为当次电脑 WLAN IPv4
-.\scripts\run-android.ps1 -ApiUrl http://192.168.26.246:8000 -DeviceId emulator-5554
-```
-
-此方式不使用 `-ReverseLocalApi`。用模拟器浏览器打开同一地址的 `/health/ready`，并核对服务端响应，才能确认局域网连通；仅 IP 同网段不能代替验证。地址改变后需要重新构建开发包。API 进程和电脑须保持运行；这不是正式平板部署方式。
+从本机 API 切换的设备须先核对旧包的活动任务、领取意图和待补传记录。学校部署的开发包使用独立的终端记录目录 `no_backup/terminal-sjtu`，保留原开发包的本地资料。正式包继续使用原有目录。
 
 ## 首次连接 HC-06
 
 1. 在 Android 系统蓝牙设置中配对已确认的机器。应用只列出已配对设备，不扫描附近设备、不猜测 PIN 或自动选择机器。
 2. 登录后进入“摆药 → 连接设备”，选择“Android 蓝牙 HC-06”，点击“读取已配对设备”。授予“附近设备”权限；建议允许通知，以便查看后台执行状态。
 3. 按名称和蓝牙地址核对机器，选择后保存连接。地址作为本机连接目标，设备业务身份与终端归属仍由服务器保存。任务期间禁止换机或更改配置。
-4. 逐项核实物理行列、每药参数及在轨/离轨/就绪反馈。没有实测依据时不填写假反馈、不使用模拟参数开始实机任务。具体事实清单沿用 `04-device-contract.md` 和 Windows 上机指南。
+4. 核实物理行列、每药参数和取盒流程。最终开仓完成后，取出本次药盒应立即收仓，收到收仓 ACK 和 DONE 后释放任务。现场验证步骤见 Windows 上机指南。
 5. 点击“连接”只建立 RFCOMM 通道，不自动下发动作；“开仓读取标签”和领取任务均属于显式操作。按原流程领取、识别并取得服务端启动许可后开始。
 
 本版实现经典蓝牙 SPP（标准 UUID），不是 BLE；Android USB 串口尚未实现。连接超时、权限拒绝、蓝牙关闭、读取失败与接收缓冲区溢出均显示失败，不自动重连或重发矩阵。尚需实际 HC-06 验证配对和通信兼容性。

@@ -1,5 +1,9 @@
 # Pillxai Flutter 客户端
 
+处方管理支持勾选长者、设置每人份数、按页预览并导出 A4 标签 PDF。标签使用长者已有条码，按已确认样张排版，见交互规格 P04。2026-11-03 导出和处方表单相关 16 项测试通过，实际 97 张 PDF 的每个格位及全部条码经独立解码核对。Windows x64 和 Android 开发包已构建；Android 15 模拟器通过系统窗口保存 200 位虚构长者的三页 PDF，Debug 生成耗时 6.39 秒，尚未达到 5 秒目标。Windows 系统保存窗口、实体平板性能和纸质标签实机扫码待验收。
+
+2026-11-03 Android 收起通知栏时保留当前摆药界面。BTKR-W00 实测展开通知栏后窗口焦点移至 NotificationShade，摆药 Activity 仍处于 resumed。客户端现在仅在应用曾隐藏或暂停后执行返回前台刷新。生命周期、服务端计划和终端界面共 9 项回归已通过，本次未在平板安装修复版复测。
+
 2026-10-28 23:01:55 阀门弹窗收紧：正式“调整出药开口”的 Column 原先使用默认最大高度，导致少量控件撑高弹窗；现按内容决定高度，内容宽度由 420 调整为 360 逻辑像素，保留刻度、方向说明、滑块触控高度及完成按钮。现有 5 项终端界面回归与 Android Debug 构建通过。确认平板无活动任务、无待补传后，以保留数据方式覆盖安装成功并启动，服务器地址不变。APK SHA-256：`37E85948595AF46BE06533F74AEB834CCCC7E2ECBEE64EEF28AE3A77A6847C84`。本轮未实际操作舵机。
 
 2026-10-28 平板药盒检查修复：准备阶段不显示执行药物卡片，错误药盒保留弹窗并提示更换，正确匹配也须明确点击开始。等待识别、匹配和报错统一放在同一个矩形状态框。准备弹窗“关闭”对正确/错误药盒统一检查取盒及收仓确认；本次开仓完成后从未放入药盒也允许直接关闭收仓。点外部或系统返回不能绕过。规则见 R06。取盒后点击关闭的判断已与最终自动收仓开关分离，修复设备配置关闭自动收仓时按钮无效的问题。
@@ -14,7 +18,7 @@
 
 面向 Android 平板首发，沿用已确认的极简 UI。2026-10-26 在 NT 分支接入真实账号、长者、处方及版本，中央服务在同机 WSL/Conda 运行。执行计划见 [09](../../docs/09-agent-development.md)，Android 最新证据见 [2026-10-27 报告](../../docs/validation/2026-10-27-android.md)，Windows 闭环见 [执行报告](../../docs/validation/2026-10-26-execution.md)。
 
-默认入口是 `ConnectedWorkspace`，通过生成的 Dart SDK 访问 API。账号与操作权限由服务端校验，登录后直接进入摆药待准备清单；长者/处方列表由 `PrescriptionController` 持有，`PrescriptionRepository` 映射 HTTP 契约。保存等待服务端成功，冲突与网络失败保留草稿，处方修改/停用/恢复产生独立版本。`SettingsController` 保存通用规则，保留已保存版本与失败草稿；`PlanPreviewPage` 请求服务器计划，`ServerPlanPattern` 只渲染快照矩阵。真实资料不传入 DemoModel。Windows 已接入设备配置、新 UID 绑定、每处方参数、领取/识别/开始、暂停恢复、双盘、取盒与结果补传；本机执行由独立 Isolate/SQLite 持有。Android 已接入独立前台服务、经典蓝牙适配与后台事件补传，Android 15 模拟器双盘、关屏和强制停止恢复通过。图片上传、异常人工补齐与实体平板/机器验收仍未完成。
+默认入口是 `ConnectedWorkspace`，通过生成的 Dart SDK 访问 API。账号与操作权限由服务端校验，登录后直接进入摆药待准备清单；长者/处方列表由 `PrescriptionController` 持有，`PrescriptionRepository` 映射 HTTP 契约。保存等待服务端成功，冲突与网络失败保留草稿，处方修改/停用/恢复产生独立版本。`SettingsController` 保存通用规则，保留已保存版本与失败草稿；`PlanPreviewPage` 请求服务器计划，`ServerPlanPattern` 只渲染快照矩阵。真实资料不传入 DemoModel。Windows 已接入设备配置、新 UID 绑定、每处方参数、领取/识别/开始、暂停恢复、双盘、取盒与结果补传；本机执行由独立 Isolate/SQLite 持有。Android 已接入独立前台服务、经典蓝牙适配与后台事件补传，Android 15 模拟器双盘、关屏和强制停止恢复通过。药品图片上传及任务快照展示已接通，异常人工补齐与实体平板/机器完整验收仍未完成。
 
 2026-10-26 新增测试入口：管理员登录后，在原有“设置 → 通用”修改准备天数、从次日开始、餐食分盘或睡前格；每次修改自动保存，成功后显示“设置已保存”，重新登录可读取。冲突或连接失败保留草稿，可重试或放弃并重新加载；工作人员只读。规则作用于之后生成的预览。外观强调色仍为会话偏好；Android 应用内更新按 R15 实现，发布配置见 deploy/android-client/README.md。
 
@@ -22,17 +26,17 @@
 
 ## Android 当前入口
 
-2026-10-29：日常平板只使用 `main` 正式签名 Release，见 [Android 发布说明](../../deploy/android-client/README.md)。`scripts/run-android.ps1` 构建独立 `.development` Debug 包，只允许向模拟器安装；同机 API 可加 `-ReverseLocalApi`。输出 `build/app/outputs/flutter-apk/app-debug.apk` 仅用于工程验证。操作步骤见 [Android 指南](../../docs/android-machine-test.md)。
+2026-10-29：日常平板只使用 `main` 正式签名 Release，见 [Android 发布说明](../../deploy/android-client/README.md)。`scripts/run-android.ps1` 构建独立 `.development` Debug 包，只允许向模拟器安装，默认连接学校服务器。输出 `build/app/outputs/flutter-apk/app-debug.apk` 仅用于工程验证。操作步骤见 [Android 指南](../../docs/android-machine-test.md)。
 
-后台执行由 Android `TerminalService` 的独立 FlutterEngine 持有，复用 `TerminalSession/ExecutionEngine`；蓝牙 SPP、SQLite、通知和事件补传不依赖页面。记录存入应用私有 no-backup 目录，令牌只留内存。Android USB 尚未实现。`scripts/check-android.ps1` 只用于专用模拟器的独立验证包，不能交付给工作人员。
+后台执行由 Android `TerminalService` 的独立 FlutterEngine 持有，复用 `TerminalSession/ExecutionEngine`；蓝牙 SPP、SQLite、通知和事件补传不依赖页面。记录存入应用私有 no-backup 目录，登录令牌由平台安全存储保存，后台执行宿主只接收当前会话需要的令牌。Android USB 尚未实现。`scripts/check-android.ps1` 只用于专用模拟器的独立验证包，不能交付给工作人员。
 
 本轮 Flutter 92 项、运行模块 10 项测试通过，Flutter 静态分析无问题，Windows 原生宿主回归通过。实际 Android 模拟器验证及限制见 [报告](../../docs/validation/2026-10-27-android.md)。下文日期更早的验证属于历史阶段或显式演示模式。
 
 ## 运行当前真实资料版本
 
-Windows 上机联调入口：仓库根执行 `scripts/run-windows.ps1`，代码变化后加 `-Build`。它检查并启动本项目 WSL 服务，打开原生程序；任务和原始反馈保存于 `.var/terminal`。现场步骤见 [Windows 测试指南](../../docs/windows-machine-test.md)，已通过与未实测项见[执行报告](../../docs/validation/2026-10-26-execution.md)。网页不能替代原生串口执行。
+Windows 上机联调入口：仓库根执行 `scripts/run-windows.ps1`，代码变化后加 `-Build`。它打开连接学校服务器的原生程序；任务和原始反馈保存于 `.var/terminal-sjtu`。现场步骤见 [Windows 测试指南](../../docs/windows-machine-test.md)，已通过与未实测项见[执行报告](../../docs/validation/2026-10-26-execution.md)。网页不能替代原生串口执行。
 
-先按 [API 说明](../api/README.md) 执行 migrate、seed、serve。开发账号 `local-admin` 的随机密码在仓库忽略文件 `.var/local-login.json`。不要使用演示凭据登录真实服务，也不要提交该文件。
+工作人员使用学校服务器账号登录。
 
 ```powershell
 .\scripts\flutter.cmd pub get
@@ -40,9 +44,11 @@ Windows 上机联调入口：仓库根执行 `scripts/run-windows.ps1`，代码�
 node .\scripts\serve-preview.cjs
 ```
 
-打开 `http://127.0.0.1:5180/`。本机开发 API 允许该来源及 `http://localhost:5180`；其他来源默认不允许。原生入口可运行 `flutter.cmd run -d windows`；当前 Windows Release 可由 scripts/run-windows.ps1 启动（尚无生产安装包）。服务地址通过编译参数 `--dart-define=PILLXAI_API_URL=http://127.0.0.1:8000` 指定；平板不能直接使用电脑的 localhost，网络和安装另行验证。
+打开 `http://127.0.0.1:5180/` 预览网页。客户端默认地址为 `https://ixd.sjtu.edu.cn/pillxai`。浏览器从本地预览页访问学校 API 需要服务端允许该来源跨域。Windows 与 Android 原生客户端直接连接学校服务。
 
-按用户最新要求，当前不提供账号管理或改密界面；保留真实登录与服务端权限。设置与演示模式共用原来的 `SettingsPage`：通用／外观／关于、搜索、分组列表及自定义强调色。真实模式通过 `SettingsStore` 读取和保存通用规则，不创建 DemoModel；权限、版本与持久化由服务端负责。强调色仍为会话偏好；Android 自动下载更新偏好持久化在本机。凭据只留在进程内存，重载页面须重新登录。
+按用户最新要求，当前不提供账号管理或改密界面；保留真实登录与服务端权限。设置与演示模式共用原来的 `SettingsPage`：通用／外观／关于、搜索、分组列表及自定义强调色。真实模式通过 `SettingsStore` 读取和保存通用规则，不创建 DemoModel；权限、版本与持久化由服务端负责。强调色仍为会话偏好；Android 自动下载更新偏好持久化在本机。登录成功后通过 `flutter_secure_storage` 按服务器地址保存可撤销令牌，不保存密码。再次打开时向服务器校验并恢复最新身份及设置；网络失败可重试，失效令牌清除并回登录页。会话有效期及恢复续期均为 30 天，主动退出清除令牌，停用或改密后不能恢复。
+
+处方新增/编辑表单提供“上传药品图片”，Android 平板可选择拍照或从文件上传，预览后随处方保存，也可更换或移除。JPG/PNG 文件最大 10 MB，客户端缩小至最长边 512 像素并转 PNG，服务器再次校验；当前药和下一药使用任务中的图片快照。拍照期间若系统回收进程，启动后提示重新填写未保存处方并选择图片。验证与限制见 [登录保持与药品图片报告](../../docs/validation/2026-11-02-login-and-medicine-images.md)。
 
 已运行（2026-10-26）：后端 20 项、Flutter 85 项、静态检查、SDK 漂移检查与 Web release 构建通过。`tool/check_business.dart` 验证资料和版本，`tool/check_planning.dart` 验证真实设置保存/重读、双药双盘、半片颗粒、预览覆盖参数和不可变快照。页面测试覆盖 1280×800、390×844 下的设置冲突草稿、重载、计划数量、图案和失效提示；原有三尺寸 UI 回归全部通过。当前没有 Windows GUI/Android 真机或生产硬件验收。
 
@@ -52,7 +58,7 @@ node .\scripts\serve-preview.cjs
 
 下文的准备、执行、历史与可编辑演示规则仅适用于 `--dart-define=PILLXAI_DEMO=true`。该模式使用虚构内存资料，登录为 `admin` / `admin123`，不调用真实业务 API、不控制机器。它保留既有交互回归，不能作为生产任务入口。
 
-每种药完成后，下一药从预告卡片的实际位置移动并展开为当前药，原当前药退出，随后补入新的下一药预告；宽屏从右向左接替，窄屏从下向上接替，全程约 680 毫秒。计数和开口值重置后直接进入下一药的摆药状态，无需再点击“开始本药”，主操作保持“暂停”。最后一种药完成后自动返回待摆清单，结果保存在历史；药盒状态按下位机反馈更新，不要求人工确认取盒。当前自动计数仍为定时器演示，没有药物更换检测或设备动作。
+每种药完成后，下一药从预告卡片的实际位置移动并展开为当前药，原当前药滑出，新的预告从边缘跟入。卡片保持间距，宽屏向左移动，窄屏向上移动，全程约 600 毫秒。计数和开口值重置后直接进入下一药的摆药状态，无需再点击“开始本药”，主操作保持“暂停”。最后一种药完成后自动返回待摆清单，结果保存在历史；药盒状态按下位机反馈更新，不要求人工确认取盒。当前自动计数仍为定时器演示，没有药物更换检测或设备动作。
 
 ### 演示交互与既有 UI 设计
 
