@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import create_engine
 from test_business import world  # noqa: F401
-from test_tasks import claim, event, setup, start, upload
+from test_tasks import claim, collection_events, event, setup, start, upload
 
 from pillxai_api.tasks.coverage import completed_until
 from pillxai_api.tasks.service import barcode_collection_confirmed
@@ -53,11 +53,11 @@ def test_skip_sync_keeps_counts_and_only_manual_confirms_coverage(
     assert saved["skipped_batches"] == ([] if manual else [0])
     assert saved["state"] == "awaiting_collection"
     assert saved["learning_results"] == []
-    collected = event(10, "collection_ready", {"absent": "test:absent", "ready": "test:ready"})
-    result = upload(client, token, fixture, task, [collected])
+    collected = collection_events(task, 10)
+    result = upload(client, token, fixture, task, collected)
     assert result.status_code == 200, result.text
     assert result.json()["state"] == "completed"
-    assert upload(client, token, fixture, task, values + [collected]).status_code == 200
+    assert upload(client, token, fixture, task, values + collected).status_code == 200
     engine = create_engine(settings.database_url)
     with engine.connect() as connection:
         assert (completed_until(connection, UUID(fixture["rid"])) is not None) == manual

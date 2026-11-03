@@ -20,7 +20,13 @@ def reject(message, code="task_conflict"):
 
 
 def device_view(row):
-    return DeviceView.model_validate(row)
+    device = DeviceView.model_validate(row)
+    config = device.configuration
+    # Normalize the registry before creating a new task. Existing task
+    # snapshots retain the protocol under which the task was started.
+    if config.mode == DeviceMode.hardware:
+        config.barcode_removal_closes = True
+    return device
 
 
 def save_device(connection, account, device_id, request):
@@ -34,10 +40,17 @@ def save_device(connection, account, device_id, request):
         conflict()
     # A stale task after power loss must not lock the device registry.
     # Existing tasks retain their immutable device/terminal snapshots.
+    device = device_view(
+        dict(
+            id=device_id,
+            revision=request.expected_revision + 1,
+            configuration=request.configuration,
+        )
+    )
     values = dict(
-        identity=request.configuration.identity,
-        revision=request.expected_revision + 1,
-        configuration=request.configuration.model_dump(mode="json"),
+        identity=device.configuration.identity,
+        revision=device.revision,
+        configuration=device.configuration.model_dump(mode="json"),
     )
     try:
         if row:
@@ -46,7 +59,7 @@ def save_device(connection, account, device_id, request):
             connection.execute(insert(devices).values(id=device_id, **values))
     except IntegrityError as error:
         raise BusinessError(409, "device_identity", "该设备身份已登记，请选择原设备。") from error
-    return DeviceView(id=device_id, **values)
+    return device
 
 
 def save_parameters(connection, account, resident_id, prescription_id, request):

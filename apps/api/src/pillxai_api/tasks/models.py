@@ -31,7 +31,8 @@ class DeviceConfiguration(Input):
     tray_absent_line: str = Field(default="", max_length=120)
     ready_line: str = Field(default="", max_length=120)
     feedback_verified: bool = False
-    # Explicitly confirmed per machine: matching barcode disappearance closes immediately.
+    # Hardware registry entries enable this for new tasks. Old task snapshots
+    # retain their original value and release evidence requirements.
     barcode_removal_closes: bool = False
 
     @model_validator(mode="after")

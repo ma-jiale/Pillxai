@@ -112,6 +112,24 @@ def upload(client, token, fixture, task, values):
     )
 
 
+def collection_events(task, first):
+    code = next(
+        b["value"] for b in task["recognition_bindings"]
+        if b["source"] == "barcode" and b["resident_id"] == task["plan"]["resident_id"]
+    )
+    absent = "DISAPPEARED," + code
+    return [
+        event(first, "command_done", {"command": "open"}),
+        event(first + 1, "feedback", {"kind": "barcodeDisappeared", "raw": absent}),
+        event(first + 2, "written", {"command": "close"}),
+        event(first + 3, "ack", {"command": "close"}),
+        event(first + 4, "command_done", {"command": "close"}),
+        event(first + 5, "collection_ready", {
+            "source": "barcode", "absent": absent, "ready": "ACK,DONE"
+        }),
+    ]
+
+
 def test_hardware_parameters_and_stale_start(world):  # noqa: F811
     client, tokens, _, _ = world
     token = tokens["admin"]
@@ -235,10 +253,10 @@ def test_result_deduplication_collection_and_coverage(world):  # noqa: F811
         tokens["admin"],
         f,
         task,
-        [event(3, "collection_ready", {"absent": "test:absent", "ready": "test:ready"})],
+        collection_events(task, 3),
     )
     assert collected.json()["state"] == "completed"
-    assert len(client.get(f"/tasks/{task['id']}/events", headers=tokens["admin"]).json()) == 3
+    assert len(client.get(f"/tasks/{task['id']}/events", headers=tokens["admin"]).json()) == 8
 
 
 def test_late_idle_connection_does_not_block_cancelled_task_sync(world):  # noqa: F811
