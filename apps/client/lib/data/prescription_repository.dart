@@ -71,6 +71,22 @@ class PrescriptionRepository {
         backend.prescriptions.listPrescriptionVersions(residentId, medicineId),
       ) ??
       (throw const SaveFailure('版本记录读取失败，请重试。'));
+
+  Future<void> deleteResident(Resident resident) async {
+    await backend.request(
+      backend.residents.deleteResident(resident.id, resident.revision),
+    );
+  }
+
+  Future<void> deleteMedicine(Resident resident, Medicine medicine) async {
+    await backend.request(
+      backend.prescriptions.deletePrescription(
+        resident.id,
+        medicine.id,
+        medicine.revision,
+      ),
+    );
+  }
 }
 
 Resident residentFromApi(api.ResidentView row) => Resident(

@@ -88,11 +88,13 @@ Class | Method | HTTP request | Description
 *PlanningApi* | [**createPlanPreview**](doc//PlanningApi.md#createplanpreview) | **POST** /residents/{resident_id}/plans/preview | Create Preview
 *PlanningApi* | [**getPlanPreview**](doc//PlanningApi.md#getplanpreview) | **GET** /plans/{plan_id} | Get Preview
 *PlanningApi* | [**listPreparation**](doc//PlanningApi.md#listpreparation) | **GET** /preparation | List Preparation
+*PrescriptionsApi* | [**deletePrescription**](doc//PrescriptionsApi.md#deleteprescription) | **DELETE** /residents/{resident_id}/prescriptions/{prescription_id} | Delete
 *PrescriptionsApi* | [**listPrescriptionVersions**](doc//PrescriptionsApi.md#listprescriptionversions) | **GET** /residents/{resident_id}/prescriptions/{prescription_id}/versions | Versions
 *PrescriptionsApi* | [**listPrescriptions**](doc//PrescriptionsApi.md#listprescriptions) | **GET** /residents/{resident_id}/prescriptions | List Prescriptions
 *PrescriptionsApi* | [**savePrescription**](doc//PrescriptionsApi.md#saveprescription) | **PUT** /residents/{resident_id}/prescriptions/{prescription_id} | Put
 *ReleasesApi* | [**downloadAndroidRelease**](doc//ReleasesApi.md#downloadandroidrelease) | **GET** /releases/android/packages/{digest} | Download Android Release
 *ReleasesApi* | [**getAndroidUpdate**](doc//ReleasesApi.md#getandroidupdate) | **GET** /releases/android | Get Android Update
+*ResidentsApi* | [**deleteResident**](doc//ResidentsApi.md#deleteresident) | **DELETE** /residents/{resident_id} | Delete
 *ResidentsApi* | [**getResident**](doc//ResidentsApi.md#getresident) | **GET** /residents/{resident_id} | Get
 *ResidentsApi* | [**listResidentVersions**](doc//ResidentsApi.md#listresidentversions) | **GET** /residents/{resident_id}/versions | Versions
 *ResidentsApi* | [**listResidents**](doc//ResidentsApi.md#listresidents) | **GET** /residents | List Residents

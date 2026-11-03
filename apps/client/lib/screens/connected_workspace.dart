@@ -450,6 +450,7 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
             PrescriptionsPage(
               key: ObjectKey(current),
               model: current,
+              onDelete: current.deleteRecord,
               onHistory: (resident) => showDialog<void>(
                 context: context,
                 builder: (_) => TaskHistoryDialog(
@@ -482,7 +483,7 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('${medicine.name} · 用药版本'),
+        title: Text('${medicine.name} · 版本记录'),
         content: SizedBox(
           width: 560,
           height: 360,

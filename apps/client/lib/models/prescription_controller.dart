@@ -134,4 +134,14 @@ class PrescriptionController extends ChangeNotifier
     _disposed = true;
     super.dispose();
   }
+
+  Future<void> deleteRecord(Resident resident, Medicine? medicine) async {
+    if (!canEdit) throw const SaveFailure('当前账号没有资料维护权限。');
+    if (medicine == null) {
+      await repository.deleteResident(resident);
+    } else {
+      await repository.deleteMedicine(resident, medicine);
+    }
+    if (!_disposed) await refresh();
+  }
 }

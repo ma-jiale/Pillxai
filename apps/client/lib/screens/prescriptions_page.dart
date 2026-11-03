@@ -18,10 +18,12 @@ class PrescriptionsPage extends StatefulWidget {
     required this.model,
     this.onHistory,
     this.onVersions,
+    this.onDelete,
   });
   final PrescriptionStore model;
   final void Function(Resident)? onHistory;
   final void Function(Resident, Medicine)? onVersions;
+  final Future<void> Function(Resident, Medicine?)? onDelete;
 
   @override
   State<PrescriptionsPage> createState() => _PrescriptionsPageState();
@@ -138,7 +140,7 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
         content: Text(
           medicine.stopped
               ? '恢复后沿用原用药条目及日期，请核对剂量和疗程。'
-              : '条目会保留在已停用用药中。正在进行的任务仍使用原来的用药安排。',
+              : '这条药物会移入“已停用药物”。正在进行的任务仍使用原来的用药安排。',
         ),
         actions: [
           TextButton(
@@ -159,6 +161,41 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
         medicine.copyWith(stopped: !medicine.stopped),
       );
       if (mounted) _notify('已$action${medicine.name}');
+    } catch (error) {
+      if (mounted) _notify(error.toString());
+    }
+  }
+
+  Future<void> _delete(Resident resident, [Medicine? medicine]) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          medicine == null
+              ? '删除长者「${resident.name}」？'
+              : '删除药物「${medicine.name}」？',
+        ),
+        content: Text(
+          medicine == null
+              ? '删除后，长者及其处方会从日常清单移除，床位可重新使用。已有摆药记录保留。'
+              : '这条处方将从${resident.name}的用药清单移除，不再参与新的摆药计划。已有摆药记录保留。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('确认删除'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    try {
+      await widget.onDelete!(resident, medicine);
+      if (mounted) _notify(medicine == null ? '已删除长者' : '已删除药物');
     } catch (error) {
       if (mounted) _notify(error.toString());
     }
@@ -391,6 +428,17 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
                     icon: const Icon(Icons.edit_outlined, size: 16),
                     label: const Text('编辑资料'),
                   ),
+                  if (widget.model.canEdit && widget.onDelete != null)
+                    AppActionMenu(
+                      tooltip: '${resident.name}更多操作',
+                      actions: [
+                        AppMenuAction(
+                          '删除长者',
+                          () => _delete(resident),
+                          icon: Icons.delete_outline,
+                        ),
+                      ],
+                    ),
                 ],
               );
               if (constraints.maxWidth < 560) {
@@ -491,7 +539,7 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
               shape: const Border(),
               collapsedShape: const Border(),
               title: Text(
-                '已停用用药 · ${stopped.length}',
+                '已停用药物 · ${stopped.length}',
                 style: const TextStyle(fontSize: 13, color: Color(0xff777777)),
               ),
               children: [
@@ -511,29 +559,36 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
     bool vertical = false,
   }) {
     final actions = <Widget>[
-      if (widget.onVersions != null)
-        IconButton(
-          tooltip: '${medicine.name}用药版本',
-          onPressed: () => widget.onVersions!(resident, medicine),
-          icon: const Icon(Icons.history_rounded, size: 17),
-        ),
       if (widget.model.canEdit)
         IconButton(
           tooltip: '编辑${medicine.name}',
           onPressed: () => _editMedicine(resident, medicine),
           icon: const Icon(Icons.edit_outlined, size: 17),
         ),
-      if (widget.model.canEdit)
+      if (widget.model.canEdit || widget.onVersions != null)
         AppActionMenu(
           tooltip: '${medicine.name}更多操作',
           actions: [
-            AppMenuAction(
-              medicine.stopped ? '恢复用药' : '停用用药',
-              () => _toggleMedicine(resident, medicine),
-              icon: medicine.stopped
-                  ? Icons.play_arrow_rounded
-                  : Icons.pause_rounded,
-            ),
+            if (widget.onVersions != null)
+              AppMenuAction(
+                '版本记录',
+                () => widget.onVersions!(resident, medicine),
+                icon: Icons.history_rounded,
+              ),
+            if (widget.model.canEdit)
+              AppMenuAction(
+                medicine.stopped ? '恢复药物' : '停用药物',
+                () => _toggleMedicine(resident, medicine),
+                icon: medicine.stopped
+                    ? Icons.play_arrow_rounded
+                    : Icons.pause_rounded,
+              ),
+            if (widget.model.canEdit && widget.onDelete != null)
+              AppMenuAction(
+                '删除药物',
+                () => _delete(resident, medicine),
+                icon: Icons.delete_outline,
+              ),
           ],
         ),
     ];
