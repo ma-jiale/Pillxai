@@ -20,6 +20,7 @@ prescriptions = Table(
     Column("revision", Integer, nullable=False),
     Column("data", JSONB, nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
+    Column("deleted_at", DateTime(timezone=True)),
     Column("updated_by", UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False),
     CheckConstraint("revision > 0"),
     Index("prescriptions_resident_id", "resident_id"),

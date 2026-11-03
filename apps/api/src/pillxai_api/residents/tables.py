@@ -24,6 +24,7 @@ residents = Table(
     Column("barcode", String(128), nullable=False, server_default=""),
     Column("avatar", Text(), nullable=False, server_default=""),
     Column("updated_at", DateTime(timezone=True), nullable=False),
+    Column("deleted_at", DateTime(timezone=True)),
     Column("updated_by", UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False),
     CheckConstraint("revision > 0"),
     Index(
@@ -33,7 +34,7 @@ residents = Table(
         "residents_bed_unique",
         "bed",
         unique=True,
-        postgresql_where=text("bed <> ''"),
+        postgresql_where=text("bed <> '' AND deleted_at IS NULL"),
     ),
 )
 resident_versions = Table(

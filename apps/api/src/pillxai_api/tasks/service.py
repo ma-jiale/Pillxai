@@ -11,6 +11,7 @@ from ..residents.service import resident_row
 from ..residents.tables import residents
 from .learning import evaluate_batch, select_parameters
 from .models import BatchPlan, DeviceMode, DeviceView, ParameterView, TaskState, TaskView
+from .skipping import confirmed_skip
 from .tables import devices, events, labels, parameters, tasks, tombstones
 
 
@@ -19,7 +20,13 @@ def reject(message, code="task_conflict"):
 
 
 def device_view(row):
-    return DeviceView.model_validate(row)
+    device = DeviceView.model_validate(row)
+    config = device.configuration
+    # Normalize the registry before creating a new task. Existing task
+    # snapshots retain the protocol under which the task was started.
+    if config.mode == DeviceMode.hardware:
+        config.barcode_removal_closes = True
+    return device
 
 
 def save_device(connection, account, device_id, request):
@@ -31,14 +38,19 @@ def save_device(connection, account, device_id, request):
     )
     if (row["revision"] if row else 0) != request.expected_revision:
         conflict()
-    if connection.execute(
-        select(tasks.c.id).where(tasks.c.device_id == device_id, tasks.c.active)
-    ).first():
-        reject("设备仍有未结束任务，不能修改配置。")
+    # A stale task after power loss must not lock the device registry.
+    # Existing tasks retain their immutable device/terminal snapshots.
+    device = device_view(
+        dict(
+            id=device_id,
+            revision=request.expected_revision + 1,
+            configuration=request.configuration,
+        )
+    )
     values = dict(
-        identity=request.configuration.identity,
-        revision=request.expected_revision + 1,
-        configuration=request.configuration.model_dump(mode="json"),
+        identity=device.configuration.identity,
+        revision=device.revision,
+        configuration=device.configuration.model_dump(mode="json"),
     )
     try:
         if row:
@@ -47,7 +59,7 @@ def save_device(connection, account, device_id, request):
             connection.execute(insert(devices).values(id=device_id, **values))
     except IntegrityError as error:
         raise BusinessError(409, "device_identity", "该设备身份已登记，请选择原设备。") from error
-    return DeviceView(id=device_id, **values)
+    return device
 
 
 def save_parameters(connection, account, resident_id, prescription_id, request):
@@ -122,7 +134,7 @@ def task_row(connection, task_id, lock=False):
 def owned_task(connection, account, task_id, terminal_id, lock=True):
     if lock:
         initial = task_row(connection, task_id)
-        resident_row(connection, initial["resident_id"], lock=True)
+        resident_row(connection, initial["resident_id"], lock=True, include_deleted=True)
     row = task_row(connection, task_id, lock)
     if row["terminal_id"] != terminal_id or row["owner_id"] != account.id:
         raise BusinessError(403, "task_owner", "请在领取任务的原终端、原账号操作。")
@@ -170,6 +182,7 @@ def make_batches(connection, task_id, plan, device):
                     medicine_id=medicine.prescription.medicine_id,
                     name=medicine.prescription.data.medicine_name,
                     strength=medicine.prescription.data.strength,
+                    image=medicine.prescription.data.image,
                     feed_form=medicine.prescription.data.feed_form.value,
                     purpose=tray.purpose,
                     total=medicine.total_particles,
@@ -209,6 +222,15 @@ def claim(connection, account, task_id, request):
         reject("设备已固定到其他终端。")
     if config.mode == DeviceMode.hardware and not config.positions_verified:
         reject("须先完成并确认实体位置映射，才能下发真实计划。")
+    # Compose shared physical box order with the device's protocol calibration.
+    # The immutable task still exposes time-slot -> protocol-row to older clients.
+    layout = preview.snapshot.settings
+    order = list(layout.box_slot_order)
+    if not layout.bedtime_enabled:
+        order.remove(3)
+        order.append(3)
+    rows = [config.rows[order.index(slot)] for slot in range(4)]
+    device = device.model_copy(update={"configuration": config.model_copy(update={"rows": rows})})
     active = connection.execute(
         select(tasks.c.id).where(
             tasks.c.active,
@@ -225,7 +247,8 @@ def claim(connection, account, task_id, request):
     )
     barcode_rows = (
         connection.execute(
-            select(residents.c.id, residents.c.barcode).where(residents.c.barcode != "")
+            select(residents.c.id, residents.c.barcode).where(
+                residents.c.barcode != "", residents.c.deleted_at.is_(None))
         )
         .mappings()
         .all()
@@ -235,7 +258,8 @@ def claim(connection, account, task_id, request):
     ]
     bindings += [
         dict(source="rfid", value=r["uid"], resident_id=r["resident_id"])
-        for r in connection.execute(select(labels)).mappings()
+        for r in connection.execute(select(labels).join(residents).where(
+            residents.c.deleted_at.is_(None))).mappings()
     ]
     if not bound and not any(r["id"] == preview.snapshot.resident_id for r in barcode_rows):
         reject("请先为这位长者绑定新系统的药盒标签。", "label_required")
@@ -255,6 +279,7 @@ def claim(connection, account, task_id, request):
         batches=make_batches(connection, task_id, preview.snapshot, device),
         sequence=0,
         completed_batches=[],
+        skip_protocol=1,
         counts=[0] * sum(len(t.medicines) for t in preview.snapshot.trays),
         started_at=None,
         updated_at=now,
@@ -299,7 +324,10 @@ def start(connection, account, task_id, request):
         or checked.tzinfo is None
         or not -5 <= (datetime.now(UTC) - checked).total_seconds() <= 30
         or observed > checked
-        or observed < task.plan.created_at
+        # A barcode can identify the resident before the plan exists. The
+        # terminal must still confirm the current match after plan creation.
+        or checked < task.plan.created_at
+        or (request.barcode is None and observed < task.plan.created_at)
     ):
         reject("药盒识别已过期，请等待本次新反馈。", "stale_recognition")
     if request.barcode is not None:
@@ -357,10 +385,13 @@ def sync(connection, account, task_id, request):
         ):
             reject("任务已结束，不接受新的执行事件。")
         if (
-            event.kind in ("count", "batch_finished", "collection_ready")
+            event.kind in ("count", "batch_finished", "skip_completed", "collection_ready")
             and task.started_at is None
         ):
             reject("尚未取得中央启动许可。")
+        handled = set(task.completed_batches + task.manual_batches + task.skipped_batches)
+        if event.kind in ("count", "batch_finished", "skip_completed") and event.batch in handled:
+            reject("该批次已有最终结果，不能重复处理。")
         if event.kind == "count":
             count = event.detail.get("count")
             if (
@@ -371,14 +402,33 @@ def sync(connection, account, task_id, request):
             task.counts[event.batch] = count
         if event.kind == "batch_finished":
             if (
-                event.batch != len(task.completed_batches)
+                event.batch != len(handled)
                 or task.counts[event.batch] != task.batches[event.batch].total
             ):
                 reject("批次完成必须有顺序一致的计数及完成反馈。")
             if event.detail.get("feedback") != "machine_state:FINISH":
                 reject("缺少当前批次完成反馈。")
             task.completed_batches.append(event.batch)
-            if len(task.completed_batches) == len(task.batches):
+            if len(handled) + 1 == len(task.batches):
+                task.state = TaskState.awaiting_collection
+        if event.kind == "skip_completed":
+            records = connection.execute(
+                select(events.c.data).where(events.c.task_id == task.id)
+                .order_by(events.c.sequence)
+            ).scalars()
+            if event.batch != len(handled) or not confirmed_skip(
+                records, event.batch, event.detail
+            ):
+                reject("跳过缺少顺序一致的停转及退出确认。")
+            if event.detail["all_remaining"]:
+                task.skipped_batches.extend(range(event.batch, len(task.batches)))
+            elif event.detail["manual"]:
+                task.manual_batches.append(event.batch)
+            else:
+                task.skipped_batches.append(event.batch)
+            if len(set(task.completed_batches + task.manual_batches + task.skipped_batches)) == len(
+                task.batches
+            ):
                 task.state = TaskState.awaiting_collection
         if event.kind == "collection_ready":
             config = task.device.configuration
@@ -423,21 +473,39 @@ def barcode_collection_confirmed(connection, task, detail):
     if detail != dict(source="barcode", absent=absent, ready="ACK,DONE"):
         return False
     stage = 0
+    waiting_for_review = False
     for record in connection.execute(
         select(events.c.data).where(events.c.task_id == task.id).order_by(events.c.sequence)
     ).scalars():
         kind, data = record["kind"], record["detail"]
-        if kind in ("cancel_intent", "recovery", "recovered"):
+        if kind == "cancel_intent":
             stage = 0
-        elif kind == "batch_finished" and record["batch"] == len(task.batches) - 1:
+        elif kind in ("recovery", "recovered"):
+            # Keep settled medicine results, but require a fresh opening and
+            # removal/closing sequence after an explicitly retried collection.
+            stage = 1 if stage >= 1 else 0
+        elif kind == "counter_review_requested" and record["batch"] == len(task.batches) - 1:
+            # The last medicine's review opening also serves for collection.
+            stage = 1
+            waiting_for_review = True
+        elif kind == "skip_completed" and data.get("source") == "counter_review":
+            waiting_for_review = False
+        elif (kind == "batch_finished" and record["batch"] == len(task.batches) - 1) or (
+            kind == "skip_completed"
+            and data.get("source") != "counter_review"
+            and (record["batch"] == len(task.batches) - 1 or data.get("all_remaining") is True)
+        ):
             stage = 1
         elif stage == 1 and kind == "command_done" and data.get("command") == "open":
             stage = 2
         elif stage >= 3 and kind == "feedback" and data.get("kind") == "barcodeAppeared":
-            stage = 0
+            stage = 2 if waiting_for_review and stage == 3 else 0
         elif stage == 2 and kind == "feedback" and data.get("raw") == absent:
             stage = 3
-        elif stage == 3 and kind == "written" and data.get("command") == "close":
+        elif (
+            stage == 3 and not waiting_for_review
+            and kind == "written" and data.get("command") == "close"
+        ):
             stage = 4
         elif stage == 4 and kind == "ack" and data.get("command") == "close":
             stage = 5
@@ -510,7 +578,9 @@ def discard(connection, account, task_id, request):
     if connection.execute(select(tombstones.c.id).where(tombstones.c.id == task_id)).first():
         return
     task = owned_task(connection, account, task_id, request.terminal_id)
-    if task.state in (TaskState.completed, TaskState.cancelled) or not request.physical_scene_safe:
+    if task.state in (TaskState.completed, TaskState.cancelled) or (
+        request.reason != "device_disconnected" and not request.physical_scene_safe
+    ):
         reject("仅允许在现场已安全处理后删除当前未结束任务。")
     connection.execute(insert(tombstones).values(id=task_id))
     connection.execute(delete(parameters).where(parameters.c.source_task_id == task_id))

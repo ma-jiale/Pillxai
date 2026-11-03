@@ -89,7 +89,10 @@ def workspace(world):  # noqa: F811 - imported pytest fixture
     latest = client.get("/settings", headers=tokens["admin"]).json()
     assert (
         client.put(
-            "/settings", headers=tokens["admin"], json=save_payload(before, latest["revision"])
+            "/settings", headers=tokens["admin"],
+            json=save_payload(before, latest["revision"]) | {
+                "box_slot_order": before["box_slot_order"],
+            },
         ).status_code
         == 200
     )

@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -17,6 +18,7 @@ from .models import (
 )
 from .security import hash_password, token_hash, verify_password
 from .service import (
+    SESSION_LIFETIME,
     AccountDep,
     ConnectionDep,
     audit,
@@ -39,7 +41,13 @@ def sign_in(data: Login, connection: ConnectionDep):
 
 
 @router.get("/auth/me", operation_id="get_account", response_model=AccountView)
-def me(account: AccountDep):
+def me(account: AccountDep, connection: ConnectionDep, credentials=Depends(bearer)):
+    # Only already-valid sessions can be renewed; revoked/expired ones never reach here.
+    connection.execute(
+        update(sessions)
+        .where(sessions.c.token_hash == token_hash(credentials.credentials))
+        .values(expires_at=datetime.now(UTC) + SESSION_LIFETIME)
+    )
     return account
 
 

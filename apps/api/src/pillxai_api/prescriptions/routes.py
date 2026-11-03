@@ -1,14 +1,14 @@
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from sqlalchemy import select
 
 from ..contracts import ApiError
 from ..identity.service import AccountDep, ConnectionDep
 from ..residents.service import resident_row
 from .models import PrescriptionView, SavePrescription
-from .service import prescription_row, save
-from .tables import prescription_versions, prescriptions
+from .service import current_prescriptions, prescription_row, remove, save
+from .tables import prescription_versions
 
 router = APIRouter(
     prefix="/residents/{resident_id}/prescriptions",
@@ -20,17 +20,13 @@ router = APIRouter(
 @router.get("", operation_id="list_prescriptions", response_model=list[PrescriptionView])
 def list_prescriptions(resident_id: UUID, account: AccountDep, connection: ConnectionDep):
     resident_row(connection, resident_id)
-    return (
-        connection.execute(
-            select(prescriptions)
-            .where(
-                prescriptions.c.resident_id == resident_id,
-            )
-            .order_by(prescriptions.c.id)
-        )
-        .mappings()
-        .all()
-    )
+    return current_prescriptions(connection, resident_id)
+
+
+@router.delete("/{prescription_id}", operation_id="delete_prescription", status_code=204)
+def delete(resident_id: UUID, prescription_id: UUID, account: AccountDep,
+           connection: ConnectionDep, expected_revision: int = Query(ge=1)):
+    remove(connection, account, resident_id, prescription_id, expected_revision)
 
 
 @router.put("/{prescription_id}", operation_id="save_prescription", response_model=PrescriptionView)
@@ -52,7 +48,7 @@ def put(
 def versions(
     resident_id: UUID, prescription_id: UUID, account: AccountDep, connection: ConnectionDep
 ):
-    prescription_row(connection, resident_id, prescription_id)
+    prescription_row(connection, resident_id, prescription_id, include_deleted=True)
     rows = connection.execute(
         select(prescription_versions)
         .where(

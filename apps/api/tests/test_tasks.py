@@ -4,8 +4,47 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from test_business import prescription, resident, world  # noqa: F401
+from test_planning import save_payload, workspace  # noqa: F401
 
 from pillxai_api.app import create_app
+
+
+def test_shared_box_order_for_two_machines_and_bedtime(workspace):  # noqa: F811
+    client, tokens, _, _ = workspace
+    token = tokens["admin"]
+    current = client.get("/settings", headers=token).json()
+    for order in ([2, 2, 0, 3], [2, 1, 0], [True, 2, 3, 0]):
+        assert client.put("/settings", headers=token, json=save_payload(current) | {
+            "box_slot_order": order
+        }).status_code == 422
+    order = [2, 3, 1, 0]
+    result = client.put("/settings", headers=token, json=save_payload(current) | {
+        "box_slot_order": order, "bedtime_enabled": False
+    })
+    assert result.status_code == 200
+    three = result.json()
+    for _ in range(2):
+        f = setup(client, token, mode="hardware")
+        task = claim(client, token, f).json()
+        assert task["device"]["configuration"]["rows"] == [0, 1, 2, 3]
+        assert task["plan"]["settings"]["box_slot_order"] == order
+    # An existing caller can toggle bedtime without resending or resetting the layout.
+    result = client.put("/settings", headers=token, json=save_payload(three) | {
+        "bedtime_enabled": True
+    })
+    assert result.json()["box_slot_order"] == order
+    assert client.get(f"/tasks/{task['id']}", headers=token).json()["device"] == task["device"]
+    f = setup(client, token, mode="hardware")
+    data = prescription() | dict(start_date="2026-01-01", end_date=None,
+                                 doses=dict(morning="0.5", noon="0", evening="0", night="0.5"))
+    response = client.put(f"/residents/{f['rid']}/prescriptions/{f['pid']}", headers=token,
+                          json=dict(expected_revision=1, data=data))
+    assert response.status_code == 200, response.text
+    f["plan"] = client.post(f"/residents/{f['rid']}/plans/preview", headers=token,
+                            json=dict(days=2)).json()["snapshot"]
+    task = claim(client, token, f).json()
+    assert task["device"]["configuration"]["rows"] == [3, 0, 2, 1]
+    assert [row[0] for row in task["batches"][0]["matrix"]] == [0, 1, 0, 1]
 
 
 def setup(client, token, *, mode="simulator", with_parameters=True, days=2):
@@ -112,6 +151,24 @@ def upload(client, token, fixture, task, values):
     )
 
 
+def collection_events(task, first):
+    code = next(
+        b["value"] for b in task["recognition_bindings"]
+        if b["source"] == "barcode" and b["resident_id"] == task["plan"]["resident_id"]
+    )
+    absent = "DISAPPEARED," + code
+    return [
+        event(first, "command_done", {"command": "open"}),
+        event(first + 1, "feedback", {"kind": "barcodeDisappeared", "raw": absent}),
+        event(first + 2, "written", {"command": "close"}),
+        event(first + 3, "ack", {"command": "close"}),
+        event(first + 4, "command_done", {"command": "close"}),
+        event(first + 5, "collection_ready", {
+            "source": "barcode", "absent": absent, "ready": "ACK,DONE"
+        }),
+    ]
+
+
 def test_hardware_parameters_and_stale_start(world):  # noqa: F811
     client, tokens, _, _ = world
     token = tokens["admin"]
@@ -169,13 +226,24 @@ def test_claim_concurrency_owner_recognition_and_immutable_plan(world):  # noqa:
         client.put(
             f"/devices/{f['device']}",
             headers=tokens["admin"],
-            json=dict(expected_revision=1, configuration=f["config"]),
+            json=dict(expected_revision=1, configuration=f["config"] | dict(name="重新配置的设备")),
         ).status_code
-        == 409
+        == 200
     )
     started = start(client, tokens["admin"], f, task)
     assert started.status_code == 200
     assert start(client, tokens["admin"], f, task).json() == started.json()
+    assert started.json()["device"] == task["device"]
+    # Rebinding the registry after a restart does not move or complete the old task.
+    changed = client.put(
+        f"/devices/{f['device']}", headers=tokens["admin"],
+        json=dict(expected_revision=2, configuration=f["config"] | dict(terminal_id=str(uuid4()))),
+    )
+    assert changed.status_code == 200
+    retained = client.get(f"/tasks/{task['id']}", headers=tokens["admin"]).json()
+    assert retained["device"] == task["device"]
+    assert retained["terminal_id"] == task["terminal_id"]
+    assert retained["state"] == "started"
     resident(client, tokens["admin"], resident_id=f["rid"], revision=1, name="后来修改")
     assert (
         client.get(f"/tasks/{task['id']}", headers=tokens["staff"]).json()["plan"] == task["plan"]
@@ -224,10 +292,10 @@ def test_result_deduplication_collection_and_coverage(world):  # noqa: F811
         tokens["admin"],
         f,
         task,
-        [event(3, "collection_ready", {"absent": "test:absent", "ready": "test:ready"})],
+        collection_events(task, 3),
     )
     assert collected.json()["state"] == "completed"
-    assert len(client.get(f"/tasks/{task['id']}/events", headers=tokens["admin"]).json()) == 3
+    assert len(client.get(f"/tasks/{task['id']}/events", headers=tokens["admin"]).json()) == 8
 
 
 def test_late_idle_connection_does_not_block_cancelled_task_sync(world):  # noqa: F811

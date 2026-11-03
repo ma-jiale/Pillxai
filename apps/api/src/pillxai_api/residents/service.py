@@ -6,6 +6,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from ..database import BusinessError, conflict, not_found
 from ..identity.service import require_maintain
+from ..tasks.tables import tasks
 from .tables import resident_versions, residents
 
 
@@ -26,14 +27,36 @@ def next_barcode(connection):
             return code
 
 
-def resident_row(connection, resident_id, *, lock=False):
+def resident_row(connection, resident_id, *, lock=False, include_deleted=False):
     statement = select(residents).where(residents.c.id == resident_id)
+    if not include_deleted:
+        statement = statement.where(residents.c.deleted_at.is_(None))
     if lock:
         statement = statement.with_for_update()
     row = connection.execute(statement).mappings().first()
     if not row:
         not_found()
     return row
+
+
+def require_idle(connection, resident_id):
+    if connection.scalar(select(tasks.c.id).where(tasks.c.resident_id == resident_id,
+                                                  tasks.c.active).limit(1)):
+        raise BusinessError(409, "active_task", "该长者有未结束的摆药任务，请处理完任务后再删除。")
+
+
+def remove(connection, account, resident_id, expected_revision):
+    require_maintain(account)
+    row = resident_row(connection, resident_id, lock=True, include_deleted=True)
+    if row["deleted_at"] and row["revision"] == expected_revision + 1:
+        return
+    if row["revision"] != expected_revision or row["deleted_at"]:
+        conflict()
+    require_idle(connection, resident_id)
+    now = datetime.now(UTC)
+    connection.execute(update(residents).where(residents.c.id == resident_id).values(
+        deleted_at=now, updated_at=now, updated_by=account.id, revision=expected_revision + 1
+    ))
 
 
 def view(row):

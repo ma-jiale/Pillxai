@@ -27,6 +27,7 @@ def test_barcode_only_claim_and_start_snapshot(world):
     with engine.begin() as conn:
         conn.execute(delete(labels).where(labels.c.resident_id == f["rid"]))
     engine.dispose()
+    observed = datetime.now(UTC)
     f["plan"] = client.post(
         f"/residents/{f['rid']}/plans/preview", headers=token, json=dict(days=2)
     ).json()["snapshot"]
@@ -38,7 +39,14 @@ def test_barcode_only_claim_and_start_snapshot(world):
     assert start(client, token, f, task, uid=None, barcode=code[1:]).status_code == 409
     assert start(client, token, f, task, barcode=code).status_code == 422
     assert start(client, token, f, task, uid=code).status_code in (409, 422)
-    observed = datetime.now(UTC)
+    # Reading the barcode before preview is expected, but that reading alone
+    # cannot grant a permit without checking the same box again at start.
+    assert observed < datetime.fromisoformat(f["plan"]["created_at"])
+    assert (
+        start(client, token, f, task, uid=None, barcode=code, observed_at=observed.isoformat())
+        .json()["code"]
+        == "stale_recognition"
+    )
     assert (
         start(
             client,

@@ -16,6 +16,7 @@ from .tables import account_audit, accounts, sessions
 
 bearer = HTTPBearer(auto_error=False)
 ConnectionDep = Annotated[Connection, Depends(transaction, scope="function")]
+SESSION_LIFETIME = timedelta(days=30)
 
 
 def audit(connection, account, actor_id, action):
@@ -63,7 +64,7 @@ def login(connection, username, password):
     if not account or not valid or not account["active"]:
         raise BusinessError(401, "invalid_credentials", "账号或密码不正确，或账号已停用。")
     token = secrets.token_urlsafe(32)
-    expires = datetime.now(UTC) + timedelta(hours=12)
+    expires = datetime.now(UTC) + SESSION_LIFETIME
     connection.execute(
         insert(sessions).values(
             token_hash=token_hash(token),

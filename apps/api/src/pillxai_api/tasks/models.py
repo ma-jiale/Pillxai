@@ -22,7 +22,8 @@ class DeviceConfiguration(Input):
     identity: Name
     terminal_id: UUID
     mode: DeviceMode
-    # Business morning/noon/evening/night -> protocol row. No implicit mapping.
+    # Registry: physical box position -> protocol row. Task snapshots compose
+    # this calibration with the shared box order: morning/noon/evening/night -> row.
     rows: list[Annotated[int, Field(strict=True, ge=0, le=3)]] = Field(min_length=4, max_length=4)
     reverse_columns: bool = False
     positions_verified: bool = False
@@ -31,7 +32,8 @@ class DeviceConfiguration(Input):
     tray_absent_line: str = Field(default="", max_length=120)
     ready_line: str = Field(default="", max_length=120)
     feedback_verified: bool = False
-    # Explicitly confirmed per machine: matching barcode disappearance closes immediately.
+    # Hardware registry entries enable this for new tasks. Old task snapshots
+    # retain their original value and release evidence requirements.
     barcode_removal_closes: bool = False
 
     @model_validator(mode="after")
@@ -98,6 +100,7 @@ class BatchPlan(BaseModel):
     medicine_id: UUID
     name: str
     strength: str
+    image: str | None = None
     feed_form: str
     purpose: str
     total: int
@@ -177,6 +180,9 @@ class TaskView(BaseModel):
     batches: list[BatchPlan]
     sequence: int
     completed_batches: list[int]
+    skipped_batches: list[int] = Field(default_factory=list)
+    manual_batches: list[int] = Field(default_factory=list)
+    skip_protocol: int = 0
     counts: list[int]
     started_at: datetime | None
     updated_at: datetime
@@ -222,6 +228,8 @@ class StoredEvent(ExecutionEvent):
 
 class DiscardTask(TaskOwner):
     physical_scene_safe: bool
+    # Omitted by existing clients; retains the operator safety confirmation.
+    reason: Literal["operator", "device_disconnected"] | None = None
 
 
 class TaskReceipt(BaseModel):

@@ -16,5 +16,7 @@ def completed_until(connection, resident_id):
         PlanSnapshot.model_validate(row["plan"]).dates[-1]
         for row in rows
         if row["device"]["configuration"]["mode"] == "hardware"
+        and len(set(row["completed_batches"] + row.get("manual_batches", [])))
+        == len(row["batches"])
     ]
     return max(dates) if dates else None

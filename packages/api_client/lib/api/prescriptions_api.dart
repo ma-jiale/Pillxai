@@ -16,6 +16,63 @@ class PrescriptionsApi {
 
   final ApiClient apiClient;
 
+  /// Delete
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] residentId (required):
+  ///
+  /// * [String] prescriptionId (required):
+  ///
+  /// * [int] expectedRevision (required):
+  Future<Response> deletePrescriptionWithHttpInfo(String residentId, String prescriptionId, int expectedRevision, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/residents/{resident_id}/prescriptions/{prescription_id}'
+      .replaceAll('{resident_id}', residentId)
+      .replaceAll('{prescription_id}', prescriptionId);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+      queryParams.addAll(_queryParams('', 'expected_revision', expectedRevision));
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'DELETE',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Delete
+  ///
+  /// Parameters:
+  ///
+  /// * [String] residentId (required):
+  ///
+  /// * [String] prescriptionId (required):
+  ///
+  /// * [int] expectedRevision (required):
+  Future<void> deletePrescription(String residentId, String prescriptionId, int expectedRevision, { Future<void>? abortTrigger, }) async {
+    final response = await deletePrescriptionWithHttpInfo(residentId, prescriptionId, expectedRevision, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+  }
+
   /// Versions
   ///
   /// Note: This method returns the HTTP [Response].

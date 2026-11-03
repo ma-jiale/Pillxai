@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -31,6 +31,7 @@ settings = Table(
     Column("id", Integer, primary_key=True),
     Column("timezone", String(64), nullable=False),
     Column("bedtime_enabled", Boolean, nullable=False),
+    Column("box_slot_order", JSONB, nullable=False, server_default="[0,1,2,3]"),
     Column("preparation_days", Integer, nullable=False),
     Column("split_meals", Boolean, nullable=False),
     Column("start_tomorrow", Boolean, nullable=False),
@@ -49,9 +50,23 @@ versions = Table(
 )
 
 
+def validate_box_order(order):
+    if sorted(order) != [0, 1, 2, 3]:
+        raise ValueError("药盒布局须包含早、午、晚、睡前各一次。")
+    return order
+
+
+BoxSlotOrder = Annotated[
+    list[Annotated[int, Field(strict=True, ge=0, le=3)]],
+    Field(min_length=4, max_length=4),
+    AfterValidator(validate_box_order),
+]
+
+
 class AppSettings(BaseModel):
     timezone: str
     bedtime_enabled: bool
+    box_slot_order: BoxSlotOrder = Field(default_factory=lambda: [0, 1, 2, 3])
     preparation_days: int
     split_meals: bool
     start_tomorrow: bool
@@ -63,6 +78,7 @@ class SaveSettings(Input):
     preparation_days: Annotated[int, Field(strict=True, ge=1, le=7)]
     split_meals: Annotated[bool, Field(strict=True)]
     bedtime_enabled: Annotated[bool, Field(strict=True)]
+    box_slot_order: BoxSlotOrder | None = None
     start_tomorrow: Annotated[bool, Field(strict=True)]
 
 
@@ -91,7 +107,7 @@ def save_settings(data: SaveSettings, account: AccountDep, connection: Connectio
             update(settings)
             .where(settings.c.id == 1, settings.c.revision == data.expected_revision)
             .values(
-                **data.model_dump(exclude={"expected_revision"}),
+                **data.model_dump(exclude={"expected_revision"}, exclude_none=True),
                 revision=data.expected_revision + 1,
             )
             .returning(settings)

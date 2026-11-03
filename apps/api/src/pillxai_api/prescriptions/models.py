@@ -4,10 +4,11 @@ from enum import StrEnum
 from typing import Annotated, Self
 from uuid import UUID
 
-from pydantic import BaseModel, Field, StringConstraints, model_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 
 from ..contracts import FeedForm
 from ..identity.models import Input
+from .image import normalize_medicine_image
 
 Dose = Annotated[str, StringConstraints(pattern=r"^(0|[1-9][0-9]{0,2})(\.5)?$")]
 Description = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
@@ -42,6 +43,12 @@ class PrescriptionData(Input):
     start_date: date
     end_date: date | None
     stopped: bool = False
+    image: Annotated[str, StringConstraints(strict=True, max_length=1500000)] | None = None
+
+    @field_validator("image")
+    @classmethod
+    def valid_image(cls, value):
+        return normalize_medicine_image(value)
 
     @model_validator(mode="after")
     def validate_doses_and_dates(self) -> Self:

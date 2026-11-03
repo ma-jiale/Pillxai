@@ -2,7 +2,9 @@
 from datetime import date, timedelta
 
 from test_business import world  # noqa: F401
-from test_tasks import claim, event, setup, start, upload
+from test_tasks import claim, collection_events, event, setup, start, upload
+
+from pillxai_api.tasks.service import device_view
 
 
 def test_preparation_queue_uses_real_coverage_and_keeps_invalid_demand(world):
@@ -28,7 +30,7 @@ def test_preparation_queue_uses_real_coverage_and_keeps_invalid_demand(world):
         [
             event(1, "count", {"count": total}),
             event(2, "batch_finished", {"feedback": "machine_state:FINISH"}),
-            event(3, "collection_ready", {"absent": "test:absent", "ready": "test:ready"}),
+            *collection_events(task, 3),
         ],
     )
     assert result.status_code == 200, result.text
@@ -70,7 +72,7 @@ def test_preparation_queue_uses_real_coverage_and_keeps_invalid_demand(world):
 def test_barcode_collection_requires_ordered_close_evidence(world):
     client, tokens, _, _ = world
     token = tokens["admin"]
-    f = setup(client, token)
+    f = setup(client, token, mode="hardware")
     profile = client.get(f"/residents/{f['rid']}", headers=token).json()
     code = profile["data"]["barcode"]
     assert (
@@ -84,22 +86,23 @@ def test_barcode_collection_requires_ordered_close_evidence(world):
         ).status_code
         == 200
     )
-    assert (
-        client.put(
-            f"/devices/{f['device']}",
-            headers=token,
-            json={
-                "expected_revision": 1,
-                "configuration": f["config"]
-                | {"barcode_removal_closes": True, "feedback_verified": False},
-            },
-        ).status_code
-        == 200
+    config = f["config"] | {"barcode_removal_closes": False, "feedback_verified": False}
+    row = dict(id=f["device"], revision=1, configuration=config)
+    assert device_view(row).configuration.barcode_removal_closes
+    simulator = device_view(row | {"configuration": config | {"mode": "simulator"}})
+    assert not simulator.configuration.barcode_removal_closes
+    saved = client.put(
+        f"/devices/{f['device']}",
+        headers=token,
+        json={"expected_revision": 1, "configuration": config},
     )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["configuration"]["barcode_removal_closes"]
     f["plan"] = client.post(
         f"/residents/{f['rid']}/plans/preview", headers=token, json={"days": 2}
     ).json()["snapshot"]
     task = claim(client, token, f).json()
+    assert task["device"]["configuration"]["barcode_removal_closes"]
     task = start(client, token, f, task).json()
     detail = {"source": "barcode", "absent": "DISAPPEARED," + code, "ready": "ACK,DONE"}
     assert (

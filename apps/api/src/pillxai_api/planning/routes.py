@@ -37,7 +37,8 @@ def list_preparation(account: AccountDep, connection: ConnectionDep):
     configuration = AppSettings.model_validate(read_settings(connection))
     today = datetime.now(ZoneInfo(configuration.timezone)).date()
     result = []
-    for resident in connection.execute(select(residents).order_by(residents.c.name)).mappings():
+    current = select(residents).where(residents.c.deleted_at.is_(None)).order_by(residents.c.name)
+    for resident in connection.execute(current).mappings():
         sources = current_prescriptions(connection, resident["id"])
         coverage = completed_until(connection, resident["id"])
         issue = None

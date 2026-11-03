@@ -1253,6 +1253,95 @@
           }
         }
       },
+      "delete": {
+        "tags": [
+          "residents"
+        ],
+        "summary": "Delete",
+        "operationId": "delete_resident",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Resident Id"
+            }
+          },
+          {
+            "name": "expected_revision",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Expected Revision"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      },
       "put": {
         "tags": [
           "residents"
@@ -1535,6 +1624,105 @@
       }
     },
     "/residents/{resident_id}/prescriptions/{prescription_id}": {
+      "delete": {
+        "tags": [
+          "prescriptions"
+        ],
+        "summary": "Delete",
+        "operationId": "delete_prescription",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Resident Id"
+            }
+          },
+          {
+            "name": "prescription_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Prescription Id"
+            }
+          },
+          {
+            "name": "expected_revision",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Expected Revision"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      },
       "put": {
         "tags": [
           "prescriptions"
@@ -3500,6 +3688,17 @@
             "type": "boolean",
             "title": "Bedtime Enabled"
           },
+          "box_slot_order": {
+            "items": {
+              "type": "integer",
+              "maximum": 3.0,
+              "minimum": 0.0
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Box Slot Order"
+          },
           "preparation_days": {
             "type": "integer",
             "title": "Preparation Days"
@@ -3555,6 +3754,17 @@
           "strength": {
             "type": "string",
             "title": "Strength"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
           },
           "feed_form": {
             "type": "string",
@@ -3911,6 +4121,21 @@
           "physical_scene_safe": {
             "type": "boolean",
             "title": "Physical Scene Safe"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "operator",
+                  "device_disconnected"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           }
         },
         "additionalProperties": false,
@@ -4722,6 +4947,18 @@
             "type": "boolean",
             "title": "Stopped",
             "default": false
+          },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1500000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
           }
         },
         "additionalProperties": false,
@@ -5075,6 +5312,24 @@
             "type": "boolean",
             "title": "Bedtime Enabled"
           },
+          "box_slot_order": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer",
+                  "maximum": 3.0,
+                  "minimum": 0.0
+                },
+                "type": "array",
+                "maxItems": 4,
+                "minItems": 4
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Box Slot Order"
+          },
           "start_tomorrow": {
             "type": "boolean",
             "title": "Start Tomorrow"
@@ -5343,6 +5598,25 @@
             },
             "type": "array",
             "title": "Completed Batches"
+          },
+          "skipped_batches": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Skipped Batches"
+          },
+          "manual_batches": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Manual Batches"
+          },
+          "skip_protocol": {
+            "type": "integer",
+            "title": "Skip Protocol",
+            "default": 0
           },
           "counts": {
             "items": {

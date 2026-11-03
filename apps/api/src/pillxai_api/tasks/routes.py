@@ -30,7 +30,8 @@ router = APIRouter(
 
 @router.get("/devices", operation_id="list_devices", response_model=list[DeviceView])
 def list_devices(account: AccountDep, connection: ConnectionDep):
-    return list(connection.execute(select(devices).order_by(devices.c.identity)).mappings())
+    rows = connection.execute(select(devices).order_by(devices.c.identity)).mappings()
+    return [service.device_view(row) for row in rows]
 
 
 @router.put("/devices/{device_id}", operation_id="save_device", response_model=DeviceView)
