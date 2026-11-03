@@ -4,8 +4,47 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from test_business import prescription, resident, world  # noqa: F401
+from test_planning import save_payload, workspace  # noqa: F401
 
 from pillxai_api.app import create_app
+
+
+def test_shared_box_order_for_two_machines_and_bedtime(workspace):  # noqa: F811
+    client, tokens, _, _ = workspace
+    token = tokens["admin"]
+    current = client.get("/settings", headers=token).json()
+    for order in ([2, 2, 0, 3], [2, 1, 0], [True, 2, 3, 0]):
+        assert client.put("/settings", headers=token, json=save_payload(current) | {
+            "box_slot_order": order
+        }).status_code == 422
+    order = [2, 3, 1, 0]
+    result = client.put("/settings", headers=token, json=save_payload(current) | {
+        "box_slot_order": order, "bedtime_enabled": False
+    })
+    assert result.status_code == 200
+    three = result.json()
+    for _ in range(2):
+        f = setup(client, token, mode="hardware")
+        task = claim(client, token, f).json()
+        assert task["device"]["configuration"]["rows"] == [0, 1, 2, 3]
+        assert task["plan"]["settings"]["box_slot_order"] == order
+    # An existing caller can toggle bedtime without resending or resetting the layout.
+    result = client.put("/settings", headers=token, json=save_payload(three) | {
+        "bedtime_enabled": True
+    })
+    assert result.json()["box_slot_order"] == order
+    assert client.get(f"/tasks/{task['id']}", headers=token).json()["device"] == task["device"]
+    f = setup(client, token, mode="hardware")
+    data = prescription() | dict(start_date="2026-01-01", end_date=None,
+                                 doses=dict(morning="0.5", noon="0", evening="0", night="0.5"))
+    response = client.put(f"/residents/{f['rid']}/prescriptions/{f['pid']}", headers=token,
+                          json=dict(expected_revision=1, data=data))
+    assert response.status_code == 200, response.text
+    f["plan"] = client.post(f"/residents/{f['rid']}/plans/preview", headers=token,
+                            json=dict(days=2)).json()["snapshot"]
+    task = claim(client, token, f).json()
+    assert task["device"]["configuration"]["rows"] == [3, 0, 2, 1]
+    assert [row[0] for row in task["batches"][0]["matrix"]] == [0, 1, 0, 1]
 
 
 def setup(client, token, *, mode="simulator", with_parameters=True, days=2):

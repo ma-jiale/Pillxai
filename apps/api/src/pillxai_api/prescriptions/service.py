@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from ..app_settings import read_settings
 from ..database import BusinessError, conflict, not_found
 from ..identity.service import require_maintain
-from ..residents.service import resident_row
+from ..residents.service import require_idle, resident_row
 from .models import PrescriptionView
 from .tables import medicines, prescription_versions, prescriptions
 
@@ -17,14 +17,15 @@ def current_prescriptions(connection, resident_id):
         select(prescriptions)
         .where(
             prescriptions.c.resident_id == resident_id,
+            prescriptions.c.deleted_at.is_(None),
         )
         .order_by(prescriptions.c.id)
     ).mappings()
     return [PrescriptionView.model_validate(row) for row in rows]
 
 
-def prescription_row(connection, resident_id, prescription_id):
-    resident_row(connection, resident_id)
+def prescription_row(connection, resident_id, prescription_id, *, include_deleted=False):
+    resident_row(connection, resident_id, include_deleted=include_deleted)
     row = (
         connection.execute(
             select(prescriptions).where(
@@ -35,9 +36,24 @@ def prescription_row(connection, resident_id, prescription_id):
         .mappings()
         .first()
     )
-    if not row:
+    if not row or (row["deleted_at"] and not include_deleted):
         not_found()
     return row
+
+
+def remove(connection, account, resident_id, prescription_id, expected_revision):
+    require_maintain(account)
+    resident_row(connection, resident_id, lock=True)
+    row = prescription_row(connection, resident_id, prescription_id, include_deleted=True)
+    if row["deleted_at"] and row["revision"] == expected_revision + 1:
+        return
+    if row["revision"] != expected_revision or row["deleted_at"]:
+        conflict()
+    require_idle(connection, resident_id)
+    now = datetime.now(UTC)
+    connection.execute(update(prescriptions).where(prescriptions.c.id == prescription_id).values(
+        deleted_at=now, updated_at=now, updated_by=account.id, revision=expected_revision + 1
+    ))
 
 
 def save(connection, account, resident_id, prescription_id, request):

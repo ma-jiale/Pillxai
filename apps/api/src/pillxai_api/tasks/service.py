@@ -134,7 +134,7 @@ def task_row(connection, task_id, lock=False):
 def owned_task(connection, account, task_id, terminal_id, lock=True):
     if lock:
         initial = task_row(connection, task_id)
-        resident_row(connection, initial["resident_id"], lock=True)
+        resident_row(connection, initial["resident_id"], lock=True, include_deleted=True)
     row = task_row(connection, task_id, lock)
     if row["terminal_id"] != terminal_id or row["owner_id"] != account.id:
         raise BusinessError(403, "task_owner", "请在领取任务的原终端、原账号操作。")
@@ -222,6 +222,15 @@ def claim(connection, account, task_id, request):
         reject("设备已固定到其他终端。")
     if config.mode == DeviceMode.hardware and not config.positions_verified:
         reject("须先完成并确认实体位置映射，才能下发真实计划。")
+    # Compose shared physical box order with the device's protocol calibration.
+    # The immutable task still exposes time-slot -> protocol-row to older clients.
+    layout = preview.snapshot.settings
+    order = list(layout.box_slot_order)
+    if not layout.bedtime_enabled:
+        order.remove(3)
+        order.append(3)
+    rows = [config.rows[order.index(slot)] for slot in range(4)]
+    device = device.model_copy(update={"configuration": config.model_copy(update={"rows": rows})})
     active = connection.execute(
         select(tasks.c.id).where(
             tasks.c.active,
@@ -238,7 +247,8 @@ def claim(connection, account, task_id, request):
     )
     barcode_rows = (
         connection.execute(
-            select(residents.c.id, residents.c.barcode).where(residents.c.barcode != "")
+            select(residents.c.id, residents.c.barcode).where(
+                residents.c.barcode != "", residents.c.deleted_at.is_(None))
         )
         .mappings()
         .all()
@@ -248,7 +258,8 @@ def claim(connection, account, task_id, request):
     ]
     bindings += [
         dict(source="rfid", value=r["uid"], resident_id=r["resident_id"])
-        for r in connection.execute(select(labels)).mappings()
+        for r in connection.execute(select(labels).join(residents).where(
+            residents.c.deleted_at.is_(None))).mappings()
     ]
     if not bound and not any(r["id"] == preview.snapshot.resident_id for r in barcode_rows):
         reject("请先为这位长者绑定新系统的药盒标签。", "label_required")

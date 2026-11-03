@@ -16,6 +16,58 @@ class ResidentsApi {
 
   final ApiClient apiClient;
 
+  /// Delete
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] residentId (required):
+  ///
+  /// * [int] expectedRevision (required):
+  Future<Response> deleteResidentWithHttpInfo(String residentId, int expectedRevision, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/residents/{resident_id}'
+      .replaceAll('{resident_id}', residentId);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+      queryParams.addAll(_queryParams('', 'expected_revision', expectedRevision));
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'DELETE',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Delete
+  ///
+  /// Parameters:
+  ///
+  /// * [String] residentId (required):
+  ///
+  /// * [int] expectedRevision (required):
+  Future<void> deleteResident(String residentId, int expectedRevision, { Future<void>? abortTrigger, }) async {
+    final response = await deleteResidentWithHttpInfo(residentId, expectedRevision, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+  }
+
   /// Get
   ///
   /// Note: This method returns the HTTP [Response].

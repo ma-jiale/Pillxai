@@ -22,7 +22,8 @@ class DeviceConfiguration(Input):
     identity: Name
     terminal_id: UUID
     mode: DeviceMode
-    # Business morning/noon/evening/night -> protocol row. No implicit mapping.
+    # Registry: physical box position -> protocol row. Task snapshots compose
+    # this calibration with the shared box order: morning/noon/evening/night -> row.
     rows: list[Annotated[int, Field(strict=True, ge=0, le=3)]] = Field(min_length=4, max_length=4)
     reverse_columns: bool = False
     positions_verified: bool = False

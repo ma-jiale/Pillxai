@@ -36,6 +36,12 @@ foreach ($model in Get-ChildItem (Join-Path $target 'lib/model') -Filter '*.dart
 # prescription legitimately returns JSON null until its parameters are saved.
 # Keep this correction in generation so --Check also detects regressions.
 $executionApiPath = Join-Path $target 'lib/api/execution_api.dart'
+# Omitting a layout in a settings update preserves the existing layout.
+# Generator 7.26 otherwise emits an invalid empty permutation by default.
+$saveSettingsPath = Join-Path $target 'lib/model/save_settings.dart'
+$saveSettingsSource = [IO.File]::ReadAllText($saveSettingsPath)
+$saveSettingsSource = $saveSettingsSource.Replace('this.boxSlotOrder = const [],', 'this.boxSlotOrder,')
+[IO.File]::WriteAllText($saveSettingsPath, $saveSettingsSource, [Text.UTF8Encoding]::new($false))
 $executionApiSource = [IO.File]::ReadAllText($executionApiPath)
 $parameterCast = "deserializeAsync(await _decodeBodyBytes(response), 'ParameterView',) as ParameterView;"
 if (-not $executionApiSource.Contains($parameterCast)) { throw 'Review nullable ParameterView normalization after generator changes.' }

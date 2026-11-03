@@ -6,7 +6,7 @@ from sqlalchemy import select
 from ..contracts import ApiError
 from ..identity.service import AccountDep, ConnectionDep
 from .models import ResidentPage, ResidentView, SaveResident
-from .service import resident_row, save, view
+from .service import remove, resident_row, save, view
 from .tables import resident_versions, residents
 
 router = APIRouter(
@@ -25,7 +25,7 @@ def list_residents(
     query: str = Query("", max_length=80),
     barcode: str | None = Query(None, min_length=1, max_length=128),
 ):
-    statement = select(residents)
+    statement = select(residents).where(residents.c.deleted_at.is_(None))
     if barcode is not None:
         statement = statement.where(residents.c.barcode == barcode)
     if after:
@@ -47,6 +47,12 @@ def get(resident_id: UUID, account: AccountDep, connection: ConnectionDep):
     return view(resident_row(connection, resident_id))
 
 
+@router.delete("/{resident_id}", operation_id="delete_resident", status_code=204)
+def delete(resident_id: UUID, account: AccountDep, connection: ConnectionDep,
+           expected_revision: int = Query(ge=1)):
+    remove(connection, account, resident_id, expected_revision)
+
+
 @router.put("/{resident_id}", operation_id="save_resident", response_model=ResidentView)
 def put(resident_id: UUID, data: SaveResident, account: AccountDep, connection: ConnectionDep):
     return save(connection, account, resident_id, data)
@@ -58,7 +64,7 @@ def put(resident_id: UUID, data: SaveResident, account: AccountDep, connection: 
     response_model=list[ResidentView],
 )
 def versions(resident_id: UUID, account: AccountDep, connection: ConnectionDep):
-    resident_row(connection, resident_id)
+    resident_row(connection, resident_id, include_deleted=True)
     rows = connection.execute(
         select(resident_versions)
         .where(
