@@ -33,6 +33,45 @@ Widget deck(ValueNotifier<int> index, {bool reducedMotion = false}) =>
     );
 
 void main() {
+  for (final width in [1000.0, 550.0]) {
+    testWidgets('切药时三张卡片按顺序同向移动并保持间距 $width', (tester) async {
+      tester.view.physicalSize = Size(width, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final index = ValueNotifier(0);
+      addTearDown(index.dispose);
+      await tester.pumpWidget(deck(index));
+      Rect bounds(String key) => tester.getRect(find.byKey(ValueKey(key)));
+      double start(Rect card) => width < 800 ? card.top : card.left;
+      double end(Rect card) => width < 800 ? card.bottom : card.right;
+      final current = bounds('medicine-current-slot');
+      final preview = bounds('medicine-next-slot');
+      final gap = start(preview) - end(current);
+      index.value = 1;
+      await tester.pump();
+      expect(bounds('medicine-promotion'), preview);
+      await tester.pump();
+      var previous = start(preview);
+      for (var frame = 0; frame < 5; frame++) {
+        await tester.pump(const Duration(milliseconds: 100));
+        final promoted = bounds('medicine-promotion');
+        expect(start(promoted), lessThan(previous));
+        expect(
+          start(promoted) - end(bounds('medicine-departure')),
+          closeTo(gap, .01),
+        );
+        expect(
+          start(bounds('medicine-replenishment')) - end(promoted),
+          closeTo(gap, .01),
+        );
+        previous = start(promoted);
+      }
+      await tester.pumpAndSettle();
+      expect(bounds('medicine-current-slot'), current);
+    });
+  }
+
   testWidgets('减少动态效果时直接显示当前药，不创建迁移卡片', (tester) async {
     final index = ValueNotifier(0);
     addTearDown(index.dispose);

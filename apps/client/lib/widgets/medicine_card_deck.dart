@@ -33,7 +33,7 @@ class _MedicineCardDeckState extends State<MedicineCardDeck>
   late final _controller =
       AnimationController(
         vsync: this,
-        duration: const Duration(milliseconds: 680),
+        duration: const Duration(milliseconds: 600),
       )..addStatusListener((status) {
         if (status == AnimationStatus.completed && mounted) {
           setState(_clearFlight);
@@ -161,22 +161,10 @@ class _MedicineCardDeckState extends State<MedicineCardDeck>
     animation: _controller,
     builder: (context, _) {
       final t = _controller.value;
-      final travel = Curves.easeOutCubic.transform((t / .85).clamp(0, 1));
-      final reveal = const Interval(
-        .35,
-        .85,
-        curve: Curves.easeInOut,
-      ).transform(t);
-      final departure = const Interval(
-        0,
-        .65,
-        curve: Curves.easeInCubic,
-      ).transform(t);
-      final replenish = const Interval(
-        .65,
-        1,
-        curve: Curves.easeOut,
-      ).transform(t);
+      final travel = Curves.easeInOutCubic.transform(t);
+      final card = Rect.lerp(_fromNext, _toCurrent, travel);
+      final previewOpacity = 1 - const Interval(.18, .50).transform(travel);
+      final detailOpacity = const Interval(.50, .85).transform(travel);
       return ClipRect(
         child: Stack(
           key: _deckKey,
@@ -189,19 +177,18 @@ class _MedicineCardDeckState extends State<MedicineCardDeck>
               ),
             ),
             if (_moving) ...[
+              // Keep the last preview visible as the stacked layout contracts.
+              SizedBox(height: card!.bottom),
               Positioned.fromRect(
                 rect: _fromCurrent!.shift(
                   widget.stacked
-                      ? Offset(0, -_fromCurrent!.height * .35 * departure)
-                      : Offset(-_fromCurrent!.width * .45 * departure, 0),
+                      ? Offset(0, card.top - _fromNext!.top)
+                      : Offset(card.left - _fromNext!.left, 0),
                 ),
                 child: ExcludeSemantics(
-                  child: Opacity(
-                    opacity: 1 - departure,
-                    child: Surface(
-                      key: const ValueKey('medicine-departure'),
-                      child: _contentAtSize(_departing!, _fromCurrent!.size),
-                    ),
+                  child: Surface(
+                    key: const ValueKey('medicine-departure'),
+                    child: _contentAtSize(_departing!, _fromCurrent!.size),
                   ),
                 ),
               ),
@@ -209,18 +196,18 @@ class _MedicineCardDeckState extends State<MedicineCardDeck>
                 Positioned.fromRect(
                   rect: _toNext!.shift(
                     widget.stacked
-                        ? Offset(0, 24 * (1 - replenish))
-                        : Offset(36 * (1 - replenish), 0),
+                        ? Offset(0, card.bottom - _toCurrent!.bottom)
+                        : Offset(card.right - _toCurrent!.right, 0),
                   ),
                   child: ExcludeSemantics(
-                    child: Opacity(
-                      opacity: replenish,
-                      child: Surface(child: widget.next!),
+                    child: Surface(
+                      key: const ValueKey('medicine-replenishment'),
+                      child: widget.next!,
                     ),
                   ),
                 ),
               Positioned.fromRect(
-                rect: Rect.lerp(_fromNext, _toCurrent, travel)!,
+                rect: card,
                 child: Surface(
                   key: const ValueKey('medicine-promotion'),
                   child: Stack(
@@ -228,12 +215,12 @@ class _MedicineCardDeckState extends State<MedicineCardDeck>
                     children: [
                       ExcludeSemantics(
                         child: Opacity(
-                          opacity: 1 - reveal,
+                          opacity: previewOpacity,
                           child: _contentAtSize(_promoting!, _fromNext!.size),
                         ),
                       ),
                       Opacity(
-                        opacity: reveal,
+                        opacity: detailOpacity,
                         child: _contentAtSize(widget.current, _toCurrent!.size),
                       ),
                     ],
