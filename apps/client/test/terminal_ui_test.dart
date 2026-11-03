@@ -23,6 +23,7 @@ class FakeHost implements TerminalHost {
   final Map<String, dynamic> value;
   final events = StreamController<Map<String, dynamic>>.broadcast(sync: true);
   final operations = <String>[];
+  final stallConfirmations = <Map<String, dynamic>>[];
   @override
   bool get supported => true;
   @override
@@ -35,13 +36,24 @@ class FakeHost implements TerminalHost {
     Map<String, dynamic> data = const {},
   ]) async {
     operations.add(operation);
+    if (operation == 'confirm_stall_notice') {
+      stallConfirmations.add(data);
+      for (final notice in value['stall_notices'] as List? ?? []) {
+        if (notice['id'] == data['id']) (notice as Map)['seen'] = true;
+      }
+      events.add(value);
+    }
     if (operation == 'view') return value;
+    if (operation == 'dismiss_disconnect_notice') {
+      value.remove('disconnect_notice');
+      events.add(value);
+    }
     if (operation == 'ports') {
       return value['platform'] == 'android'
           ? [
               {'address': 'AA:BB:CC:DD:EE:FF', 'name': 'dispenser01'},
             ]
-          : ['COM7'];
+          : value['ports'] ?? ['COM7'];
     }
     if (operation == 'pending') return [];
     if (operation == 'pause' || operation == 'resume') {
@@ -341,12 +353,12 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.byTooltip('配置设备'));
         await tester.pumpAndSettle();
-        expect(find.text('Android 蓝牙 HC-06'), findsOneWidget);
-        expect(find.text('已配对设备的蓝牙地址'), findsOneWidget);
+        expect(find.text('蓝牙'), findsOneWidget);
+        expect(find.text('蓝牙地址'), findsNothing);
         await tester.ensureVisible(find.text('保存连接'));
         await tester.tap(find.text('保存连接'));
         await tester.pumpAndSettle();
-        expect(terminal.error, contains('蓝牙地址'));
+        expect(terminal.error, contains('蓝牙设备'));
         expect(host.operations, isNot(contains('configure')));
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());

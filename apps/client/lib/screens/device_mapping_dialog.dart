@@ -18,7 +18,7 @@ class _DeviceMappingDialogState extends State<DeviceMappingDialog> {
   late bool reverse = original?.configuration.reverseColumns ?? false;
   late bool verified = original?.configuration.positionsVerified ?? false;
   bool saved = false;
-  static const slots = ['早', '午', '晚', '睡前'];
+  static const slots = ['第 1 排', '第 2 排', '第 3 排', '第 4 排'];
 
   Future<void> save() async {
     final device = original;
@@ -47,7 +47,7 @@ class _DeviceMappingDialogState extends State<DeviceMappingDialog> {
           !saved &&
           terminal.device?.id == original?.id;
       return AlertDialog(
-        title: const Text('实体位置映射'),
+        title: const Text('校准设备行列'),
         content: SizedBox(
           width: 480,
           child: SingleChildScrollView(
@@ -63,7 +63,7 @@ class _DeviceMappingDialogState extends State<DeviceMappingDialog> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 8),
-                  const Text('按当前机器的实际位置设置。机器行号为 0–3，四个时段不能重复。'),
+                  const Text('按药盒从上到下的物理排位，核对当前设备对应的协议行号。'),
                   const SizedBox(height: 16),
                   for (var index = 0; index < slots.length; index++)
                     Padding(
@@ -111,7 +111,7 @@ class _DeviceMappingDialogState extends State<DeviceMappingDialog> {
                         ? (value) => setState(() => verified = value!)
                         : null,
                   ),
-                  const Text('保存只更新当前机器的布局，不会驱动电机。未核对的配置可以保存，但不能开始实机摆药。'),
+                  const Text('校准结果仅用于当前设备。开始实机摆药前须完成现场核对。'),
                   if (terminal.active) const Text('当前机器有未结束任务，结束后可修改映射。'),
                   if (!terminal.canMaintain)
                     const Text('当前账号仅可查看，请联系有维护权限的人员修改。'),

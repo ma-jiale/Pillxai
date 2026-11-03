@@ -46,6 +46,71 @@ class ConnectionHost extends FakeHost {
 }
 
 void main() {
+  testWidgets('Windows 搜索与已登记设备只展示连接方式', (tester) async {
+    tester.view.physicalSize = const Size(1280, 1100);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final backend =
+        connection(
+            (_) async => jsonResponse([
+              {
+                'id': 'saved',
+                'revision': 1,
+                'configuration': {
+                  'identity': 'dispenser-01',
+                  'name': '摆药机 01',
+                  'terminal_id': 'terminal',
+                  'mode': 'hardware',
+                  'rows': [2, 1, 0, 3],
+                },
+              },
+            ]),
+          )
+          ..account = api.AccountView(
+            id: 'owner',
+            username: 'admin',
+            displayName: '管理员',
+            role: api.Role.admin,
+            canMaintain: true,
+            active: true,
+            revision: 1,
+          );
+    final host = FakeHost({
+      'platform': 'windows',
+      'terminal_id': 'terminal',
+      'ports': [
+        {'address': 'COM7', 'transport': 'bluetooth'},
+        {'address': 'COM11', 'transport': 'usb'},
+      ],
+    });
+    final terminal = TerminalController(backend, host);
+    await terminal.initialize();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: TerminalDeviceDialog(terminal: terminal)),
+      ),
+    );
+    expect(find.text('还没有添加设备'), findsOneWidget);
+    expect(find.text('摆药机 01'), findsNothing);
+    host.value['configuration'] = {
+      'device_id': 'other',
+      'device_transports': {'saved': 'usb'},
+    };
+    host.events.add(host.value);
+    await tester.pump();
+    expect(find.text('未连接 · USB连接'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('add-device')));
+    await tester.pumpAndSettle();
+    expect(find.text('蓝牙'), findsOneWidget);
+    expect(find.text('USB连接'), findsOneWidget);
+    expect(find.textContaining('COM'), findsNothing);
+    expect(find.text('手动配置'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    terminal.dispose();
+    await host.close();
+    backend.dispose();
+  });
   for (final failure in ['none', 'pair', 'save']) {
     testWidgets('add unpaired device pairs, persists and connects: $failure', (
       tester,
@@ -54,12 +119,25 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      final devices = <Map<String, dynamic>>[];
+      final devices = <Map<String, dynamic>>[
+        {
+          'id': 'shared-device',
+          'revision': 3,
+          'configuration': {
+            'name': 'PillDispenser03',
+            'identity': 'AA:BB:CC:DD:EE:FF',
+            'terminal_id': 'another-terminal',
+            'mode': 'hardware',
+            'rows': [2, 1, 0, 3],
+          },
+        },
+      ];
       final order = <String>[];
       final backend =
           connection((request) async {
               if (request.method == 'PUT') {
                 order.add('save');
+                expect(request.url.path, '/devices/shared-device');
                 if (failure == 'save') {
                   return jsonResponse({
                     'code': 'conflict',
@@ -69,11 +147,11 @@ void main() {
                 final body = jsonDecode(request.body) as Map;
                 expect(body['configuration']['identity'], 'AA:BB:CC:DD:EE:FF');
                 expect(body['configuration']['positions_verified'], false);
-                devices.add({
+                devices[0] = {
                   'id': request.url.pathSegments.last,
                   'revision': 1,
                   'configuration': body['configuration'],
-                });
+                };
                 return jsonResponse(devices.last);
               }
               return jsonResponse(devices);
@@ -100,9 +178,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(find.text('还没有添加设备'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('add-device')));
       await tester.pumpAndSettle();
-      expect(find.text('未配对'), findsOneWidget);
+      expect(find.text('未配对 · 蓝牙'), findsOneWidget);
+      expect(find.text('手动配置'), findsNothing);
       expect(find.text('AA:BB:CC:DD:EE:FF'), findsNothing);
       await tester.tap(find.text('添加'));
       await tester.pumpAndSettle();
@@ -117,9 +197,11 @@ void main() {
           lessThan(host.operations.indexOf('connect')),
         );
         expect(host.connectedConfiguration?['port'], 'AA:BB:CC:DD:EE:FF');
+        expect(terminal.localDevices.single.id, 'shared-device');
         expect(find.text('我的设备'), findsOneWidget);
         expect(find.text('设备诊断'), findsNothing);
       } else {
+        expect(terminal.localDevices, isEmpty);
         expect(host.operations, isNot(contains('connect')));
         expect(host.operations, isNot(contains('configure')));
         if (failure == 'pair') expect(order, isEmpty);
@@ -215,7 +297,7 @@ void main() {
         await tester.ensureVisible(paired);
         await tester.tap(paired);
         await tester.pumpAndSettle();
-        await tester.tap(find.text('dispenser01 · AA:BB:CC:DD:EE:FF').last);
+        await tester.tap(find.text('dispenser01').last);
         await tester.pumpAndSettle();
         final connect = find.text('保存并连接');
         await tester.ensureVisible(connect);

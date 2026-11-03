@@ -18,6 +18,7 @@ class TerminalController extends ChangeNotifier {
   List<api.DeviceView> devices = [];
   List<String> ports = [];
   Map<String, String> portNames = {};
+  Map<String, String> portTransports = {};
   List<Map<String, dynamic>> nearbyDevices = [];
   String? deviceSetupStatus;
   api.TaskView? task;
@@ -36,6 +37,7 @@ class TerminalController extends ChangeNotifier {
       Map<String, dynamic>.from(view['state'] as Map? ?? {});
   String get phase => state['phase'] as String? ?? 'idle';
   bool get active => task != null || view['claim_intent'] != null;
+  bool get identifying => view['identifying'] == true;
   bool get connected => state['connected'] == true;
   bool get recognized => view['recognized'] == true;
   int get count => state['count'] as int? ?? 0;
@@ -49,6 +51,18 @@ class TerminalController extends ChangeNotifier {
       task == null ? null : task!.batches[state['batch'] as int];
   Map<String, dynamic> get connection =>
       Map<String, dynamic>.from(view['configuration'] as Map? ?? {});
+  List<api.DeviceView> get localDevices {
+    final config = connection;
+    final ids = {
+      config['device_id'],
+      ...?(config['device_ports'] as Map?)?.keys,
+      ...?(config['device_transports'] as Map?)?.keys,
+    };
+    return devices.where((device) => ids.contains(device.id)).toList();
+  }
+
+  api.DeviceView? registeredDevice(String identity) =>
+      devices.where((d) => d.configuration.identity == identity).firstOrNull;
   api.DeviceView? get device {
     for (final item in devices) {
       if (item.id == connection['device_id']) return item;
@@ -126,12 +140,14 @@ class TerminalController extends ChangeNotifier {
     deviceSetupStatus = '正在搜索摆药机…';
     nearbyDevices = [];
     final found = await host.command('discover_devices') as List;
+    final saved = localDevices
+        .map((d) => d.configuration.identity.toUpperCase())
+        .toSet();
     nearbyDevices = found
         .map((value) => Map<String, dynamic>.from(value as Map))
         .where(
-          (value) => !devices.any(
-            (d) => d.configuration.identity.toUpperCase() == value['address'],
-          ),
+          (value) =>
+              !saved.contains((value['address'] as String).toUpperCase()),
         )
         .toList();
   });
@@ -162,7 +178,7 @@ class TerminalController extends ChangeNotifier {
             trayAbsentLine: '',
             readyLine: '',
             feedbackVerified: false,
-            barcodeRemovalCloses: false,
+            barcodeRemovalCloses: true,
           ),
       port: address,
       existing: existing,
@@ -192,10 +208,13 @@ class TerminalController extends ChangeNotifier {
     if (supported) {
       final candidates = await host.command('ports') as List;
       portNames = {};
+      portTransports = {};
       ports = candidates.map((value) {
         if (value is Map) {
           final address = value['address'] as String;
-          portNames[address] = value['name'] as String;
+          if (value['name'] is String) portNames[address] = value['name'];
+          if (value['transport'] is String)
+            portTransports[address] = value['transport'];
           return address;
         }
         return value as String;
@@ -224,6 +243,10 @@ class TerminalController extends ChangeNotifier {
       'device_id': result.id,
       'port': port,
       'mode': configuration.mode.toJson(),
+      if (!isAndroid &&
+          configuration.mode == api.DeviceMode.hardware &&
+          portTransports.containsKey(port))
+        'transport': portTransports[port],
       'uid': simulatorUid,
     });
     await refreshDevices();
@@ -241,7 +264,7 @@ class TerminalController extends ChangeNotifier {
     if (rows.length != 4 ||
         rows.toSet().length != 4 ||
         rows.any((row) => row < 0 || row > 3)) {
-      throw const SaveFailure('四个时段须分别对应不同的机器行。');
+      throw const SaveFailure('药盒的四个物理排位须分别对应不同的协议行。');
     }
     final result = await backend.request(
       execution.saveDevice(
@@ -279,21 +302,29 @@ class TerminalController extends ChangeNotifier {
   Map<String, dynamic> jsonMap(Object value) =>
       jsonDecode(jsonEncode(value)) as Map<String, dynamic>;
 
-  Future<void> claim(api.PlanSnapshot plan) => run(() async {
-    if (!connected || device == null || active) {
-      throw const SaveFailure('请先连接本机设备并结束原任务。');
-    }
-    final id = newRecordId();
-    final data = api.ClaimTask(
-      planId: plan.id,
-      deviceId: device!.id,
-      terminalId: terminalId,
-    );
-    await host.command('claim_intent', {'id': id, ...data.toJson()});
-    final result = await backend.request(execution.claimTask(id, data));
-    if (result == null) throw const SaveFailure('领取结果未确认，请恢复领取结果。');
-    await host.command('attach', jsonMap(result));
-  });
+  Future<void> claim(api.PlanSnapshot plan, {String? scannedBarcode}) =>
+      run(() async {
+        if (!connected ||
+            device == null ||
+            active ||
+            (identifying && scannedBarcode == null)) {
+          throw const SaveFailure('请先连接本机设备并结束原任务。');
+        }
+        final id = newRecordId();
+        final data = api.ClaimTask(
+          planId: plan.id,
+          deviceId: device!.id,
+          terminalId: terminalId,
+        );
+        await host.command('claim_intent', {
+          'id': id,
+          ...data.toJson(),
+          'scan_barcode': ?scannedBarcode,
+        });
+        final result = await backend.request(execution.claimTask(id, data));
+        if (result == null) throw const SaveFailure('领取结果未确认，请恢复领取结果。');
+        await host.command('attach', jsonMap(result));
+      });
 
   Future<void> recoverClaim() async {
     final intent = Map<String, dynamic>.from(
@@ -324,7 +355,10 @@ class TerminalController extends ChangeNotifier {
   });
 
   Future<void> start() => run(() async {
-    if (!ownTask || task == null || !recognized) {
+    if (!ownTask ||
+        task == null ||
+        !recognized ||
+        (state['stalled_motors'] as List? ?? []).isNotEmpty) {
       throw const SaveFailure('请重新识别当前长者的药盒。');
     }
     if (state['permitted'] == true) {
@@ -376,7 +410,13 @@ class TerminalController extends ChangeNotifier {
         final receipt = await backend.request(
           execution.discardTask(
             current.id,
-            api.DiscardTask(terminalId: terminalId, physicalSceneSafe: true),
+            api.DiscardTask(
+              terminalId: terminalId,
+              physicalSceneSafe: state['disconnected_discard'] != true,
+              reason: state['disconnected_discard'] == true
+                  ? api.DiscardTaskReasonEnum.deviceDisconnected
+                  : api.DiscardTaskReasonEnum.operator_,
+            ),
           ),
         );
         if (receipt?.deleted != true || receipt?.taskId != current.id) {

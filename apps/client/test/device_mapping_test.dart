@@ -72,7 +72,7 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(home: DeviceMappingDialog(terminal: terminal)),
         );
-        final morning = find.byKey(const ValueKey('早-2'));
+        final morning = find.byKey(const ValueKey('第 1 排-2'));
         await tester.tap(
           find.descendant(of: morning, matching: find.byType(OutlinedButton)),
         );
@@ -83,7 +83,7 @@ void main() {
           tester.widget<CheckboxListTile>(find.byType(CheckboxListTile)).value,
           false,
         );
-        expect(find.byKey(const ValueKey('午-2')), findsOneWidget);
+        expect(find.byKey(const ValueKey('第 2 排-2')), findsOneWidget);
         await tester.ensureVisible(find.byType(SwitchListTile));
         await tester.tap(find.byType(Switch));
         await tester.pumpAndSettle();
@@ -101,7 +101,7 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(home: DeviceMappingDialog(terminal: terminal)),
         );
-        expect(find.byKey(const ValueKey('早-1')), findsOneWidget);
+        expect(find.byKey(const ValueKey('第 1 排-1')), findsOneWidget);
         expect(
           tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
           true,

@@ -57,9 +57,9 @@ class _DevicesPageState extends State<DevicesPage> {
     'PillDispenser01',
     'PillDispenser02',
     'PillDispenser03',
-    'USB 串口设备',
+    'PillDispenser04',
   ];
-  String _transport(String name) => name.startsWith('USB') ? 'USB 串口' : '蓝牙串口';
+  String _transport(String name) => name == 'PillDispenser04' ? 'USB连接' : '蓝牙';
 
   /// 取消上次搜索计时，再模拟一次搜索；回调前检查 mounted，避免销毁后 setState。
   void _scan() {

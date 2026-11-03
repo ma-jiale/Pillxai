@@ -12,7 +12,7 @@ class DeviceConnectionButton extends StatelessWidget {
   final VoidCallback onPressed;
   @override
   Widget build(BuildContext context) => Tooltip(
-    message: '我的设备 · 蓝牙 / USB 串口',
+    message: '我的设备',
     child: OutlinedButton.icon(
       key: const ValueKey('device-status'),
       style: OutlinedButton.styleFrom(

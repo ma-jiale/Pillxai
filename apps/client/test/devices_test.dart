@@ -126,7 +126,7 @@ void main() {
       await capture('results');
       await tapKey('add-PillDispenser01');
       await capture('added');
-      expect(find.text('正在连接… · 蓝牙串口'), findsOneWidget);
+      expect(find.text('正在连接… · 蓝牙'), findsOneWidget);
       await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
       expect(
@@ -211,7 +211,7 @@ void main() {
     );
     await tap('nav-1');
     await tap('device-status');
-    for (final name in ['PillDispenser01', 'USB 串口设备']) {
+    for (final name in ['PillDispenser01', 'PillDispenser04']) {
       await tap('add-device');
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
@@ -223,7 +223,10 @@ void main() {
       find.byKey(const ValueKey('connect-PillDispenser01')),
       findsOneWidget,
     );
-    expect(find.byKey(const ValueKey('disconnect-USB 串口设备')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('disconnect-PillDispenser04')),
+      findsOneWidget,
+    );
     await tester.tap(find.byTooltip('关闭我的设备'));
     await tester.pumpAndSettle();
     await tap('nav-1');
@@ -239,11 +242,14 @@ void main() {
     startTestTask(model);
     model.advance();
     await tap('device-status');
-    await tap('disconnect-USB 串口设备');
+    await tap('disconnect-PillDispenser04');
     expect(find.text('请先完成或结束当前摆药，再更改设备连接。'), findsOneWidget);
-    expect(find.byKey(const ValueKey('disconnect-USB 串口设备')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('disconnect-PillDispenser04')),
+      findsOneWidget,
+    );
     await tap('connect-PillDispenser01');
-    await tap('remove-USB 串口设备');
+    await tap('remove-PillDispenser04');
     expect(find.text('移除设备？'), findsNothing);
     expect(model.stage, DispenseStage.running);
     expect(model.count, 1);
