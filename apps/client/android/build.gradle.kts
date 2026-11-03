@@ -1,3 +1,6 @@
+import com.android.build.api.dsl.ApplicationExtension
+import com.android.build.api.variant.LibraryAndroidComponentsExtension
+
 allprojects {
     repositories {
         google()
@@ -17,6 +20,16 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+    // Compile native plugins against at least the application's SDK baseline.
+    // Some plugins otherwise require an older platform to be installed as well.
+    plugins.withId("com.android.library") {
+        extensions.configure<LibraryAndroidComponentsExtension> {
+            finalizeDsl { library ->
+                val appSdk = project(":app").extensions.getByType<ApplicationExtension>().compileSdk
+                library.compileSdk = maxOf(library.compileSdk ?: 0, appSdk ?: 36)
+            }
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

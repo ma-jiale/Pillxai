@@ -12,6 +12,8 @@ dependencies:
   cupertino_icons: 1.0.8
   flutter_svg: 2.3.0
   http: ^1.6.0
+  flutter_secure_storage: 10.3.4
+  image_picker: 1.2.3
   file_selector: 1.1.0
   pillxai_api_client:
     path: ../../packages/api_client
@@ -19,6 +21,8 @@ dependencies:
     path: ../../packages/device_runtime
   pillxai_execution_core:
     path: ../../packages/execution_core
+  pdf: ^3.13.1
+  barcode: ^2.2.9
 dev_dependencies:
   flutter_test:
     sdk: flutter
