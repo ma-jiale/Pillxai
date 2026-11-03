@@ -2,6 +2,14 @@ import 'dart:typed_data';
 
 export 'execution_state.dart';
 
+/// Positive transport evidence (EOF, broken link or Bluetooth switched off).
+/// Silence, missing ACK and ordinary command errors are not disconnections.
+class DeviceDisconnected implements Exception {
+  const DeviceDisconnected();
+  @override
+  String toString() => '设备连接已断开';
+}
+
 /// Transport owns a single connection. Opening it must not send machine commands.
 abstract interface class DeviceTransport {
   Future<void> open();

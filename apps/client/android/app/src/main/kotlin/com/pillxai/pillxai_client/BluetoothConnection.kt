@@ -11,6 +11,8 @@ import android.os.Looper
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
+import java.io.EOFException
+import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -23,6 +25,7 @@ class BluetoothConnection(private val context: Context) {
     private val buffer = ByteArrayOutputStream()
     @Volatile private var socket: BluetoothSocket? = null
     @Volatile private var failure: String? = null
+    @Volatile private var failureCode = "bluetooth_io"
     private val adapter get() = context.getSystemService(BluetoothManager::class.java)?.adapter
 
     fun permitted(): Boolean = Build.VERSION.SDK_INT < 31 ||
@@ -43,7 +46,11 @@ class BluetoothConnection(private val context: Context) {
                 "ports" -> result.success(ports())
                 "close" -> { close(); result.success(null) }
                 "read" -> {
-                    failure?.let { throw IllegalStateException(it) }
+                    if (socket != null && permitted() && adapter?.isEnabled == false) {
+                        result.error("bluetooth_disconnected", "蓝牙已关闭。", null)
+                        return
+                    }
+                    failure?.let { result.error(failureCode, it, null); return }
                     check(socket != null) { "蓝牙未连接。" }
                     val bytes = synchronized(guard) { buffer.toByteArray().also { buffer.reset() } }
                     result.success(bytes)
@@ -67,10 +74,14 @@ class BluetoothConnection(private val context: Context) {
                     }
                 }
                 "write" -> {
+                    failure?.let { result.error(failureCode, it, null); return }
                     val bytes = call.arguments as ByteArray
                     val current = socket ?: error("蓝牙未连接。")
                     bounded(result, 3000L) {
-                        failure?.let { error(it) }
+                        failure?.let {
+                            if (failureCode == "bluetooth_disconnected") throw IOException(it)
+                            error(it)
+                        }
                         check(socket === current) { "蓝牙连接已变化。" }
                         current.outputStream.write(bytes)
                         current.outputStream.flush()
@@ -101,8 +112,9 @@ class BluetoothConnection(private val context: Context) {
                     if (problem == null) result.success(null)
                     else {
                         close()
+                        failureCode = if (problem is IOException) "bluetooth_disconnected" else "bluetooth_io"
                         failure = "蓝牙通信失败，请检查设备电源、连接及现场。"
-                        result.error("bluetooth_io", failure, null)
+                        result.error(failureCode, failure, null)
                     }
                 }
             }
@@ -114,16 +126,17 @@ class BluetoothConnection(private val context: Context) {
         try {
             while (socket === current) {
                 val count = current.inputStream.read(chunk)
-                check(count >= 0) { "设备已断开。" }
+                if (count < 0) throw EOFException("设备已断开。")
                 synchronized(guard) {
                     if (socket !== current) return
                     check(buffer.size() + count <= 65536) { "接收缓冲区已满。" }
                     buffer.write(chunk, 0, count)
                 }
             }
-        } catch (_: Exception) {
+        } catch (error: Exception) {
             synchronized(guard) {
                 if (socket === current) {
+                    failureCode = if (error is IOException) "bluetooth_disconnected" else "bluetooth_io"
                     failure = "蓝牙连接已中断，请停止投料并核对现场。"
                     try { current.close() } catch (_: Exception) {}
                 }
@@ -135,7 +148,7 @@ class BluetoothConnection(private val context: Context) {
         val current = socket
         socket = null
         try { current?.close() } catch (_: Exception) {}
-        synchronized(guard) { buffer.reset(); failure = null }
+        synchronized(guard) { buffer.reset(); failure = null; failureCode = "bluetooth_io" }
     }
 
     fun dispose() { close(); io.shutdownNow() }

@@ -84,6 +84,12 @@ class ExecutionJournal {
     db.execute('BEGIN IMMEDIATE');
     try {
       if (kind != null) state.sequence++;
+      if (kind == 'disconnect_delete_intent') {
+        setSetting('disconnect_notice', {
+          'task_id': task.id,
+          'owner_id': task.ownerId,
+        });
+      }
       // Retain the slot until final facts are acknowledged by the server.
       db.execute(
         'INSERT INTO local_tasks VALUES(?,?,?,1) ON CONFLICT(id) DO UPDATE SET task=excluded.task,state=excluded.state',

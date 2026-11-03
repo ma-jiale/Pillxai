@@ -10,6 +10,11 @@ enum ExecutionPhase {
   pausing,
   paused,
   resuming,
+  reviewingSkip,
+  skipping,
+  openingForReview,
+  reviewingCount,
+  awaitingNextBatch,
   changingTray,
   collecting,
   closing,
@@ -35,11 +40,17 @@ class ExecutionState {
   bool permitted = false;
   bool matrixIssued = false;
   bool cancelRequested = false;
+  bool skipWasRunning = false;
+  Map<String, dynamic>? skipRequest;
   bool resetObserved = false;
+  List<int> stalledMotors = [];
   bool connected = false;
+  bool disconnectedDiscard = false;
   String? pending;
   bool acknowledged = false;
   String openPurpose = 'initial';
+  int? counterErrorBatch;
+  bool reviewTrayRemoved = false;
   bool trayPresent = false;
   DateTime? absentAt;
   bool closeDone = false;
@@ -64,11 +75,17 @@ class ExecutionState {
     'permitted': permitted,
     'matrix_issued': matrixIssued,
     'cancel_requested': cancelRequested,
+    'skip_was_running': skipWasRunning,
+    'skip_request': skipRequest,
     'reset_observed': resetObserved,
+    'stalled_motors': stalledMotors,
     'connected': connected,
+    'disconnected_discard': disconnectedDiscard,
     'pending': pending,
     'acknowledged': acknowledged,
     'open_purpose': openPurpose,
+    'counter_error_batch': counterErrorBatch,
+    'review_tray_removed': reviewTrayRemoved,
     'tray_present': trayPresent,
     'absent_at': absentAt?.toUtc().toIso8601String(),
     'close_done': closeDone,
@@ -89,11 +106,21 @@ class ExecutionState {
     ..permitted = json['permitted'] as bool
     ..matrixIssued = json['matrix_issued'] as bool? ?? false
     ..cancelRequested = json['cancel_requested'] as bool? ?? false
+    ..skipWasRunning = json['skip_was_running'] as bool? ?? false
+    ..skipRequest = json['skip_request'] == null
+        ? null
+        : Map<String, dynamic>.from(json['skip_request'] as Map)
     ..resetObserved = json['reset_observed'] as bool
+    ..stalledMotors = (json['stalled_motors'] as List? ?? [])
+        .cast<int>()
+        .toList()
     ..connected = json['connected'] as bool
+    ..disconnectedDiscard = json['disconnected_discard'] as bool? ?? false
     ..pending = json['pending'] as String?
     ..acknowledged = json['acknowledged'] as bool
     ..openPurpose = json['open_purpose'] as String
+    ..counterErrorBatch = json['counter_error_batch'] as int?
+    ..reviewTrayRemoved = json['review_tray_removed'] == true
     ..trayPresent = json['tray_present'] as bool
     ..absentAt = DateTime.tryParse(json['absent_at'] as String? ?? '')
     ..closeDone = json['close_done'] as bool

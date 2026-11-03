@@ -10,6 +10,48 @@ import 'package:test/test.dart';
 import 'support/task_fixture.dart';
 
 void main() {
+  for (final platform in ['windows', 'android']) {
+    test(
+      '$platform retains locally configured devices across restart',
+      () async {
+        final dir = Directory.systemTemp.createTempSync(
+          'pillxai-local-devices-',
+        );
+        final path = '${dir.path}/execution.sqlite';
+        final journal = ExecutionJournal(path);
+        final session = TerminalSession(
+          journal: journal,
+          platform: platform,
+          ports: () => [],
+          publish: (_) {},
+          hardwareTransport: (_) => throw UnimplementedError(),
+        );
+        try {
+          journal.setSetting('connection', {'device_id': 'first', 'port': 'a'});
+          await session.command('configure', {
+            'device_id': 'second',
+            'port': 'b',
+          });
+          await session.command('configure', {
+            'device_id': 'second',
+            'port': 'c',
+          });
+          await session.command('shutdown');
+          final reopened = ExecutionJournal(path);
+          try {
+            expect((reopened.setting('connection') as Map)['device_ports'], {
+              'first': 'a',
+              'second': 'c',
+            });
+          } finally {
+            reopened.close();
+          }
+        } finally {
+          dir.deleteSync(recursive: true);
+        }
+      },
+    );
+  }
   for (final recovered in [false, true]) {
     test(
       'cancelled task acknowledges nested SDK learning results (recovery=$recovered)',

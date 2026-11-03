@@ -116,14 +116,46 @@ class TerminalSession {
         journal.setSetting('update_lock', null);
       case 'view':
         return jsonDecode(jsonEncode(view()));
+      case 'dismiss_disconnect_notice':
+        final notice = journal.setting('disconnect_notice') as Map?;
+        if (notice?['task_id'] == data['task_id']) {
+          journal.setSetting('disconnect_notice', null);
+        }
       case 'ports':
         return await ports();
       case 'configure':
-        if (engine.active || journal.setting('claim_intent') != null) {
+        if (engine.active ||
+            engine.identifying ||
+            journal.setting('claim_intent') != null) {
           throw StateError('任务未结束，不能更换连接配置。');
         }
         if (engine.state.connected) await engine.disconnect();
-        journal.setSetting('connection', data);
+        final previous = journal.setting('connection') as Map?;
+        final devicePorts = Map<String, dynamic>.from(
+          previous?['device_ports'] as Map? ?? {},
+        );
+        if (previous?['device_id'] case final String id) {
+          devicePorts[id] = previous?['port'];
+        }
+        if (data['device_id'] case final String id) {
+          devicePorts[id] = data['port'];
+        }
+        final config = {...data, 'device_ports': devicePorts};
+        if (platform == 'windows' && data['device_id'] is String) {
+          final transports = Map<String, dynamic>.from(
+            previous?['device_transports'] as Map? ?? {},
+          );
+          final deviceId = data['device_id'] as String;
+          if (data['transport'] != null) {
+            transports[deviceId] = data['transport'];
+          } else if (previous?['device_id'] != deviceId ||
+              previous?['port'] != data['port'] ||
+              data['mode'] != 'hardware') {
+            transports.remove(deviceId);
+          }
+          config['device_transports'] = transports;
+        }
+        journal.setSetting('connection', config);
       case 'connect':
         final config = Map<String, dynamic>.from(
           journal.setting('connection') as Map? ?? {},
@@ -138,7 +170,20 @@ class TerminalSession {
         await engine.disconnect();
       case 'open_binding':
         await engine.openForBinding();
+      case 'open_identification':
+        await engine.openForIdentification();
+      case 'close_identification':
+        await engine.closeIdentification();
       case 'claim_intent':
+        if (data['scan_barcode'] != null) {
+          await engine.tick();
+          if (!engine.identifying ||
+              !engine.state.connected ||
+              engine.state.phase != ExecutionPhase.recognizing ||
+              engine.state.barcode != data['scan_barcode']) {
+            throw StateError('药盒已变化，请重新扫描并核对。');
+          }
+        }
         journal.setSetting('claim_intent', data.isEmpty ? null : data);
       case 'attach':
         await engine.attach(api.TaskView.fromJson(data)!);
@@ -150,12 +195,51 @@ class TerminalSession {
         await engine.cancelPreparation();
       case 'pause':
         await engine.pause();
+      case 'retry_collection':
+        await engine.retryCollection(
+          data['task_id'] as String,
+          data['batch'] as int,
+        );
+      case 'review_skip':
+        await engine.reviewSkip(
+          data['task_id'] as String,
+          data['batch'] as int,
+        );
+      case 'confirm_count_review':
+        await engine.confirmCountReview(
+          data['task_id'] as String,
+          data['batch'] as int,
+        );
+      case 'cancel_skip':
+        await engine.cancelSkip(
+          data['task_id'] as String,
+          data['batch'] as int,
+        );
+      case 'skip':
+        await engine.skip(
+          data['task_id'] as String,
+          data['batch'] as int,
+          allRemaining: data['all_remaining'] == true,
+          manual: data['manual'] == true,
+        );
+      case 'begin_next':
+        await engine.beginNextBatch(
+          data['task_id'] as String,
+          data['batch'] as int,
+        );
       case 'resume':
         await engine.resume(
           physicalProgressRetained: data['confirmed'] == true,
         );
       case 'gate':
         await engine.setGate((data['value'] as num).toDouble());
+      case 'release_stall':
+        await engine.releaseStall(data['motor'] as int);
+      case 'confirm_stall_notice':
+        await engine.confirmStallNotice(
+          data['id'] as String,
+          release: data['release'] == true,
+        );
       case 'stop':
         await engine.stopForCancel();
       case 'cancel':
@@ -190,7 +274,9 @@ class TerminalSession {
           simulator.insertTray(data['uid'] as String);
         }
       case 'shutdown':
-        if (engine.active || journal.setting('claim_intent') != null) {
+        if (engine.active ||
+            engine.identifying ||
+            journal.setting('claim_intent') != null) {
           throw StateError('任务尚未结束。');
         }
         await engine.disconnect();

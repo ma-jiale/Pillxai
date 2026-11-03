@@ -5,6 +5,49 @@ import 'package:pillxai_execution_core/execution_core.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test(
+    'both stall formats preserve motor numbers and confirmed release bytes',
+    () {
+      final bytes = utf8.encode('stalled:2\r\nstall3\n');
+      for (var split = 0; split <= bytes.length; split++) {
+        final decoder = FeedbackDecoder();
+        final events = [
+          ...decoder.add(bytes.sublist(0, split)),
+          ...decoder.add(bytes.sublist(split)),
+        ];
+        expect(events.map((event) => event.kind), [
+          DeviceEventKind.stalled,
+          DeviceEventKind.stalled,
+        ]);
+        expect(events.map((event) => event.count), [2, 3]);
+      }
+      expect(Stm32Commands.releaseStall(2), [
+        0xaa,
+        0xbb,
+        8,
+        2,
+        0,
+        0,
+        0,
+        0,
+        10,
+        0,
+      ]);
+      expect(Stm32Commands.releaseStall(3), [
+        0xaa,
+        0xbb,
+        8,
+        3,
+        0,
+        0,
+        0,
+        0,
+        11,
+        0,
+      ]);
+      expect(() => Stm32Commands.releaseStall(1), throwsArgumentError);
+    },
+  );
   test('camera capture preserves leading zeros across every split', () {
     final bytes = utf8.encode('APPEARED,000010\r\nDISAPPEARED,000010\r\n');
     for (var split = 0; split <= bytes.length; split++) {

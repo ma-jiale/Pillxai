@@ -7,6 +7,10 @@ abstract final class Stm32Commands {
   static Uint8List exitMedicine() => _frame(0x00, []);
   static Uint8List openTray() => _frame(0x03, []);
   static Uint8List closeTray() => _frame(0x04, []);
+  static Uint8List releaseStall(int motor) {
+    if (motor != 2 && motor != 3) throw ArgumentError.value(motor, 'motor');
+    return _motor(motor, 0);
+  }
 
   static Uint8List setGate(double value) {
     if (!value.isFinite || value < 0 || value > 1) {

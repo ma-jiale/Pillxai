@@ -18,11 +18,29 @@ class AndroidBluetoothTransport implements DeviceTransport {
   Future<void> open() =>
       _bluetooth.invokeMethod<void>('open', {'address': address});
   @override
-  Future<Uint8List> read() async =>
-      await _bluetooth.invokeMethod<Uint8List>('read') ?? Uint8List(0);
+  Future<Uint8List> read() async {
+    try {
+      return await _bluetooth.invokeMethod<Uint8List>('read') ?? Uint8List(0);
+    } on PlatformException catch (error) {
+      if (error.code == 'bluetooth_disconnected') {
+        throw const DeviceDisconnected();
+      }
+      rethrow;
+    }
+  }
+
   @override
-  Future<void> write(Uint8List bytes) =>
-      _bluetooth.invokeMethod<void>('write', bytes);
+  Future<void> write(Uint8List bytes) async {
+    try {
+      await _bluetooth.invokeMethod<void>('write', bytes);
+    } on PlatformException catch (error) {
+      if (error.code == 'bluetooth_disconnected') {
+        throw const DeviceDisconnected();
+      }
+      rethrow;
+    }
+  }
+
   @override
   Future<void> close() => _bluetooth.invokeMethod<void>('close');
 }
@@ -80,7 +98,10 @@ Future<void> runTerminalService() async {
                 task.id,
                 api.DiscardTask(
                   terminalId: journal.terminalId,
-                  physicalSceneSafe: true,
+                  physicalSceneSafe: !session.engine.state.disconnectedDiscard,
+                  reason: session.engine.state.disconnectedDiscard
+                      ? api.DiscardTaskReasonEnum.deviceDisconnected
+                      : api.DiscardTaskReasonEnum.operator_,
                 ),
               )
               .timeout(const Duration(seconds: 15));
@@ -124,7 +145,9 @@ Future<void> runTerminalService() async {
         syncError = null;
       } catch (_) {
         // Do not expose response bodies, credentials or URLs in native notifications.
-        syncError = '结果尚未同步，请检查网络或重新登录；本机记录已保留。';
+        syncError = session.engine.state.phase == ExecutionPhase.deleting
+            ? '任务清理尚未同步，请检查网络或重新登录；不会恢复本次任务。'
+            : '结果尚未同步，请检查网络或重新登录；本机记录已保留。';
       }
       if (!closed) publish(session.view());
     }

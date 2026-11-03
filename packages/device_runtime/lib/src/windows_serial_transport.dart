@@ -18,6 +18,81 @@ final class WindowsSerialTransport implements DeviceTransport {
   final String portName;
   int _handle = INVALID_HANDLE_VALUE;
 
+  /// Use Windows device metadata for display. Enumerating never opens a port.
+  static List<Map<String, String>> deviceCandidates() => using((arena) {
+    final candidates = <Map<String, String>>[];
+    final devices = SetupDiGetClassDevs(
+      GUIDFromString(GUID_DEVCLASS_PORTS, allocator: arena),
+      nullptr,
+      0,
+      DIGCF_PRESENT,
+    );
+    if (devices == INVALID_HANDLE_VALUE) {
+      throw OSError('读取设备列表失败', GetLastError());
+    }
+    try {
+      final info = arena<SP_DEVINFO_DATA>()
+        ..ref.cbSize = sizeOf<SP_DEVINFO_DATA>();
+      final buffer = arena<Uint16>(1024);
+      final value = buffer.cast<Utf16>();
+      final length = arena<Uint32>();
+      final portName = 'PortName'.toNativeUtf16(allocator: arena);
+      for (
+        var index = 0;
+        SetupDiEnumDeviceInfo(devices, index, info) != 0;
+        index++
+      ) {
+        if (SetupDiGetDeviceInstanceId(devices, info, value, 1024, nullptr) ==
+            0)
+          continue;
+        final instance = value.toDartString().toUpperCase();
+        final bus = instance.split('\\').first;
+        final transport = switch (bus) {
+          'BTHENUM' => 'bluetooth',
+          'USB' || 'FTDIBUS' => 'usb',
+          _ => null,
+        };
+        if (transport == null) continue;
+        final key = SetupDiOpenDevRegKey(
+          devices,
+          info,
+          DICS_FLAG_GLOBAL,
+          0,
+          DIREG_DEV,
+          KEY_QUERY_VALUE,
+        );
+        if (key == INVALID_HANDLE_VALUE) continue;
+        try {
+          length.value = 2048;
+          if (RegGetValue(
+                key,
+                nullptr,
+                portName,
+                RRF_RT_REG_SZ,
+                nullptr,
+                buffer,
+                length,
+              ) !=
+              ERROR_SUCCESS)
+            continue;
+          final port = value.toDartString();
+          if (!RegExp(r'^COM[1-9][0-9]*$').hasMatch(port)) continue;
+          candidates.add({'address': port, 'transport': transport});
+        } finally {
+          RegCloseKey(key);
+        }
+      }
+    } finally {
+      SetupDiDestroyDeviceInfoList(devices);
+    }
+    candidates.sort(
+      (a, b) =>
+          int.parse(a['address']!.substring(3))
+              .compareTo(int.parse(b['address']!.substring(3))),
+    );
+    return candidates;
+  });
+
   static List<String> availablePorts() {
     if (!Platform.isWindows) {
       throw UnsupportedError('Windows COM transport only');

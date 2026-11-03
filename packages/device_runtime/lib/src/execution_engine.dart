@@ -12,6 +12,8 @@ class ExecutionEngine {
   ExecutionEngine(
     this.journal, {
     this.commandTimeout = const Duration(seconds: 10),
+    this.ackTimeout = const Duration(milliseconds: 200),
+    this.now = DateTime.now,
     this.removalWindow = const Duration(seconds: 2),
   }) {
     final saved = journal.active();
@@ -29,10 +31,20 @@ class ExecutionEngine {
         state.message = '检测到未结束任务。请核对原机器、药盒和进度；不会自动重发矩阵。';
         _save('recovered');
       }
+    } else if (journal.setting('identification') != null) {
+      state.openPurpose = 'identify';
+      state.phase = ExecutionPhase.recovery;
+      state.message = '药盒识别曾被中断，请重启分药机并重新连接后再开仓。';
     }
+    state.stalledMotors = {
+      ...state.stalledMotors,
+      for (final notice in stallNotices) notice['motor'] as int,
+    }.toList();
   }
   final ExecutionJournal journal;
   final Duration commandTimeout;
+  final Duration ackTimeout;
+  final DateTime Function() now;
   final Duration removalWindow;
   api.TaskView? task;
   ExecutionState state = ExecutionState();
@@ -43,11 +55,22 @@ class ExecutionEngine {
   DateTime? observedAt;
   String? _nextCommand;
   DateTime? _deadline;
+  Uint8List? _pendingBytes;
+  int _sendAttempts = 0;
+  bool _disconnectHandled = false;
+  String? _releasingStallNotice;
+  List<Map<String, dynamic>> get stallNotices => [
+    for (final value in journal.setting('stall_notices') as List? ?? [])
+      Map<String, dynamic>.from(value as Map),
+  ];
+  bool get _releasingStall =>
+      state.pending == 'release_stall_2' || state.pending == 'release_stall_3';
   bool _polling = false;
   bool storageFailed = false;
 
   api.BatchPlan get batch => task!.batches[state.batch];
   bool get active => task != null;
+  bool get identifying => !active && state.openPurpose == 'identify';
   String? _owner(String source, String? value) {
     if (task == null || value == null) return null;
     for (final binding in task!.recognitionBindings) {
@@ -94,6 +117,8 @@ class ExecutionEngine {
     'raw_lines': rawLines,
     'pending_count': task == null ? 0 : journal.pendingCount(task!.id),
     'recognized': task != null && recognized,
+    'can_confirm_count_review': canConfirmCountReview,
+    'identifying': identifying,
     'recognition_source': recognitionSource,
     'recognition_value': recognitionSource == 'barcode'
         ? state.barcode
@@ -105,6 +130,8 @@ class ExecutionEngine {
     'storage_failed': storageFailed,
     'configuration': journal.setting('connection'),
     'claim_intent': journal.setting('claim_intent'),
+    'disconnect_notice': journal.setting('disconnect_notice'),
+    'stall_notices': stallNotices,
     'learning_results':
         task?.learningResults.map((r) => r.toJson()).toList() ??
         journal.setting('latest_learning_results') ??
@@ -114,6 +141,10 @@ class ExecutionEngine {
   void _save(String kind, [Map<String, dynamic>? detail]) {
     try {
       if (task == null) {
+        journal.setSetting(
+          'identification',
+          identifying ? state.toJson() : null,
+        );
         journal.observe(kind, detail ?? {});
       } else {
         journal.save(task!, state, kind: kind, detail: detail);
@@ -142,8 +173,23 @@ class ExecutionEngine {
     }
     transport = next;
     decoder = FeedbackDecoder();
-    await next.open();
+    // Establishing a connection (including its initial drain) is not an
+    // established-session loss, even if the transport reports EOF/IOException.
+    late final Uint8List buffered;
+    try {
+      await next.open();
+      buffered = await next.read();
+    } catch (_) {
+      state.connected = false;
+      await next.close();
+      transport = null;
+      rethrow;
+    }
     state.connected = true;
+    _disconnectHandled = false;
+    journal.setSetting('stall_notices', [
+      for (final notice in stallNotices) {...notice, 'seen': false},
+    ]);
     observedUid = null;
     observedAt = null;
     state.uid = null;
@@ -151,12 +197,12 @@ class ExecutionEngine {
     state.barcode = null;
     state.barcodeAt = null;
     if (!active) {
+      state.openPurpose = 'initial';
       state.phase = ExecutionPhase.idle;
       state.pending = null;
     }
     _save('connected');
-    // Opening a connection sends nothing. Old buffered replies cannot authorize a command.
-    final buffered = await next.read();
+    // Old buffered replies cannot authorize a command.
     for (final event in decoder.add(buffered)) {
       _raw(event.raw);
       if (event.kind == DeviceEventKind.initialized && active) {
@@ -183,10 +229,14 @@ class ExecutionEngine {
   }
 
   Future<void> attach(api.TaskView claimed) async {
+    await tick();
+    final fromScan = identifying && state.phase == ExecutionPhase.recognizing;
     if (active ||
+        state.stalledMotors.isNotEmpty ||
         !state.connected ||
         storageFailed ||
-        state.phase != ExecutionPhase.idle) {
+        state.pending != null ||
+        (state.phase != ExecutionPhase.idle && !fromScan)) {
       throw StateError('本机未就绪或已有任务。');
     }
     if (claimed.terminalId != journal.terminalId ||
@@ -195,12 +245,63 @@ class ExecutionEngine {
     }
     task = claimed;
     journal.setSetting('latest_learning_results', null);
-    state = ExecutionState()
-      ..connected = true
-      ..phase = ExecutionPhase.opening;
+    if (fromScan) {
+      state.openPurpose = 'initial';
+      state.phase = recognized
+          ? ExecutionPhase.ready
+          : ExecutionPhase.recognizing;
+      state.message = recognized
+          ? '已识别：${claimed.plan.residentName}，请核对并开始。'
+          : '药盒已变化，请重新核对当前长者的药盒。';
+    } else {
+      state = ExecutionState()
+        ..connected = true
+        ..phase = ExecutionPhase.opening;
+    }
     _save('claimed');
+    journal.setSetting('identification', null);
     journal.setSetting('claim_intent', null);
+    if (!fromScan) await _send('open');
+  }
+
+  Future<void> openForIdentification() async {
+    if (active ||
+        identifying ||
+        state.phase != ExecutionPhase.idle ||
+        state.pending != null ||
+        !state.connected ||
+        state.stalledMotors.isNotEmpty ||
+        storageFailed ||
+        journal.setting('claim_intent') != null) {
+      throw StateError('请先完成当前任务并连接就绪的摆药机。');
+    }
+    _clearRecognition();
+    state.openPurpose = 'identify';
+    state.phase = ExecutionPhase.opening;
+    state.trayPresent = false;
+    state.absentAt = null;
+    state.message = '正在开仓，请等待完成后放入药盒。';
     await _send('open');
+  }
+
+  Future<void> closeIdentification() async {
+    await tick();
+    if (!identifying ||
+        state.phase != ExecutionPhase.recognizing ||
+        state.pending != null ||
+        !state.connected ||
+        storageFailed) {
+      throw StateError('请等待开仓完成；状态未知时请重启分药机并重新连接。');
+    }
+    if (state.trayPresent || state.uid != null || state.barcode != null) {
+      throw StateError('请先取出药盒，再关闭。');
+    }
+    if (journal.setting('claim_intent') != null) {
+      throw StateError('领取结果尚未核对，请先恢复或清除领取请求。');
+    }
+    state.phase = ExecutionPhase.closingPreparation;
+    state.message = '正在收回轨道。';
+    await _send('close_preparation');
   }
 
   Future<void> openForBinding() async {
@@ -237,7 +338,9 @@ class ExecutionEngine {
   }
 
   Future<void> begin(api.TaskView permitted) async {
+    await tick();
     if (state.phase != ExecutionPhase.ready ||
+        state.stalledMotors.isNotEmpty ||
         !recognized ||
         permitted.id != task?.id ||
         permitted.state != api.TaskState.started) {
@@ -259,6 +362,9 @@ class ExecutionEngine {
   }
 
   Future<void> _beginBatch() async {
+    if (state.stalledMotors.isNotEmpty) {
+      throw StateError('请先排查并解除电机堵转。');
+    }
     state.phase = ExecutionPhase.starting;
     state.count = 0;
     state.gate ??= batch.parameters.gate.toDouble();
@@ -273,8 +379,167 @@ class ExecutionEngine {
     await _send('pause');
   }
 
+  void _checkBatch(String taskId, int batchIndex) {
+    if (task?.id != taskId || state.batch != batchIndex) {
+      throw StateError('当前药物已变化，请重新操作。');
+    }
+  }
+
+  Future<void> reviewSkip(String taskId, int batchIndex) async {
+    _checkBatch(taskId, batchIndex);
+    if (task!.skipProtocol != 1) throw StateError('请更新服务端后领取新任务以使用跳过。');
+    if (![
+          ExecutionPhase.running,
+          ExecutionPhase.paused,
+        ].contains(state.phase) ||
+        state.pending != null ||
+        !state.connected) {
+      throw StateError('请等待当前设备动作完成后再跳过。');
+    }
+    state.skipWasRunning = state.phase == ExecutionPhase.running;
+    state.phase = ExecutionPhase.reviewingSkip;
+    _save('skip_review');
+    if (state.skipWasRunning) await _send('pause_skip');
+  }
+
+  Future<void> cancelSkip(String taskId, int batchIndex) async {
+    _checkBatch(taskId, batchIndex);
+    if (state.phase != ExecutionPhase.reviewingSkip || state.pending != null) {
+      throw StateError('请等待停转确认，或核对设备状态。');
+    }
+    state.phase = ExecutionPhase.paused;
+    _save('skip_review_cancelled');
+    if (state.skipWasRunning) await resume();
+  }
+
+  Future<void> skip(
+    String taskId,
+    int batchIndex, {
+    required bool allRemaining,
+    required bool manual,
+  }) async {
+    _checkBatch(taskId, batchIndex);
+    if (state.phase != ExecutionPhase.reviewingSkip ||
+        state.pending != null ||
+        !state.connected ||
+        (allRemaining && manual)) {
+      throw StateError('请等待停转确认并核对跳过范围。');
+    }
+    state.skipRequest = {'all_remaining': allRemaining, 'manual': manual};
+    state.phase = ExecutionPhase.skipping;
+    state.message = '正在停止并退出当前药物，请勿投料。';
+    _save('skip_requested', state.skipRequest);
+    await _send('stop_skip');
+  }
+
+  Future<void> beginNextBatch(String taskId, int batchIndex) async {
+    _checkBatch(taskId, batchIndex);
+    if (state.phase != ExecutionPhase.awaitingNextBatch ||
+        state.pending != null) {
+      throw StateError('当前不能开始下一药。');
+    }
+    await _beginBatch();
+  }
+
+  bool get canConfirmCountReview {
+    if (state.phase != ExecutionPhase.reviewingCount ||
+        task == null ||
+        !state.connected ||
+        storageFailed ||
+        state.pending != null ||
+        state.stalledMotors.isNotEmpty ||
+        recognitionConflict ||
+        (state.barcode != null &&
+            _owner('barcode', state.barcode) != task!.plan.residentId)) {
+      return false;
+    }
+    final next = task!.batches.elementAtOrNull(state.batch + 1);
+    if (next == null) return state.uid == null || recognized;
+    return state.trayPresent &&
+        recognized &&
+        (next.tray == batch.tray || state.reviewTrayRemoved);
+  }
+
+  Future<void> confirmCountReview(String taskId, int batchIndex) async {
+    await tick();
+    _checkBatch(taskId, batchIndex);
+    if (!canConfirmCountReview) {
+      throw StateError('请等待开仓完成并核对所需药盒。');
+    }
+    task = task!.copyWith(manualBatches: [...task!.manualBatches, batchIndex]);
+    final last = batchIndex + 1 == task!.batches.length;
+    if (last) {
+      state.openPurpose = 'collect';
+      state.phase = ExecutionPhase.collecting;
+      state.message = '本药已人工核对，请取出药盒。';
+    }
+    _save('skip_completed', {
+      'manual': true,
+      'all_remaining': false,
+      'source': 'counter_review',
+    });
+    if (last) {
+      if (!state.trayPresent &&
+          state.absentAt != null &&
+          task!.device.configuration.barcodeRemovalCloses) {
+        state.phase = ExecutionPhase.closing;
+        await _send('close');
+      }
+    } else {
+      state.batch++;
+      state.gate = null;
+      state.openPurpose = 'initial';
+      await _beginBatch();
+    }
+  }
+
+  Future<void> retryCollection(String taskId, int batchIndex) async {
+    _checkBatch(taskId, batchIndex);
+    if (state.phase != ExecutionPhase.recovery ||
+        state.openPurpose != 'collect' ||
+        state.matrixIssued ||
+        state.skipRequest != null ||
+        state.cancelRequested ||
+        state.pending != null ||
+        !state.connected) {
+      throw StateError('药物结果或设备状态尚未确认，不能重试开仓。');
+    }
+    state.phase = ExecutionPhase.opening;
+    await _send('open');
+  }
+
+  void _advanceBatch({bool allRemaining = false, bool paused = false}) {
+    state.matrixIssued = false;
+    if (allRemaining || state.batch == task!.batches.length - 1) {
+      state.openPurpose = 'collect';
+      state.phase = ExecutionPhase.opening;
+      _nextCommand = 'open';
+    } else {
+      final previousTray = batch.tray;
+      state.batch++;
+      state.count = 0;
+      state.gate = null;
+      if (batch.tray != previousTray) {
+        state.openPurpose = 'change';
+        state.phase = ExecutionPhase.changingTray;
+        _clearRecognition();
+        _nextCommand = 'open';
+      } else if (paused) {
+        state.phase = ExecutionPhase.awaitingNextBatch;
+        state.message = '已跳过，保持暂停。确认下一药后继续。';
+      } else {
+        state.phase = ExecutionPhase.starting;
+        _nextCommand = 'turntable';
+      }
+    }
+    _save('next_stage');
+  }
+
   Future<void> resume({bool physicalProgressRetained = false}) async {
-    if (state.cancelRequested ||
+    if (state.stalledMotors.isNotEmpty ||
+        state.openPurpose == 'counter_review' ||
+        state.skipRequest != null ||
+        state.cancelRequested ||
         state.resetObserved ||
         !state.matrixIssued ||
         !state.permitted) {
@@ -304,6 +569,56 @@ class ExecutionEngine {
     await _send('manual_gate', gate: value);
   }
 
+  Future<void> releaseStall(int motor) async {
+    if (!state.stalledMotors.contains(motor) || ![2, 3].contains(motor)) {
+      throw StateError('没有对应的待解除堵转。');
+    }
+    _releasingStallNotice =
+        stallNotices
+                .where((notice) => notice['motor'] == motor)
+                .firstOrNull?['id']
+            as String?;
+    await _send('release_stall_$motor');
+  }
+
+  Future<void> confirmStallNotice(String id, {required bool release}) async {
+    final notice = stallNotices
+        .where((notice) => notice['id'] == id)
+        .firstOrNull;
+    if (notice == null) throw StateError('堵转状态已变化，请重新核对。');
+    if (release) await releaseStall(notice['motor'] as int);
+    journal.setSetting('stall_notices', [
+      for (final current in stallNotices)
+        if (current['id'] == id) {...current, 'seen': true} else current,
+    ]);
+  }
+
+  void _reportStall(int motor) {
+    final notices = stallNotices;
+    final previous = notices
+        .where((notice) => notice['motor'] == motor)
+        .firstOrNull;
+    // Repeated reports share one visible alert. A new report during release
+    // gets a new identity, so a delayed ACK cannot clear the new blockage.
+    final renew =
+        previous == null || previous['seen'] == true || _releasingStall;
+    journal.setSetting('stall_notices', [
+      for (final notice in notices)
+        if (notice['motor'] != motor) notice,
+      if (!renew)
+        previous
+      else
+        {
+          'id': newExecutionId(),
+          'motor': motor,
+          'seen': false,
+          'owner_id': task?.ownerId,
+          'task_id': task?.id,
+        },
+    ]);
+    if (!state.stalledMotors.contains(motor)) state.stalledMotors.add(motor);
+  }
+
   Future<void> stopForCancel() async {
     if (!active || state.phase == ExecutionPhase.deleting) {
       throw StateError('没有可结束的任务。');
@@ -326,7 +641,8 @@ class ExecutionEngine {
     state.connected = false;
   }
 
-  Future<void> requestDiscard() async {
+  Future<void> requestDiscard({bool disconnected = false}) async {
+    if (state.phase == ExecutionPhase.deleting) return;
     if (!active ||
         [
           ExecutionPhase.completed,
@@ -334,19 +650,51 @@ class ExecutionEngine {
         ].contains(state.phase)) {
       throw StateError('只能删除当前未结束任务。');
     }
+    if (disconnected) {
+      state = ExecutionState()..sequence = state.sequence;
+    }
     state.phase = ExecutionPhase.deleting;
+    state.disconnectedDiscard = disconnected;
+    state.connected = false;
     state.pending = null;
     _nextCommand = null;
-    state.message = '正在结束并删除，等待中央确认。';
-    _save('delete_intent');
+    state.message = disconnected
+        ? '分药机连接已断开，本次任务已终止，正在清理任务。网络恢复后自动重试。'
+        : '正在结束并删除，等待中央确认。';
+    _save(disconnected ? 'disconnect_delete_intent' : 'delete_intent');
     await transport?.close();
+    // No physical commands: disconnection cannot prove that the motor stopped.
+  }
+
+  Future<void> _deviceDisconnected() async {
+    if (_disconnectHandled) return;
+    _disconnectHandled = true;
     state.connected = false;
-    // This path never sends stop/open/close; the operator has confirmed a safe scene.
+    _clearRecognition();
+    observedUid = null;
+    observedAt = null;
+    _deadline = null;
+    _pendingBytes = null;
+    _nextCommand = null;
+    decoder = FeedbackDecoder();
+    journal.setSetting('stall_notices', null);
+    if (active) {
+      await requestDiscard(disconnected: true);
+    } else {
+      state = ExecutionState()..message = '摆药机连接已断开，请重启分药机后重新连接。';
+      journal.setSetting('identification', null);
+      journal.setSetting('disconnect_notice', {
+        'task_id': newExecutionId(),
+        'owner_id': null,
+      });
+      await transport?.close();
+    }
   }
 
   void finishDiscard() {
     if (state.phase != ExecutionPhase.deleting) throw StateError('没有删除意图。');
     journal.discard(task!.id);
+    journal.setSetting('stall_notices', null);
     task = null;
     state = ExecutionState();
     rawLines.clear();
@@ -357,7 +705,7 @@ class ExecutionEngine {
     List<api.LearningResult>? learningResults,
     api.TaskState? taskState,
   }) {
-    if (task == null) return;
+    if (task == null || state.phase == ExecutionPhase.deleting) return;
     // A cancelled server receipt can settle an older client's spurious recovery,
     // only after every local event has been accepted. Never discard pending work.
     if (taskState == api.TaskState.cancelled && sequence >= state.sequence) {
@@ -394,6 +742,8 @@ class ExecutionEngine {
     state.phase = ExecutionPhase.recovery;
     state.pending = null;
     _nextCommand = null;
+    _deadline = null;
+    _pendingBytes = null;
     state.message = '$message 请停止投料并核对现场，不会自动重发。';
     state.uid = null;
     state.uidAt = null;
@@ -423,8 +773,24 @@ class ExecutionEngine {
       }
       if (state.pending != null &&
           _deadline != null &&
-          DateTime.now().isAfter(_deadline!)) {
-        _fault('设备应答超时，动作结果未知。');
+          !now().isBefore(_deadline!)) {
+        if (state.acknowledged) {
+          _fault('等待 DONE 超时，动作失败，请核对现场。');
+        } else if (_releasingStall) {
+          _fault('解除堵转未收到 ACK，解除尚未确认；连接与接收保持。');
+        } else if (state.phase == ExecutionPhase.openingForReview &&
+            !['stop_review', 'exit', 'open'].contains(state.pending)) {
+          _fault('机器报错前的命令尚未确认，不能重发或继续开仓。');
+        } else if (_sendAttempts < 6) {
+          await _writePending();
+        } else {
+          _save('command_no_response', {
+            'command': state.pending,
+            'attempts': _sendAttempts,
+          });
+          await _deviceDisconnected();
+          return;
+        }
       }
       if (state.phase == ExecutionPhase.ready && !recognized) {
         state.phase = ExecutionPhase.recognizing;
@@ -432,6 +798,7 @@ class ExecutionEngine {
         _save('recognition_lost');
       }
       if (state.phase == ExecutionPhase.collecting &&
+          state.stalledMotors.isEmpty &&
           !state.trayPresent &&
           state.absentAt != null &&
           DateTime.now().toUtc().difference(state.absentAt!) >= removalWindow &&
@@ -446,6 +813,8 @@ class ExecutionEngine {
       if (next != null && state.phase != ExecutionPhase.recovery) {
         await _send(next);
       }
+    } on DeviceDisconnected {
+      await _deviceDisconnected();
     } catch (error) {
       if (!storageFailed) {
         state.connected = false;
@@ -476,31 +845,74 @@ class ExecutionEngine {
       observedUid = null;
       observedAt = null;
     }
+    if (event.kind == DeviceEventKind.stalled) {
+      _reportStall(event.count!);
+      if (!active) _save('feedback', event.toJson());
+    }
     if (!active) {
-      if (event.kind == DeviceEventKind.acknowledged &&
-          state.pending == 'open') {
+      if (_releasingStall && event.kind == DeviceEventKind.acknowledged) {
         state.acknowledged = true;
+        _commandCompleted();
+        return;
+      }
+      if (event.kind == DeviceEventKind.acknowledged &&
+          ['open', 'close_preparation'].contains(state.pending) &&
+          !state.acknowledged) {
+        state.acknowledged = true;
+        _deadline = now().add(commandTimeout);
       }
       if (event.kind == DeviceEventKind.actionDone &&
-          state.pending == 'open' &&
+          ['open', 'close_preparation'].contains(state.pending) &&
           state.acknowledged) {
+        final closing = state.pending == 'close_preparation';
         state.pending = null;
-        state.phase = ExecutionPhase.idle;
-        state.message = '已收到开仓完成反馈，可放入标签读取。';
+        _deadline = null;
+        _pendingBytes = null;
+        _clearRecognition();
+        if (closing) state.openPurpose = 'initial';
+        state.phase = identifying
+            ? ExecutionPhase.recognizing
+            : ExecutionPhase.idle;
+        state.message = identifying ? '请放入药盒，扫描条码识别长者。' : '设备动作已完成。';
+        _save('command_done');
+      }
+      if (identifying && state.phase == ExecutionPhase.recognizing) {
+        if (event.kind == DeviceEventKind.barcodeAppeared) {
+          state.barcode = event.barcode;
+          state.barcodeAt = now().toUtc();
+          state.trayPresent = true;
+          state.absentAt = null;
+        } else if (event.kind == DeviceEventKind.barcodeDisappeared &&
+            event.barcode == state.barcode) {
+          _clearRecognition();
+          state.trayPresent = false;
+          state.absentAt = now().toUtc();
+        } else if (event.kind == DeviceEventKind.rfid) {
+          state.uid = event.uid;
+          state.uidAt = now().toUtc();
+          state.trayPresent = true;
+        } else if (event.kind == DeviceEventKind.noCard) {
+          state.uid = null;
+          state.uidAt = null;
+        }
+        _save('identification_feedback', event.toJson());
       }
       return;
     }
-    // Opening-related stalls are diagnostic only by the current device policy.
-    // Keep raw evidence; parameters, dispensing and closing still fault.
+    // Opening feedback keeps its ACK/DONE tracking; the alert blocks a new
+    // batch until staff handle the reported motor. Dispensing still faults.
     final ignoredOpeningStall =
         event.kind == DeviceEventKind.stalled &&
-        [
-          ExecutionPhase.opening,
-          ExecutionPhase.changingTray,
-          ExecutionPhase.recognizing,
-          ExecutionPhase.ready,
-          ExecutionPhase.collecting,
-        ].contains(state.phase);
+        ([
+              ExecutionPhase.opening,
+              ExecutionPhase.changingTray,
+              ExecutionPhase.recognizing,
+              ExecutionPhase.ready,
+              ExecutionPhase.collecting,
+              ExecutionPhase.reviewingCount,
+            ].contains(state.phase) ||
+            (state.phase == ExecutionPhase.openingForReview &&
+                !state.matrixIssued));
     _save('feedback', {
       ...event.toJson(),
       if (ignoredOpeningStall) 'ignored_reason': 'opening_phase',
@@ -512,8 +924,30 @@ class ExecutionEngine {
       _fault('机器报告重新初始化，原批次进度不能直接恢复。');
       return;
     }
+    if (event.kind == DeviceEventKind.counterError) {
+      if (state.counterErrorBatch == state.batch) return;
+      if (state.matrixIssued &&
+          [
+            ExecutionPhase.starting,
+            ExecutionPhase.running,
+            ExecutionPhase.paused,
+            ExecutionPhase.pausing,
+            ExecutionPhase.resuming,
+            ExecutionPhase.reviewingSkip,
+          ].contains(state.phase)) {
+        state.counterErrorBatch = state.batch;
+        state.openPurpose = 'counter_review';
+        state.phase = ExecutionPhase.openingForReview;
+        state.reviewTrayRemoved = false;
+        state.message = '当前药物摆药错误，请停止投料。正在停转。';
+        if (state.pending == null) _nextCommand = 'stop_review';
+        _save('counter_review_requested');
+        return;
+      }
+      _fault('收到异常反馈：${event.raw}');
+      return;
+    }
     if ([
-      DeviceEventKind.counterError,
       DeviceEventKind.stalled,
       DeviceEventKind.malformed,
     ].contains(event.kind)) {
@@ -537,6 +971,7 @@ class ExecutionEngine {
     final collectionCode = collectionCodes.length == 1
         ? collectionCodes.single.value
         : null;
+    final reviewing = state.phase == ExecutionPhase.reviewingCount;
     if (config.barcodeRemovalCloses) {
       if (state.phase == ExecutionPhase.closing &&
           event.kind == DeviceEventKind.barcodeAppeared) {
@@ -551,6 +986,10 @@ class ExecutionEngine {
           event.barcode == collectionCode) {
         state.trayPresent = false;
         state.absentAt = DateTime.now().toUtc();
+        if (state.stalledMotors.isNotEmpty) {
+          _save('collection_blocked_by_stall');
+          return;
+        }
         state.phase = ExecutionPhase.closing;
         state.closeDone = false;
         state.readyObserved = false;
@@ -573,10 +1012,16 @@ class ExecutionEngine {
         state.trayPresent = false;
         if ([
           ExecutionPhase.collecting,
+          ExecutionPhase.reviewingCount,
           ExecutionPhase.recognizing,
           ExecutionPhase.ready,
         ].contains(state.phase)) {
           state.absentAt ??= DateTime.now().toUtc();
+        }
+        if (reviewing) {
+          state.reviewTrayRemoved = true;
+          _clearRecognition();
+          _save('review_tray_removed');
         }
         if ([
           ExecutionPhase.recognizing,
@@ -599,6 +1044,9 @@ class ExecutionEngine {
       ExecutionPhase.paused,
       ExecutionPhase.pausing,
       ExecutionPhase.resuming,
+      ExecutionPhase.reviewingSkip,
+      ExecutionPhase.reviewingCount,
+      ExecutionPhase.awaitingNextBatch,
     ].contains(state.phase)) {
       var recognitionChanged = false;
       if (event.kind == DeviceEventKind.rfid) {
@@ -618,12 +1066,21 @@ class ExecutionEngine {
         state.barcodeAt = DateTime.now().toUtc();
         recognitionChanged = true;
       } else if (event.kind == DeviceEventKind.barcodeDisappeared &&
-          state.barcode == event.barcode) {
+          (state.barcode == event.barcode ||
+              (reviewing &&
+                  state.barcode == null &&
+                  event.barcode == collectionCode))) {
         // Explicit preparation cancellation uses observed removal regardless of
         // the separate policy for automatic collection after dispensing.
-        if (!state.permitted || config.barcodeRemovalCloses) {
+        if (!state.permitted ||
+            (config.barcodeRemovalCloses &&
+                (!reviewing || event.barcode == collectionCode))) {
           state.trayPresent = false;
           state.absentAt = DateTime.now().toUtc();
+          if (reviewing) {
+            state.reviewTrayRemoved = true;
+            _clearRecognition();
+          }
         }
         state.barcode = null;
         state.barcodeAt = null;
@@ -657,6 +1114,7 @@ class ExecutionEngine {
         state.pending != null &&
         !state.acknowledged) {
       state.acknowledged = true;
+      _deadline = now().add(commandTimeout);
       _save('ack', {'command': state.pending});
       if (![
         'open',
@@ -684,6 +1142,8 @@ class ExecutionEngine {
           ExecutionPhase.paused,
           ExecutionPhase.pausing,
           ExecutionPhase.resuming,
+          ExecutionPhase.reviewingSkip,
+          ExecutionPhase.skipping,
         ].contains(state.phase)) {
       final value = event.count!;
       if (value < state.count || value > batch.total) {
@@ -707,28 +1167,7 @@ class ExecutionEngine {
         return;
       }
       _save('batch_finished', {'feedback': event.raw});
-      state.matrixIssued = false;
-      if (state.batch == task!.batches.length - 1) {
-        state.openPurpose = 'collect';
-        state.phase = ExecutionPhase.opening;
-        _nextCommand = 'open';
-      } else {
-        final previousTray = batch.tray;
-        state.batch++;
-        state.count = 0;
-        state.gate = null;
-        if (batch.tray != previousTray) {
-          state.openPurpose = 'change';
-          state.phase = ExecutionPhase.changingTray;
-          state.uid = null;
-          state.uidAt = null;
-          _nextCommand = 'open';
-        } else {
-          state.phase = ExecutionPhase.starting;
-          _nextCommand = 'turntable';
-        }
-      }
-      _save('next_stage');
+      _advanceBatch();
     }
     if (event.kind == DeviceEventKind.batchFinished &&
         state.matrixIssued &&
@@ -736,6 +1175,7 @@ class ExecutionEngine {
           ExecutionPhase.paused,
           ExecutionPhase.pausing,
           ExecutionPhase.resuming,
+          ExecutionPhase.reviewingSkip,
         ].contains(state.phase)) {
       _fault('暂停或恢复期间收到完成反馈，请核对本批结果。');
     }
@@ -759,8 +1199,17 @@ class ExecutionEngine {
     final command = state.pending!;
     state.pending = null;
     _deadline = null;
+    _pendingBytes = null;
     if (state.cancelRequested && command != 'stop_cancel') {
       _nextCommand = 'stop_cancel';
+      _save('command_done', {'command': command});
+      return;
+    }
+    // Finish any already-issued parameter, matrix or pause command before
+    // sending stop. An unnumbered ACK must only settle its original command.
+    if (state.phase == ExecutionPhase.openingForReview &&
+        !['stop_review', 'exit', 'open'].contains(command)) {
+      _nextCommand = 'stop_review';
       _save('command_done', {'command': command});
       return;
     }
@@ -768,11 +1217,15 @@ class ExecutionEngine {
       case 'open':
         _clearRecognition();
         state.absentAt = null;
-        if (state.openPurpose == 'collect') {
+        if (state.openPurpose == 'counter_review') {
+          state.phase = ExecutionPhase.reviewingCount;
+          state.trayPresent = true;
+          state.message = '请逐格核对当前药物并按计划补齐。';
+        } else if (state.openPurpose == 'collect') {
           state.phase = ExecutionPhase.collecting;
           state.trayPresent = true;
           state.message = task!.device.configuration.barcodeRemovalCloses
-              ? '本次药物已摆完，请取出药盒，轨道将自动收回。'
+              ? '本次药物已处理，请取出药盒，轨道将自动收回。'
               : '药物处理结束，请取出药盒。等待有效离轨及就绪反馈。';
         } else {
           state.phase = ExecutionPhase.recognizing;
@@ -790,6 +1243,41 @@ class ExecutionEngine {
       case 'pause':
         state.phase = ExecutionPhase.paused;
         state.message = '已收到停转确认。';
+      case 'pause_skip':
+        state.message = '已暂停，请核对跳过范围。';
+      case 'stop_skip':
+        _nextCommand = 'exit';
+      case 'stop_review':
+        state.message = '已收到停转确认，正在退出当前药物。';
+        _nextCommand = 'exit';
+      case 'exit':
+        if (state.openPurpose == 'counter_review') {
+          state.matrixIssued = false;
+          state.message = '正在弹出药盒，请等待开仓完成。';
+          _nextCommand = 'open';
+          break;
+        }
+        _save('command_done', {'command': command});
+        final request = state.skipRequest!;
+        final skipped = request['all_remaining'] == true
+            ? [for (var i = state.batch; i < task!.batches.length; i++) i]
+            : request['manual'] == true
+            ? <int>[]
+            : [state.batch];
+        task = task!.copyWith(
+          skippedBatches: [...task!.skippedBatches, ...skipped],
+          manualBatches: [
+            ...task!.manualBatches,
+            if (request['manual'] == true) state.batch,
+          ],
+        );
+        _save('skip_completed', request);
+        state.skipRequest = null;
+        _advanceBatch(
+          allRemaining: request['all_remaining'] == true,
+          paused: !state.skipWasRunning,
+        );
+        return;
       case 'resume':
         state.phase = ExecutionPhase.running;
         state.message = '正在继续原批次。';
@@ -810,11 +1298,38 @@ class ExecutionEngine {
         }
       case 'manual_gate':
         state.message = '开口设置已下发，请核对现场。';
+      case 'release_stall_2':
+      case 'release_stall_3':
+        final motor = int.parse(command.split('_').last);
+        final notice = stallNotices
+            .where((notice) => notice['motor'] == motor)
+            .firstOrNull;
+        if (notice?['id'] != _releasingStallNotice) {
+          state.message = '机器再次报告堵转，请重新排查。';
+          break;
+        }
+        state.stalledMotors.remove(motor);
+        journal.setSetting('stall_notices', [
+          for (final item in stallNotices)
+            if (item['motor'] != motor) item,
+        ]);
+        state.message = state.stalledMotors.isNotEmpty
+            ? '已收到解除堵转 ACK，仍有其他电机待处理。'
+            : state.phase == ExecutionPhase.reviewingCount
+            ? '堵转已解除，请逐格核对当前药物并按计划补齐。'
+            : '已收到解除堵转 ACK，请核对现场后继续原批次。';
     }
     _save('command_done', {'command': command});
   }
 
   Future<void> _send(String command, {double? gate}) async {
+    if ([
+      ExecutionPhase.deleting,
+      ExecutionPhase.completed,
+      ExecutionPhase.cancelled,
+    ].contains(state.phase)) {
+      throw StateError('任务已结束，不能发送设备命令。');
+    }
     if (command == 'matrix' && !recognized) {
       _fault('下发矩阵前药盒识别已失效，请核对现场。');
       return;
@@ -832,35 +1347,58 @@ class ExecutionEngine {
         state.gate ?? batch.parameters.gate.toDouble(),
       ),
       'matrix' => Stm32Commands.matrix(batch.matrix),
-      'pause' || 'stop_cancel' => Stm32Commands.stop(),
+      'pause' ||
+      'stop_cancel' ||
+      'pause_skip' ||
+      'stop_review' ||
+      'stop_skip' => Stm32Commands.stop(),
       'resume' => Stm32Commands.resume(),
       'exit' => Stm32Commands.exitMedicine(),
       'manual_gate' => Stm32Commands.setGate(gate!),
+      'release_stall_2' => Stm32Commands.releaseStall(2),
+      'release_stall_3' => Stm32Commands.releaseStall(3),
       _ => throw ArgumentError(command),
     };
     state.pending = command;
     state.acknowledged = false;
     if (command == 'matrix') state.matrixIssued = true;
-    _deadline = DateTime.now().add(commandTimeout);
-    _save('write_intent', {
+    _pendingBytes = bytes;
+    _sendAttempts = 0;
+    await _writePending(gate: gate);
+  }
+
+  Future<void> _writePending({double? gate}) async {
+    final command = state.pending!;
+    final bytes = _pendingBytes!;
+    final retry = _sendAttempts > 0;
+    _sendAttempts++;
+    _save(retry ? 'retry_write_intent' : 'write_intent', {
       'command': command,
       'bytes': bytes.toList(),
+      'attempt': _sendAttempts,
       'gate': ?gate,
     });
     try {
       await transport!.write(bytes);
-      _save('written', {'command': command});
-      if (command == 'manual_gate') {
+      _deadline = now().add(ackTimeout);
+      _save(retry ? 'retry_written' : 'written', {
+        'command': command,
+        'attempt': _sendAttempts,
+      });
+      if (!retry && command == 'manual_gate') {
         state.gate = gate;
         _save('manual_gate_written', {'gate': gate});
       }
-      if (command == 'matrix') {
+      if (!retry && command == 'matrix') {
         _save('batch_started', {
           'gate': state.gate ?? batch.parameters.gate.toDouble(),
           'turntable': batch.parameters.turntable,
           'parameter_revision': batch.parameters.revision,
         });
       }
+    } on DeviceDisconnected {
+      await _deviceDisconnected();
+      rethrow;
     } catch (error) {
       _fault('写出结果未知：$error');
       rethrow;

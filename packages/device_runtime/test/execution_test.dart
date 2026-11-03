@@ -406,6 +406,8 @@ void main() {
               event['detail']['kind'] == 'stalled',
         );
     expect(stalls.length, 3);
+    expect(engine.stallNotices, hasLength(2));
+    expect(engine.state.stalledMotors, containsAll([2, 3]));
     expect(
       stalls.every(
         (event) => event['detail']['ignored_reason'] == 'opening_phase',
@@ -430,6 +432,8 @@ void main() {
       final task = fixture(journal.terminalId);
       await engine.attach(task);
       await until(engine, () => engine.state.phase == ExecutionPhase.ready);
+      await engine.releaseStall(3);
+      await engine.tick();
       await engine.begin(task.copyWith(state: api.TaskState.started));
       if (phase != ExecutionPhase.starting) {
         await until(engine, () => engine.state.phase == ExecutionPhase.running);
@@ -446,47 +450,52 @@ void main() {
     });
   }
 
-  test(
-    'tray change and collection opening ignore stalls but closing does not',
-    () async {
-      final machine = OpeningStallSimulator(uid: 'A1B2C3D4');
-      final engine = ExecutionEngine(journal, removalWindow: Duration.zero);
-      await engine.connect(machine);
-      final task = fixture(journal.terminalId);
-      await engine.attach(task);
-      await until(engine, () => engine.state.phase == ExecutionPhase.ready);
-      await engine.begin(task.copyWith(state: api.TaskState.started));
-      for (var batch = 0; batch < 2; batch++) {
-        await until(engine, () => engine.state.phase == ExecutionPhase.running);
-        machine.emit('number:2,width:20');
-        machine.emit('machine_state:FINISH');
-        await until(
-          engine,
-          () => batch == 0
-              ? engine.state.phase == ExecutionPhase.ready
-              : engine.state.phase == ExecutionPhase.collecting,
-        );
-        if (batch == 0) await engine.continueTray();
-      }
-      machine.emit('stalled:3');
-      await engine.tick();
-      expect(engine.state.phase, ExecutionPhase.collecting);
-      expect(machine.writes.where((bytes) => bytes[2] == 5).length, 2);
-      machine.omitDone = true;
-      machine.removeTray();
-      await engine.tick();
-      expect(engine.state.phase, ExecutionPhase.closing);
-      machine.emit('stalled:3');
-      await engine.tick();
-      expect(engine.state.phase, ExecutionPhase.recovery);
-      expect(
-        journal
-            .pending(task.id)
-            .where((event) => event['kind'] == 'collection_ready'),
-        isEmpty,
+  test('tray change and collection opening alert without losing ACK/DONE; closing still faults', () async {
+    final machine = OpeningStallSimulator(uid: 'A1B2C3D4');
+    final engine = ExecutionEngine(journal, removalWindow: Duration.zero);
+    await engine.connect(machine);
+    final task = fixture(journal.terminalId);
+    await engine.attach(task);
+    await until(engine, () => engine.state.phase == ExecutionPhase.ready);
+    await engine.releaseStall(3);
+    await engine.tick();
+    await engine.begin(task.copyWith(state: api.TaskState.started));
+    for (var batch = 0; batch < 2; batch++) {
+      await until(engine, () => engine.state.phase == ExecutionPhase.running);
+      machine.emit('number:2,width:20');
+      machine.emit('machine_state:FINISH');
+      await until(
+        engine,
+        () => batch == 0
+            ? engine.state.phase == ExecutionPhase.ready
+            : engine.state.phase == ExecutionPhase.collecting,
       );
-    },
-  );
+      if (batch == 0) {
+        await engine.releaseStall(3);
+        await engine.tick();
+        await engine.continueTray();
+      }
+    }
+    machine.emit('stalled:3');
+    await engine.tick();
+    expect(engine.state.phase, ExecutionPhase.collecting);
+    expect(machine.writes.where((bytes) => bytes[2] == 5).length, 2);
+    await engine.releaseStall(3);
+    await engine.tick();
+    machine.omitDone = true;
+    machine.removeTray();
+    await engine.tick();
+    expect(engine.state.phase, ExecutionPhase.closing);
+    machine.emit('stalled:3');
+    await engine.tick();
+    expect(engine.state.phase, ExecutionPhase.recovery);
+    expect(
+      journal
+          .pending(task.id)
+          .where((event) => event['kind'] == 'collection_ready'),
+      isEmpty,
+    );
+  });
 
   test(
     'ignored opening stall cannot replace missing command acknowledgement',
@@ -494,13 +503,13 @@ void main() {
       final machine = OpeningStallSimulator()..omitAck = true;
       final engine = ExecutionEngine(
         journal,
-        commandTimeout: const Duration(milliseconds: 20),
+        ackTimeout: const Duration(milliseconds: 20),
       );
       await engine.connect(machine);
       await engine.attach(fixture(journal.terminalId));
-      await until(engine, () => engine.state.phase == ExecutionPhase.recovery);
-      expect(engine.state.message, contains('设备应答超时'));
-      expect(machine.writes.length, 1);
+      await until(engine, () => engine.state.phase == ExecutionPhase.deleting);
+      expect(engine.state.disconnectedDiscard, isTrue);
+      expect(machine.writes.length, 6);
     },
   );
 
@@ -614,22 +623,22 @@ void main() {
     expect(journal.active(), isNull);
   });
 
-  test('错人识别阻止开始，命令超时保持未知且不重发', () async {
+  test('错人识别阻止开始，普通命令六次无 ACK 后终止', () async {
     final machine = MachineSimulator(uid: 'FFFF')..omitAck = true;
     final engine = ExecutionEngine(
       journal,
-      commandTimeout: const Duration(milliseconds: 20),
+      ackTimeout: const Duration(milliseconds: 20),
     );
     await engine.connect(machine);
     final task = fixture(journal.terminalId);
     await engine.attach(task);
-    await until(engine, () => engine.state.phase == ExecutionPhase.recovery);
-    expect(machine.writes.length, 1);
+    await until(engine, () => engine.state.phase == ExecutionPhase.deleting);
+    expect(machine.writes.length, 6);
     await expectLater(
       engine.begin(task.copyWith(state: api.TaskState.started)),
       throwsStateError,
     );
-    expect(machine.writes.length, 1);
+    expect(machine.writes.length, 6);
   });
 
   test('重启保留事件与进度，不自动恢复；复位禁止直接继续', () async {

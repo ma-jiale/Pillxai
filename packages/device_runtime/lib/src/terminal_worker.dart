@@ -13,7 +13,7 @@ void terminalWorker(Map<String, dynamic> arguments) {
     platform: 'windows',
     hardwareTransport: (config) =>
         WindowsSerialTransport(config['port'] as String),
-    ports: WindowsSerialTransport.availablePorts,
+    ports: WindowsSerialTransport.deviceCandidates,
     publish: (view) =>
         output.send(view.containsKey('worker_error') ? view : {'view': view}),
   );
