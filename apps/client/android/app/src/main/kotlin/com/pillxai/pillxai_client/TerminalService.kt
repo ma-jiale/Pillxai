@@ -60,7 +60,11 @@ class TerminalService : Service() {
             runtime = MethodChannel(engine.dartExecutor.binaryMessenger, "pillxai/runtime")
             runtime.setMethodCallHandler { call, result ->
                 when (call.method) {
-                    "directory" -> result.success(File(noBackupFilesDir, "terminal").absolutePath)
+                    "directory" -> {
+                        // The development package previously used the local test deployment.
+                        val name = if (packageName.endsWith(".development")) "terminal-sjtu" else "terminal"
+                        result.success(File(noBackupFilesDir, name).absolutePath)
+                    }
                     "ready" -> {
                         ready = true
                         waiters.toList().forEach { it.success(latest) }

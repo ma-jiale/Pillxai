@@ -13,7 +13,7 @@ class BackendConnection {
           api.ApiClient(
             basePath: const String.fromEnvironment(
               'PILLXAI_API_URL',
-              defaultValue: 'http://127.0.0.1:8000',
+              defaultValue: 'https://ixd.sjtu.edu.cn/pillxai',
             ),
           );
 

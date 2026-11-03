@@ -11,6 +11,7 @@ on:
       api_url:
         description: Deployment HTTPS API base URL (including path prefix)
         required: true
+        default: https://ixd.sjtu.edu.cn/pillxai
       notes_file:
         description: Repository-relative UTF-8 release notes file
         required: true

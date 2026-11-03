@@ -65,7 +65,7 @@ class NativeTerminalHost implements TerminalHost {
         dataDirectory ??
         (compiledPath.isNotEmpty
             ? compiledPath
-            : '${Directory.current.path}/.var/terminal');
+            : '${Directory.current.path}/.var/terminal-sjtu');
     Directory(directory).createSync(recursive: true);
     _lock = File('$directory/owner.lock').openSync(mode: FileMode.append);
     try {
