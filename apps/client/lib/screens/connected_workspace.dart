@@ -29,6 +29,7 @@ import 'terminal_device_dialog.dart';
 import 'pillbox_layout_dialog.dart';
 import 'device_disconnected_dialog.dart';
 import 'motor_stall_dialog.dart';
+import 'collection_reminder_dialog.dart';
 import 'count_review_dialog.dart';
 import 'terminal_execution_panel.dart';
 import 'workspace_lifecycle.dart';
@@ -63,6 +64,7 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
   bool signingOut = false;
   bool disconnectDialogOpen = false;
   bool stallDialogOpen = false;
+  bool collectionDialogOpen = false;
   bool countReviewOpen = false;
   bool restoringLogin = true;
   String? restoreError;
@@ -72,6 +74,7 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
     if (!disconnectDialogOpen) _checkStallNotice();
     if (!disconnectDialogOpen && !stallDialogOpen) {
       _checkCountReview();
+      if (!countReviewOpen) _checkCollection();
     }
   }
 
@@ -111,6 +114,43 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
     WidgetsBinding.instance.ensureVisualUpdate();
   }
 
+  void _checkCollection() {
+    final current = terminal;
+    final task = current?.task;
+    if (!mounted ||
+        collectionDialogOpen ||
+        current == null ||
+        task == null ||
+        !current.ownTask ||
+        current.phase != 'collecting' ||
+        (current.state['tray_present'] == false &&
+            current.state['absent_at'] != null)) {
+      return;
+    }
+    collectionDialogOpen = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!mounted || disconnectDialogOpen || current.task?.id != task.id) {
+          return;
+        }
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => CollectionReminderDialog(
+            terminal: current,
+            taskId: task.id,
+            name: task.plan.residentName,
+            bed: task.plan.bed,
+            hasSkipped: task.skippedBatches.isNotEmpty,
+          ),
+        );
+      } finally {
+        collectionDialogOpen = false;
+      }
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
   void _checkStallNotice() {
     final current = terminal;
     if (!mounted ||
@@ -144,6 +184,9 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
       } finally {
         stallDialogOpen = false;
         if (mounted && !disconnectDialogOpen) _checkStallNotice();
+        if (mounted && !disconnectDialogOpen && !stallDialogOpen) {
+          _checkCollection();
+        }
       }
     });
     WidgetsBinding.instance.ensureVisualUpdate();
@@ -331,6 +374,7 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
         terminal?.ownTask == false &&
         terminal?.connected == false;
     if ((terminal?.active == true && !retainTerminal) ||
+        terminal?.identifying == true ||
         terminal?.busy == true) {
       setState(() => page = 1);
       ScaffoldMessenger.of(context)

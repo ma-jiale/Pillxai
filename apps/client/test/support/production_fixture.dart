@@ -97,6 +97,8 @@ class ProductionFixture {
   bool failQueue = false;
   bool stale = false;
   int previewWrites = 0;
+  int queueReads = 0;
+  int previewReads = 0;
 
   Future<http.Response> respond(http.Request request) async {
     final path = request.url.path;
@@ -118,13 +120,16 @@ class ProductionFixture {
     if (path == '/settings') return jsonResponse(settingsJson);
     if (path == '/residents') {
       return jsonResponse({
-        'items': [profile],
+        'items': request.url.queryParameters['barcode'] == 'unknown'
+            ? []
+            : [profile],
         'next_after': null,
       });
     }
     if (path.endsWith('/prescriptions')) return jsonResponse(medicines);
     if (path == '/devices') return jsonResponse([task['device']]);
     if (path == '/preparation') {
+      queueReads++;
       return failQueue
           ? jsonResponse({'code': 'offline', 'message': '清单读取失败'}, 503)
           : jsonResponse([
@@ -147,7 +152,11 @@ class ProductionFixture {
             ]);
     }
     if (path.endsWith('/plans/preview') || path.startsWith('/plans/')) {
-      if (request.method == 'POST') previewWrites++;
+      if (request.method == 'POST') {
+        previewWrites++;
+      } else {
+        previewReads++;
+      }
       return jsonResponse({
         'current': !stale,
         'message': stale ? '资料已变化，请重新生成。' : '',
@@ -205,6 +214,14 @@ class ProductionHost extends FakeHost {
 
   void feedback(String phase, {int? batch, int? count, bool? recognized}) {
     final state = value['state'] as Map;
+    if (phase == 'collecting') {
+      state['tray_present'] = true;
+      state['absent_at'] = null;
+    }
+    if (phase == 'closing') {
+      state['tray_present'] = false;
+      state['absent_at'] = DateTime.now().toUtc().toIso8601String();
+    }
     state['phase'] = phase;
     state['message'] = switch (phase) {
       'recognizing' => '请放入当前长者的药盒',
@@ -231,6 +248,21 @@ class ProductionHost extends FakeHost {
     String operation, [
     Map<String, dynamic> data = const {},
   ]) async {
+    if (operation == 'open_identification') {
+      operations.add(operation);
+      value['identifying'] = true;
+      feedback('recognizing');
+      return null;
+    }
+    if (operation == 'close_identification') {
+      operations.add(operation);
+      if ((value['state'] as Map)['barcode'] != null) {
+        throw StateError('请先取出药盒，再关闭。');
+      }
+      value['identifying'] = false;
+      feedback('idle');
+      return null;
+    }
     if (operation == 'cancel_preparation') {
       operations.add(operation);
       if ((value['state'] as Map)['barcode'] != null) {
@@ -257,9 +289,11 @@ class ProductionHost extends FakeHost {
         events.add(value);
       }
       if (operation == 'attach') {
+        final scanned = value['identifying'] == true;
         value['task'] = data;
+        value['identifying'] = false;
         value.remove('claim_intent');
-        feedback('recognizing');
+        feedback(scanned ? 'ready' : 'recognizing', recognized: scanned);
       }
       if (operation == 'begin' || operation == 'continue_tray') {
         (value['state'] as Map).addAll(<String, dynamic>{

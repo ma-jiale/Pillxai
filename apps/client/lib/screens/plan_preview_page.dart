@@ -6,6 +6,7 @@ import '../data/settings_controller.dart';
 import '../data/terminal_controller.dart';
 import 'prepare_execution_dialog.dart';
 import 'terminal_device_dialog.dart';
+import 'scan_resident_dialog.dart';
 import '../models/prescription_controller.dart';
 import '../models/pillbox_layout.dart';
 import '../models/prescription_store.dart';
@@ -15,6 +16,7 @@ import '../widgets/app_menu.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/preparation_list.dart';
 import 'task_history_dialog.dart';
+import 'workspace_lifecycle.dart';
 import '../widgets/prescription_forms.dart' show formatDate;
 import '../widgets/server_plan_pattern.dart';
 
@@ -43,7 +45,7 @@ class PlanPreviewPage extends StatefulWidget {
 }
 
 class _PlanPreviewPageState extends State<PlanPreviewPage>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, WorkspaceLifecycle {
   List<api.PreparationItem> items = [];
   bool loading = true;
   bool early = false;
@@ -69,8 +71,8 @@ class _PlanPreviewPageState extends State<PlanPreviewPage>
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) reload();
+  void onWorkspaceResumed() {
+    reload();
   }
 
   Future<void> reload() async {
@@ -145,6 +147,35 @@ class _PlanPreviewPageState extends State<PlanPreviewPage>
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
+              if (widget.terminal?.supported == true)
+                FilledButton.icon(
+                  key: const ValueKey('scan-resident'),
+                  onPressed: widget.terminal!.active || widget.terminal!.busy
+                      ? null
+                      : () async {
+                          final terminal = widget.terminal!;
+                          if (!terminal.connected) {
+                            await showDialog<void>(
+                              context: context,
+                              builder: (_) =>
+                                  TerminalDeviceDialog(terminal: terminal),
+                            );
+                            return;
+                          }
+                          await showDialog<void>(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (_) => ScanResidentDialog(
+                              terminal: terminal,
+                              residents: widget.residents,
+                              settings: widget.settings,
+                            ),
+                          );
+                          if (mounted) reload();
+                        },
+                  icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+                  label: const Text('为任意长者摆药'),
+                ),
               for (final value in [false, true])
                 TextButton(
                   style: TextButton.styleFrom(
@@ -227,7 +258,9 @@ class _PlanPreviewPageState extends State<PlanPreviewPage>
                                   '${item.dates.isEmpty ? '' : ' · ${formatDate(item.dates.first)} — ${formatDate(item.dates.last)}'}',
                           action: OutlinedButton(
                             key: ValueKey('preview-${item.residentId}'),
-                            onPressed: widget.terminal?.active == true
+                            onPressed:
+                                widget.terminal?.active == true ||
+                                    widget.terminal?.identifying == true
                                 ? null
                                 : () => prepare(item),
                             child: const Text('开始摆药'),
@@ -250,18 +283,20 @@ class ServerPlanDialog extends StatefulWidget {
     required this.residents,
     required this.settings,
     this.terminal,
+    this.scannedBarcode,
   });
   final BackendConnection backend;
   final Resident resident;
   final PrescriptionController residents;
   final SettingsController settings;
   final TerminalController? terminal;
+  final String? scannedBarcode;
   @override
   State<ServerPlanDialog> createState() => _ServerPlanDialogState();
 }
 
 class _ServerPlanDialogState extends State<ServerPlanDialog>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, WorkspaceLifecycle {
   api.PlanPreview? preview;
   bool loading = false;
   String? error;
@@ -297,7 +332,7 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
     if (mounted &&
         closingPreparation &&
         !popping &&
-        (widget.terminal?.task == null ||
+        ((widget.terminal?.task == null && !widget.terminal!.identifying) ||
             widget.terminal?.phase == 'cancelled')) {
       popping = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -317,8 +352,8 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && preview != null && !loading) {
+  void onWorkspaceResumed() {
+    if (preview != null && !loading) {
       _checkVersion();
     }
   }
@@ -411,6 +446,21 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
 
   Future<void> _start() async {
     final terminal = widget.terminal!;
+    if (!claimed && widget.scannedBarcode != null) {
+      if (!await _checkVersion() || !mounted) return;
+      if (terminal.state['barcode'] != widget.scannedBarcode ||
+          !terminal.identifying) {
+        return;
+      }
+      setState(() => loading = true);
+      await terminal.claim(
+        preview!.snapshot,
+        scannedBarcode: widget.scannedBarcode,
+      );
+      if (!mounted) return;
+      setState(() => loading = false);
+      if (!claimed || terminal.error != null) return;
+    }
     await terminal.start();
     if (!mounted) return;
     if (terminal.error == null && terminal.state['permitted'] == true) {
@@ -419,6 +469,18 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
   }
 
   Future<void> _close() async {
+    if (!claimed &&
+        widget.scannedBarcode != null &&
+        widget.terminal!.identifying &&
+        widget.terminal!.view['claim_intent'] == null &&
+        widget.terminal!.phase != 'recovery') {
+      closingPreparation = true;
+      await widget.terminal!.action('close_identification');
+      if (!mounted) return;
+      if (widget.terminal!.error != null) closingPreparation = false;
+      _terminalChanged();
+      return;
+    }
     if (!claimed || widget.terminal?.phase == 'recovery') {
       // Unknown physical state must remain owned by the recovery controls.
       // Dismissing here neither closes the tray nor releases the task.
@@ -462,7 +524,9 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
                         : terminal.state['message'] as String? ??
                               '请放入${widget.resident.name}的药盒'
                   : terminal!.connected
-                  ? '核对后开仓，放入${widget.resident.name}的药盒'
+                  ? widget.scannedBarcode != null
+                        ? '已识别${widget.resident.name}的药盒，请核对长者及本次用药后开始。'
+                        : '核对后开仓，放入${widget.resident.name}的药盒'
                   : '摆药机未连接，请先连接设备'
             : null);
     final rows = <PreparationMedicineRow>[
@@ -485,7 +549,7 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
             ),
     ];
     return PopScope(
-      canPop: !claimed && !loading,
+      canPop: !claimed && !loading && widget.scannedBarcode == null,
       child: PreparationConfirmation(
         children: [
           const Text(
@@ -595,7 +659,8 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
                 ),
               if (terminal?.supported == true &&
                   terminal!.canMaintain &&
-                  !claimed)
+                  !claimed &&
+                  widget.scannedBarcode == null)
                 AppActionMenu(
                   tooltip: '更多准备操作',
                   actions: [
@@ -631,9 +696,13 @@ class _ServerPlanDialogState extends State<ServerPlanDialog>
                             ? _start
                             : null
                       : enabled && !terminal!.active && !terminal.busy
-                      ? _prepareBox
+                      ? (widget.scannedBarcode != null ? _start : _prepareBox)
                       : null,
-                  child: Text(claimed ? '开始摆药' : '开仓放入药盒'),
+                  child: Text(
+                    claimed || widget.scannedBarcode != null
+                        ? '开始摆药'
+                        : '开仓放入药盒',
+                  ),
                 ),
             ],
           ),
