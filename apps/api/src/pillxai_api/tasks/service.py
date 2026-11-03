@@ -11,6 +11,7 @@ from ..residents.service import resident_row
 from ..residents.tables import residents
 from .learning import evaluate_batch, select_parameters
 from .models import BatchPlan, DeviceMode, DeviceView, ParameterView, TaskState, TaskView
+from .skipping import confirmed_skip
 from .tables import devices, events, labels, parameters, tasks, tombstones
 
 
@@ -31,10 +32,8 @@ def save_device(connection, account, device_id, request):
     )
     if (row["revision"] if row else 0) != request.expected_revision:
         conflict()
-    if connection.execute(
-        select(tasks.c.id).where(tasks.c.device_id == device_id, tasks.c.active)
-    ).first():
-        reject("设备仍有未结束任务，不能修改配置。")
+    # A stale task after power loss must not lock the device registry.
+    # Existing tasks retain their immutable device/terminal snapshots.
     values = dict(
         identity=request.configuration.identity,
         revision=request.expected_revision + 1,
@@ -170,6 +169,7 @@ def make_batches(connection, task_id, plan, device):
                     medicine_id=medicine.prescription.medicine_id,
                     name=medicine.prescription.data.medicine_name,
                     strength=medicine.prescription.data.strength,
+                    image=medicine.prescription.data.image,
                     feed_form=medicine.prescription.data.feed_form.value,
                     purpose=tray.purpose,
                     total=medicine.total_particles,
@@ -255,6 +255,7 @@ def claim(connection, account, task_id, request):
         batches=make_batches(connection, task_id, preview.snapshot, device),
         sequence=0,
         completed_batches=[],
+        skip_protocol=1,
         counts=[0] * sum(len(t.medicines) for t in preview.snapshot.trays),
         started_at=None,
         updated_at=now,
@@ -357,10 +358,13 @@ def sync(connection, account, task_id, request):
         ):
             reject("任务已结束，不接受新的执行事件。")
         if (
-            event.kind in ("count", "batch_finished", "collection_ready")
+            event.kind in ("count", "batch_finished", "skip_completed", "collection_ready")
             and task.started_at is None
         ):
             reject("尚未取得中央启动许可。")
+        handled = set(task.completed_batches + task.manual_batches + task.skipped_batches)
+        if event.kind in ("count", "batch_finished", "skip_completed") and event.batch in handled:
+            reject("该批次已有最终结果，不能重复处理。")
         if event.kind == "count":
             count = event.detail.get("count")
             if (
@@ -371,14 +375,33 @@ def sync(connection, account, task_id, request):
             task.counts[event.batch] = count
         if event.kind == "batch_finished":
             if (
-                event.batch != len(task.completed_batches)
+                event.batch != len(handled)
                 or task.counts[event.batch] != task.batches[event.batch].total
             ):
                 reject("批次完成必须有顺序一致的计数及完成反馈。")
             if event.detail.get("feedback") != "machine_state:FINISH":
                 reject("缺少当前批次完成反馈。")
             task.completed_batches.append(event.batch)
-            if len(task.completed_batches) == len(task.batches):
+            if len(handled) + 1 == len(task.batches):
+                task.state = TaskState.awaiting_collection
+        if event.kind == "skip_completed":
+            records = connection.execute(
+                select(events.c.data).where(events.c.task_id == task.id)
+                .order_by(events.c.sequence)
+            ).scalars()
+            if event.batch != len(handled) or not confirmed_skip(
+                records, event.batch, event.detail
+            ):
+                reject("跳过缺少顺序一致的停转及退出确认。")
+            if event.detail["all_remaining"]:
+                task.skipped_batches.extend(range(event.batch, len(task.batches)))
+            elif event.detail["manual"]:
+                task.manual_batches.append(event.batch)
+            else:
+                task.skipped_batches.append(event.batch)
+            if len(set(task.completed_batches + task.manual_batches + task.skipped_batches)) == len(
+                task.batches
+            ):
                 task.state = TaskState.awaiting_collection
         if event.kind == "collection_ready":
             config = task.device.configuration
@@ -427,9 +450,16 @@ def barcode_collection_confirmed(connection, task, detail):
         select(events.c.data).where(events.c.task_id == task.id).order_by(events.c.sequence)
     ).scalars():
         kind, data = record["kind"], record["detail"]
-        if kind in ("cancel_intent", "recovery", "recovered"):
+        if kind == "cancel_intent":
             stage = 0
-        elif kind == "batch_finished" and record["batch"] == len(task.batches) - 1:
+        elif kind in ("recovery", "recovered"):
+            # Keep settled medicine results, but require a fresh opening and
+            # removal/closing sequence after an explicitly retried collection.
+            stage = 1 if stage >= 1 else 0
+        elif (kind == "batch_finished" and record["batch"] == len(task.batches) - 1) or (
+            kind == "skip_completed"
+            and (record["batch"] == len(task.batches) - 1 or data.get("all_remaining") is True)
+        ):
             stage = 1
         elif stage == 1 and kind == "command_done" and data.get("command") == "open":
             stage = 2
@@ -510,7 +540,9 @@ def discard(connection, account, task_id, request):
     if connection.execute(select(tombstones.c.id).where(tombstones.c.id == task_id)).first():
         return
     task = owned_task(connection, account, task_id, request.terminal_id)
-    if task.state in (TaskState.completed, TaskState.cancelled) or not request.physical_scene_safe:
+    if task.state in (TaskState.completed, TaskState.cancelled) or (
+        request.reason != "device_disconnected" and not request.physical_scene_safe
+    ):
         reject("仅允许在现场已安全处理后删除当前未结束任务。")
     connection.execute(insert(tombstones).values(id=task_id))
     connection.execute(delete(parameters).where(parameters.c.source_task_id == task_id))

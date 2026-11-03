@@ -3556,6 +3556,17 @@
             "type": "string",
             "title": "Strength"
           },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
           "feed_form": {
             "type": "string",
             "title": "Feed Form"
@@ -3911,6 +3922,21 @@
           "physical_scene_safe": {
             "type": "boolean",
             "title": "Physical Scene Safe"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "operator",
+                  "device_disconnected"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           }
         },
         "additionalProperties": false,
@@ -4722,6 +4748,18 @@
             "type": "boolean",
             "title": "Stopped",
             "default": false
+          },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1500000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
           }
         },
         "additionalProperties": false,
@@ -5343,6 +5381,25 @@
             },
             "type": "array",
             "title": "Completed Batches"
+          },
+          "skipped_batches": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Skipped Batches"
+          },
+          "manual_batches": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Manual Batches"
+          },
+          "skip_protocol": {
+            "type": "integer",
+            "title": "Skip Protocol",
+            "default": 0
           },
           "counts": {
             "items": {

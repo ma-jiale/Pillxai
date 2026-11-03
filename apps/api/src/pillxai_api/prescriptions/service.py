@@ -52,6 +52,9 @@ def save(connection, account, resident_id, prescription_id, request):
         if previous["revision"] != request.expected_revision:
             conflict()
     data = request.data.model_dump(mode="json")
+    # Older clients omit the image; only an explicit empty value removes it.
+    if request.data.image is None and previous:
+        data["image"] = previous["data"].get("image")
     # A medicine identity is stable while its descriptors stay unchanged. Editing
     # descriptors creates a new identity; old versions retain the original one.
     same_medicine = previous and all(

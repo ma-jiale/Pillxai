@@ -22,6 +22,7 @@ class PrescriptionData {
     required this.startDate,
     required this.endDate,
     this.stopped = false,
+    this.image,
   });
 
   final String medicineName;
@@ -42,6 +43,8 @@ class PrescriptionData {
 
   final bool stopped;
 
+  final String? image;
+
   @override
   bool operator ==(Object other) => identical(this, other) || other is PrescriptionData &&
     other.medicineName == medicineName &&
@@ -52,7 +55,8 @@ class PrescriptionData {
     other.mealRelation == mealRelation &&
     other.startDate == startDate &&
     other.endDate == endDate &&
-    other.stopped == stopped;
+    other.stopped == stopped &&
+    other.image == image;
 
   @override
   int get hashCode =>
@@ -65,10 +69,11 @@ class PrescriptionData {
     (mealRelation.hashCode) +
     (startDate.hashCode) +
     (endDate == null ? 0 : endDate!.hashCode) +
-    (stopped.hashCode);
+    (stopped.hashCode) +
+    (image == null ? 0 : image!.hashCode);
 
   @override
-  String toString() => 'PrescriptionData[medicineName=$medicineName, strength=$strength, unit=$unit, feedForm=$feedForm, doses=$doses, mealRelation=$mealRelation, startDate=$startDate, endDate=$endDate, stopped=$stopped]';
+  String toString() => 'PrescriptionData[medicineName=$medicineName, strength=$strength, unit=$unit, feedForm=$feedForm, doses=$doses, mealRelation=$mealRelation, startDate=$startDate, endDate=$endDate, stopped=$stopped, image=$image]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -85,6 +90,11 @@ class PrescriptionData {
       json[r'end_date'] = null;
     }
       json[r'stopped'] = this.stopped;
+    if (this.image != null) {
+      json[r'image'] = this.image;
+    } else {
+      json[r'image'] = null;
+    }
     return json;
   }
 
@@ -101,6 +111,8 @@ class PrescriptionData {
     DateTime? endDate,
     bool endDateSetToNull = false,
     bool? stopped,
+    String? image,
+    bool imageSetToNull = false,
   }) => PrescriptionData(
     medicineName: medicineName ?? this.medicineName,
     strength: strength ?? this.strength,
@@ -111,6 +123,7 @@ class PrescriptionData {
     startDate: startDate ?? this.startDate,
     endDate: endDateSetToNull ? null : endDate ?? this.endDate,
     stopped: stopped ?? this.stopped,
+    image: imageSetToNull ? null : image ?? this.image,
   );
 
   /// Returns a new [PrescriptionData] instance and imports its values from
@@ -152,6 +165,7 @@ class PrescriptionData {
         startDate: mapDateTime(json, r'start_date', r'')!,
         endDate: mapDateTime(json, r'end_date', r''),
         stopped: mapValueOfType<bool>(json, r'stopped') ?? false,
+        image: mapValueOfType<String>(json, r'image'),
       );
     }
     return null;

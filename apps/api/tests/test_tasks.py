@@ -169,13 +169,24 @@ def test_claim_concurrency_owner_recognition_and_immutable_plan(world):  # noqa:
         client.put(
             f"/devices/{f['device']}",
             headers=tokens["admin"],
-            json=dict(expected_revision=1, configuration=f["config"]),
+            json=dict(expected_revision=1, configuration=f["config"] | dict(name="重新配置的设备")),
         ).status_code
-        == 409
+        == 200
     )
     started = start(client, tokens["admin"], f, task)
     assert started.status_code == 200
     assert start(client, tokens["admin"], f, task).json() == started.json()
+    assert started.json()["device"] == task["device"]
+    # Rebinding the registry after a restart does not move or complete the old task.
+    changed = client.put(
+        f"/devices/{f['device']}", headers=tokens["admin"],
+        json=dict(expected_revision=2, configuration=f["config"] | dict(terminal_id=str(uuid4()))),
+    )
+    assert changed.status_code == 200
+    retained = client.get(f"/tasks/{task['id']}", headers=tokens["admin"]).json()
+    assert retained["device"] == task["device"]
+    assert retained["terminal_id"] == task["terminal_id"]
+    assert retained["state"] == "started"
     resident(client, tokens["admin"], resident_id=f["rid"], revision=1, name="后来修改")
     assert (
         client.get(f"/tasks/{task['id']}", headers=tokens["staff"]).json()["plan"] == task["plan"]

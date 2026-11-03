@@ -98,6 +98,7 @@ class BatchPlan(BaseModel):
     medicine_id: UUID
     name: str
     strength: str
+    image: str | None = None
     feed_form: str
     purpose: str
     total: int
@@ -177,6 +178,9 @@ class TaskView(BaseModel):
     batches: list[BatchPlan]
     sequence: int
     completed_batches: list[int]
+    skipped_batches: list[int] = Field(default_factory=list)
+    manual_batches: list[int] = Field(default_factory=list)
+    skip_protocol: int = 0
     counts: list[int]
     started_at: datetime | None
     updated_at: datetime
@@ -222,6 +226,8 @@ class StoredEvent(ExecutionEvent):
 
 class DiscardTask(TaskOwner):
     physical_scene_safe: bool
+    # Omitted by existing clients; retains the operator safety confirmation.
+    reason: Literal["operator", "device_disconnected"] | None = None
 
 
 class TaskReceipt(BaseModel):

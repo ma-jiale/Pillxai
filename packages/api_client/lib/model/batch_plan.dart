@@ -19,6 +19,7 @@ class BatchPlan {
     required this.medicineId,
     required this.name,
     required this.strength,
+    this.image,
     required this.feedForm,
     required this.purpose,
     required this.total,
@@ -39,6 +40,8 @@ class BatchPlan {
   final String name;
 
   final String strength;
+
+  final String? image;
 
   final String feedForm;
 
@@ -62,6 +65,7 @@ class BatchPlan {
     other.medicineId == medicineId &&
     other.name == name &&
     other.strength == strength &&
+    other.image == image &&
     other.feedForm == feedForm &&
     other.purpose == purpose &&
     other.total == total &&
@@ -79,6 +83,7 @@ class BatchPlan {
     (medicineId.hashCode) +
     (name.hashCode) +
     (strength.hashCode) +
+    (image == null ? 0 : image!.hashCode) +
     (feedForm.hashCode) +
     (purpose.hashCode) +
     (total.hashCode) +
@@ -88,7 +93,7 @@ class BatchPlan {
     (hadValidHistory.hashCode);
 
   @override
-  String toString() => 'BatchPlan[index=$index, tray=$tray, prescriptionId=$prescriptionId, medicineId=$medicineId, name=$name, strength=$strength, feedForm=$feedForm, purpose=$purpose, total=$total, matrix=$matrix, parameters=$parameters, learningEnabled=$learningEnabled, hadValidHistory=$hadValidHistory]';
+  String toString() => 'BatchPlan[index=$index, tray=$tray, prescriptionId=$prescriptionId, medicineId=$medicineId, name=$name, strength=$strength, image=$image, feedForm=$feedForm, purpose=$purpose, total=$total, matrix=$matrix, parameters=$parameters, learningEnabled=$learningEnabled, hadValidHistory=$hadValidHistory]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -98,6 +103,11 @@ class BatchPlan {
       json[r'medicine_id'] = this.medicineId;
       json[r'name'] = this.name;
       json[r'strength'] = this.strength;
+    if (this.image != null) {
+      json[r'image'] = this.image;
+    } else {
+      json[r'image'] = null;
+    }
       json[r'feed_form'] = this.feedForm;
       json[r'purpose'] = this.purpose;
       json[r'total'] = this.total;
@@ -117,6 +127,8 @@ class BatchPlan {
     String? medicineId,
     String? name,
     String? strength,
+    String? image,
+    bool imageSetToNull = false,
     String? feedForm,
     String? purpose,
     int? total,
@@ -131,6 +143,7 @@ class BatchPlan {
     medicineId: medicineId ?? this.medicineId,
     name: name ?? this.name,
     strength: strength ?? this.strength,
+    image: imageSetToNull ? null : image ?? this.image,
     feedForm: feedForm ?? this.feedForm,
     purpose: purpose ?? this.purpose,
     total: total ?? this.total,
@@ -183,6 +196,7 @@ class BatchPlan {
         medicineId: mapValueOfType<String>(json, r'medicine_id')!,
         name: mapValueOfType<String>(json, r'name')!,
         strength: mapValueOfType<String>(json, r'strength')!,
+        image: mapValueOfType<String>(json, r'image'),
         feedForm: mapValueOfType<String>(json, r'feed_form')!,
         purpose: mapValueOfType<String>(json, r'purpose')!,
         total: mapValueOfType<int>(json, r'total')!,

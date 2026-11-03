@@ -206,7 +206,7 @@ def test_prescription_revision_conflict_stop_restore_and_independent_identity(wo
         assert len(versions) == 4
         assert versions[0]["data"]["stopped"] is False
         assert versions[1]["data"]["stopped"] is True
-        assert versions[-1]["data"] == data
+        assert versions[-1]["data"] == data | {"image": None}
         assert len(reopened.get(base, headers=tokens["admin"]).json()) == 2
 
 
