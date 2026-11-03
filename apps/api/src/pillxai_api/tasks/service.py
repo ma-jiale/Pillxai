@@ -300,7 +300,10 @@ def start(connection, account, task_id, request):
         or checked.tzinfo is None
         or not -5 <= (datetime.now(UTC) - checked).total_seconds() <= 30
         or observed > checked
-        or observed < task.plan.created_at
+        # A barcode can identify the resident before the plan exists. The
+        # terminal must still confirm the current match after plan creation.
+        or checked < task.plan.created_at
+        or (request.barcode is None and observed < task.plan.created_at)
     ):
         reject("药盒识别已过期，请等待本次新反馈。", "stale_recognition")
     if request.barcode is not None:
