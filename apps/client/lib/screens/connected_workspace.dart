@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:pillxai_api_client/api.dart' as api;
 
 import '../data/backend_connection.dart';
+import '../data/session_store.dart';
 import '../data/app_update_controller.dart';
 import '../data/prescription_repository.dart';
 import '../models/prescription_controller.dart';
@@ -26,6 +27,7 @@ import 'plan_preview_page.dart';
 import 'terminal_device_dialog.dart';
 import 'device_mapping_dialog.dart';
 import 'terminal_execution_panel.dart';
+import 'workspace_lifecycle.dart';
 
 class ConnectedWorkspace extends StatefulWidget {
   const ConnectedWorkspace({
@@ -44,8 +46,10 @@ class ConnectedWorkspace extends StatefulWidget {
 }
 
 class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
-    with WidgetsBindingObserver {
-  late final backend = widget.backend ?? BackendConnection();
+    with WidgetsBindingObserver, WorkspaceLifecycle {
+  late final backend =
+      widget.backend ??
+      BackendConnection(sessionStore: const SecureSessionStore());
   PrescriptionController? controller;
   SettingsController? settings;
   TerminalController? terminal;
@@ -53,6 +57,8 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
   static const window = MethodChannel('pillxai/window');
   int page = 1;
   bool signingOut = false;
+  bool restoringLogin = true;
+  String? restoreError;
 
   @override
   void initState() {
@@ -61,6 +67,26 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
     window.setMethodCallHandler((call) async {
       if (call.method == 'requestClose') await _requestClose();
     });
+    if (backend.sessionStore == null && backend.account == null) {
+      restoringLogin = false;
+    } else {
+      _restoreLogin();
+    }
+  }
+
+  Future<void> _restoreLogin() async {
+    setState(() {
+      restoringLogin = true;
+      restoreError = null;
+    });
+    try {
+      final restored = await backend.restoreLogin();
+      if (restored && mounted) await _openWorkspace();
+    } catch (_) {
+      if (mounted) restoreError = '暂时无法恢复登录，请检查网络后重试。';
+    } finally {
+      if (mounted) setState(() => restoringLogin = false);
+    }
   }
 
   Future<void> _requestClose() async {
@@ -109,19 +135,22 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      terminal?.refreshAfterResume();
-      updates?.resumed();
-    }
+  void onWorkspaceResumed() {
+    terminal?.refreshAfterResume();
+    updates?.resumed();
   }
 
   Future<void> _login(String username, String password) async {
     await backend.login(username, password);
+    await _openWorkspace();
+  }
+
+  Future<void> _openWorkspace() async {
     if (!mounted) return;
     controller?.dispose();
     settings?.dispose();
     setState(() {
+      restoringLogin = false;
       settings = SettingsController(
         backend,
         onSaved: () =>
@@ -207,6 +236,40 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
   );
 
   Widget _buildWorkspace(BuildContext context) {
+    if (restoringLogin || restoreError != null) {
+      return Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Pillxai',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 24),
+                if (restoringLogin) ...[
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  const Text('正在恢复登录…'),
+                ] else ...[
+                  Text(restoreError!),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: _restoreLogin,
+                    child: const Text('重试'),
+                  ),
+                  TextButton(
+                    onPressed: () => setState(() => restoreError = null),
+                    child: const Text('使用账号密码登录'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     final account = backend.account;
     if (account == null) return LoginPage(onLogin: _login);
     final roleLabel = switch (account.role) {

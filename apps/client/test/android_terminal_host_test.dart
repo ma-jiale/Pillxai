@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:pillxai_client/screens/connected_workspace.dart';
+import 'package:pillxai_client/data/backend_connection.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pillxai_client/data/terminal_host_android.dart';
 
@@ -81,6 +82,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ConnectedWorkspace(
+            backend: BackendConnection(),
             accent: Colors.black,
             onAccentChanged: (_) {},
           ),
