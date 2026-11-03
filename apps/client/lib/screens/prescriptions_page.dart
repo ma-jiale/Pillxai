@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../theme/app_page.dart';
 import '../widgets/prescription_forms.dart';
 import '../widgets/profile_avatar.dart';
+import 'resident_label_dialog.dart';
 
 /// 当前资料的浏览与编辑入口。搜索/滚动属于页面，长者与处方属于共享模型。
 class PrescriptionsPage extends StatefulWidget {
@@ -294,6 +295,19 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
           onPressed: widget.model.canEdit ? () => _editResident() : null,
           icon: const Icon(Icons.add_rounded, size: 18),
           label: const Text('添加长者'),
+        ),
+        TextButton.icon(
+          onPressed: widget.model.residents.isEmpty
+              ? null
+              : () => showDialog<void>(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => ResidentLabelDialog(
+                    residents: List.of(widget.model.residents),
+                  ),
+                ),
+          icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+          label: const Text('导出标签'),
         ),
       ],
     ),

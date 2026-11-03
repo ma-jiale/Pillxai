@@ -21,6 +21,7 @@ class MainActivity : FlutterActivity() {
     private var resumePermissionAction: (() -> Unit)? = null
     private var resumePermissionResult: MethodChannel.Result? = null
     private val bluetoothSetup by lazy { BluetoothSetup(this) }
+    private val pdfSaver by lazy { LabelPdfSaver(this) }
     private var requestedPermissions = emptyList<String>()
 
     private val connection = object : ServiceConnection {
@@ -39,6 +40,10 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "pillxai/pdf")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "save") pdfSaver.save(call, result) else result.notImplemented()
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "pillxai/updates")
             .setMethodCallHandler { call, result ->
                 if (!visible && call.method in listOf("install", "confirm", "permission")) {
@@ -154,6 +159,11 @@ class MainActivity : FlutterActivity() {
         // Notification denial does not prohibit a connected-device foreground service.
     }
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == LabelPdfSaver.REQUEST) pdfSaver.complete(resultCode, data?.data)
+        else super.onActivityResult(requestCode, resultCode, data)
+    }
+
     override fun onResume() {
         super.onResume()
         visible = true
@@ -170,6 +180,7 @@ class MainActivity : FlutterActivity() {
         if (binding) { unbindService(connection); binding = false }
     }
     override fun onDestroy() {
+        pdfSaver.dispose()
         bluetoothSetup.dispose()
         permissionResult?.error("detached", "界面已关闭，请重新操作。", null)
         resumePermissionResult?.error("detached", "界面已关闭，请重新操作。", null)
