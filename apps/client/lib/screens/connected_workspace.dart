@@ -6,6 +6,7 @@ import 'package:pillxai_api_client/api.dart' as api;
 
 import '../data/backend_connection.dart';
 import '../data/session_store.dart';
+import '../data/medicine_image.dart';
 import '../data/app_update_controller.dart';
 import '../data/prescription_repository.dart';
 import '../models/prescription_controller.dart';
@@ -72,6 +73,17 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
     } else {
       _restoreLogin();
     }
+    if (widget.backend == null) _checkInterruptedPhoto();
+  }
+
+  Future<void> _checkInterruptedPhoto() async {
+    if (!await discardedInterruptedMedicinePhoto() || !mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('拍照期间应用曾重启，未保存的处方请重新填写并选择图片。')),
+      );
+    });
   }
 
   Future<void> _restoreLogin() async {

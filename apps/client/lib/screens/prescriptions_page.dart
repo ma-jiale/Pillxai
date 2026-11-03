@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../data/medicine_image.dart';
+
 import '../widgets/app_menu.dart';
 
 import '../models/prescription_store.dart';
@@ -633,10 +635,12 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
               size: 26,
               color: Color(0xffa5a5a5),
             )
-          : Image.asset(
-              medicine.imageAsset!,
+          : Image(
+              image: medicineImageProvider(medicine.imageAsset)!,
               fit: BoxFit.cover,
               semanticLabel: '${medicine.name} 药品图片',
+              errorBuilder: (_, error, stack) =>
+                  const Icon(Icons.medication_outlined),
             ),
     ),
   );

@@ -188,14 +188,14 @@ void main() {
   testWidgets('停用与恢复保留用药身份，已创建的任务不随之变化', (tester) async {
     final model = await openApp(tester);
     await tapVisible(tester, find.byTooltip('示例药 A更多操作'));
-    await tapVisible(tester, find.text('停用用药'));
+    await tapVisible(tester, find.text('停用药物'));
     await tapVisible(tester, find.text('确认停用'));
     expect(model.selectedResident.medicines.first.stopped, isTrue);
     expect(model.currentMedicine.stopped, isFalse);
 
-    await tapVisible(tester, find.text('已停用用药 · 1'));
+    await tapVisible(tester, find.text('已停用药物 · 1'));
     await tapVisible(tester, find.byTooltip('示例药 A更多操作'));
-    await tapVisible(tester, find.text('恢复用药'));
+    await tapVisible(tester, find.text('恢复药物'));
     await tapVisible(tester, find.text('确认恢复'));
     expect(model.selectedResident.medicines.first.id, 'm1');
     expect(model.selectedResident.medicines.first.stopped, isFalse);
@@ -262,6 +262,7 @@ void main() {
   testWidgets('新增用药拒绝全零、负数和非有限剂量', (tester) async {
     final model = await openApp(tester);
     await tapVisible(tester, find.text('添加药物'));
+    expect(find.text('睡前格尚未启用。'), findsNothing);
     await tester.enterText(field('药物名称'), '新演示药');
     await tester.enterText(field('规格'), '1 mg / 片');
     await tapVisible(tester, find.text('保存'));

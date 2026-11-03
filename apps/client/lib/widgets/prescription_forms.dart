@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
+import 'package:flutter/services.dart';
 
 import 'app_menu.dart';
 
@@ -7,6 +9,7 @@ import 'dart:async';
 import '../models/prescription_store.dart';
 import '../models/dose_rules.dart';
 import '../data/resident_avatar.dart';
+import '../data/medicine_image.dart';
 import 'profile_avatar.dart';
 
 String formatDate(DateTime date) =>
@@ -256,11 +259,13 @@ class MedicineForm extends StatefulWidget {
     required this.bedtimeEnabled,
     this.medicine,
     this.onSave,
+    this.chooseImage = pickMedicineImage,
   });
   final Resident resident;
   final Medicine? medicine;
   final bool bedtimeEnabled;
   final FutureOr<void> Function(Medicine)? onSave;
+  final Future<String?> Function(MedicineImageSource) chooseImage;
 
   @override
   State<MedicineForm> createState() => _MedicineFormState();
@@ -291,6 +296,59 @@ class _MedicineFormState extends State<MedicineForm> {
   bool _saving = false;
   String? _saveError;
   late final _id = widget.medicine?.id ?? newRecordId();
+  late String? _image = widget.medicine?.imageAsset;
+  bool _pickingImage = false;
+
+  Future<void> _uploadImage() async {
+    if (_saving || _pickingImage) return;
+    final source = await showModalBottomSheet<MedicineImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!kIsWeb &&
+                [
+                  TargetPlatform.android,
+                  TargetPlatform.iOS,
+                ].contains(defaultTargetPlatform))
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('拍照'),
+                onTap: () => Navigator.pop(context, MedicineImageSource.camera),
+              ),
+            ListTile(
+              leading: const Icon(Icons.folder_open_outlined),
+              title: const Text('从文件上传'),
+              onTap: () => Navigator.pop(context, MedicineImageSource.file),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+    setState(() {
+      _pickingImage = true;
+      _saveError = null;
+    });
+    try {
+      final chosen = await widget.chooseImage(source);
+      if (mounted && chosen != null) {
+        setState(() {
+          _image = chosen;
+          _dirty = true;
+        });
+      }
+    } on PlatformException {
+      if (mounted) setState(() => _saveError = '无法打开相机或文件，请检查权限后重试。');
+    } catch (_) {
+      if (mounted) {
+        setState(() => _saveError = '图片无法读取，请选择小于 10 MB 的 PNG 或 JPEG 图片。');
+      }
+    } finally {
+      if (mounted) setState(() => _pickingImage = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -301,7 +359,7 @@ class _MedicineFormState extends State<MedicineForm> {
   }
 
   Future<void> _cancel() async {
-    if (_saving) return;
+    if (_saving || _pickingImage) return;
     if (await _confirmDiscard(context, _dirty) && mounted) {
       Navigator.pop(context);
     }
@@ -319,7 +377,7 @@ class _MedicineFormState extends State<MedicineForm> {
   );
 
   Future<void> _save() async {
-    if (_saving) return;
+    if (_saving || _pickingImage) return;
     final valid = _form.currentState!.validate();
     final values = _doses
         .map((controller) => parseDoseInput(controller.text))
@@ -346,7 +404,7 @@ class _MedicineFormState extends State<MedicineForm> {
       startDate: parseDate(_start.text),
       endDate: _longTerm ? null : parseDate(_end.text),
       stopped: widget.medicine?.stopped ?? false,
-      imageAsset: widget.medicine?.imageAsset,
+      imageAsset: _image,
       revision: widget.medicine?.revision ?? 0,
     );
     setState(() {
@@ -446,7 +504,7 @@ class _MedicineFormState extends State<MedicineForm> {
   @override
   Widget build(BuildContext context) => _FormDialog(
     title: widget.medicine == null ? '添加药物' : '编辑药物',
-    saving: _saving,
+    saving: _saving || _pickingImage,
     error: _saveError,
     subtitle: '${widget.resident.name} · 按已确定的处方填写',
     width: 700,
@@ -458,6 +516,56 @@ class _MedicineFormState extends State<MedicineForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Row(
+            children: [
+              if (medicineImageProvider(_image) case final photo?) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image(
+                    image: photo,
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.contain,
+                    semanticLabel: '药品图片预览',
+                    errorBuilder: (_, error, stack) =>
+                        const Icon(Icons.medication_outlined),
+                  ),
+                ),
+                const SizedBox(width: 16),
+              ],
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      key: const ValueKey('upload-medicine-image'),
+                      onPressed: _saving || _pickingImage ? null : _uploadImage,
+                      icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+                      label: Text(
+                        _pickingImage
+                            ? '正在读取图片…'
+                            : _image == null
+                            ? '上传药品图片'
+                            : '更换药品图片',
+                      ),
+                    ),
+                    if (_image != null)
+                      TextButton(
+                        onPressed: _saving || _pickingImage
+                            ? null
+                            : () => setState(() {
+                                _image = null;
+                                _dirty = true;
+                              }),
+                        child: const Text('移除图片'),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
           _section(
             '药物信息',
             Column(
@@ -566,14 +674,6 @@ class _MedicineFormState extends State<MedicineForm> {
                     color: Color(0xff858585),
                   ),
                 ),
-                if (!widget.bedtimeEnabled)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 4),
-                    child: Text(
-                      '睡前格尚未启用。',
-                      style: TextStyle(fontSize: 12, color: Color(0xff858585)),
-                    ),
-                  ),
                 if (_doseError != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),

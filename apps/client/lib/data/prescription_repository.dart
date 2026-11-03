@@ -113,6 +113,7 @@ Medicine medicineFromApi(api.PrescriptionView row) {
     startDate: data.startDate,
     endDate: data.endDate,
     stopped: data.stopped,
+    imageAsset: data.image?.isNotEmpty == true ? data.image : null,
   );
 }
 
@@ -133,4 +134,5 @@ api.PrescriptionData medicineToApi(Medicine medicine) => api.PrescriptionData(
   startDate: medicine.startDate!,
   endDate: medicine.endDate,
   stopped: medicine.stopped,
+  image: medicine.imageAsset ?? '',
 );
