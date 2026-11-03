@@ -6,9 +6,9 @@ import 'package:pillxai_api_client/api.dart' as api;
 import '../data/terminal_controller.dart';
 import '../widgets/execution_medicine_card.dart';
 import '../widgets/dispensing_medicine_cards.dart';
-import '../widgets/app_menu.dart';
 import '../widgets/dispenser_icon.dart';
-import 'terminal_device_dialog.dart';
+import 'skip_medicine_dialog.dart';
+import 'motor_stall_dialog.dart';
 
 class TerminalExecutionPanel extends StatelessWidget {
   const TerminalExecutionPanel({
@@ -130,7 +130,7 @@ class TerminalExecutionPanel extends StatelessWidget {
                       : phase == 'collecting'
                       ? '请取出药盒'
                       : phase == 'completed'
-                      ? '本次已完成'
+                      ? (task.skippedBatches.isEmpty ? '本次已完成' : '本次已结束，有药物未完成')
                       : '本次已结束',
                   style: const TextStyle(
                     fontSize: 24,
@@ -178,6 +178,8 @@ class TerminalExecutionPanel extends StatelessWidget {
                       onPressed:
                           terminal.busy ||
                               !terminal.recognized ||
+                              (terminal.state['stalled_motors'] as List? ?? [])
+                                  .isNotEmpty ||
                               !terminal.ownTask
                           ? null
                           : terminal.start,
@@ -198,7 +200,96 @@ class TerminalExecutionPanel extends StatelessWidget {
                           ? null
                           : () => terminal.action('resume'),
                     ),
+                  if (phase == 'awaitingNextBatch' && batch != null)
+                    DispensingPrimaryButton(
+                      label: '继续',
+                      icon: Icons.play_arrow_rounded,
+                      onPressed: terminal.busy
+                          ? null
+                          : () => terminal.action('begin_next', {
+                              'task_id': task.id,
+                              'batch': batch.index,
+                            }),
+                    ),
+                  if (task.skipProtocol == 1 &&
+                      ['running', 'paused', 'reviewingSkip'].contains(phase) &&
+                      batch != null)
+                    OutlinedButton(
+                      key: const ValueKey('skip-medicine'),
+                      onPressed:
+                          terminal.busy ||
+                              !terminal.ownTask ||
+                              !terminal.connected ||
+                              terminal.state['pending'] != null
+                          ? null
+                          : () => showDialog<void>(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (_) => SkipMedicineDialog(
+                                terminal: terminal,
+                                taskId: task.id,
+                                batch: batch.index,
+                                name: batch.name,
+                              ),
+                            ),
+                      child: const Text('跳过'),
+                    ),
+                  if ((terminal.state['stalled_motors'] as List? ?? [])
+                      .isNotEmpty) ...[
+                    for (final motor
+                        in terminal.state['stalled_motors'] as List? ?? [])
+                      OutlinedButton(
+                        onPressed:
+                            terminal.busy ||
+                                !terminal.ownTask ||
+                                !terminal.connected ||
+                                terminal.state['pending'] != null
+                            ? null
+                            : () {
+                                final notice =
+                                    (terminal.view['stall_notices'] as List? ??
+                                            [])
+                                        .cast<Map>()
+                                        .where(
+                                          (notice) => notice['motor'] == motor,
+                                        )
+                                        .firstOrNull;
+                                if (notice != null) {
+                                  showDialog<void>(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (_) => MotorStallDialog(
+                                      terminal: terminal,
+                                      notice: Map<String, dynamic>.from(notice),
+                                    ),
+                                  );
+                                }
+                              },
+                        child: Text('处理 $motor 号电机堵转'),
+                      ),
+                  ],
                   if (phase == 'recovery') ...[
+                    if (terminal.state['open_purpose'] == 'collect' &&
+                        terminal.state['matrix_issued'] != true &&
+                        terminal.state['skip_request'] == null &&
+                        batch != null)
+                      OutlinedButton(
+                        onPressed: terminal.busy || !terminal.connected
+                            ? null
+                            : () async {
+                                if (await confirm(
+                                  context,
+                                  '重试开仓取盒',
+                                  '请停止投料，确认机器已停稳。仅重试开仓，保留已有结果。',
+                                )) {
+                                  await terminal.action('retry_collection', {
+                                    'task_id': task.id,
+                                    'batch': batch.index,
+                                  });
+                                }
+                              },
+                        child: const Text('重试开仓取盒'),
+                      ),
                     OutlinedButton(
                       onPressed: terminal.connected || terminal.busy
                           ? null
@@ -209,7 +300,10 @@ class TerminalExecutionPanel extends StatelessWidget {
                       onPressed:
                           !terminal.connected ||
                               terminal.busy ||
+                              (terminal.state['stalled_motors'] as List? ?? [])
+                                  .isNotEmpty ||
                               terminal.state['reset_observed'] == true ||
+                              terminal.state['open_purpose'] == 'counter_review' ||
                               terminal.state['matrix_issued'] != true
                           ? null
                           : () async {
@@ -279,35 +373,6 @@ class TerminalExecutionPanel extends StatelessWidget {
                           ? null
                           : () => _adjustOpening(context, task, batch),
                     ),
-                  AppActionMenu(
-                    tooltip: '更多操作',
-                    actions: [
-                      AppMenuAction(
-                        '查看设备',
-                        () => showDialog<void>(
-                          context: context,
-                          builder: (_) =>
-                              TerminalDeviceDialog(terminal: terminal),
-                        ),
-                        icon: Icons.settings_input_component_outlined,
-                      ),
-                      if (![
-                        'awaitingSafeConfirmation',
-                        'cancelled',
-                        'completed',
-                        'deleting',
-                      ].contains(phase))
-                        AppMenuAction(
-                          '停止并结束本次',
-                          terminal.busy ||
-                                  !terminal.connected ||
-                                  terminal.state['pending'] != null
-                              ? null
-                              : () => terminal.action('stop'),
-                          icon: Icons.stop_circle_outlined,
-                        ),
-                    ],
-                  ),
                 ],
               ),
             ],

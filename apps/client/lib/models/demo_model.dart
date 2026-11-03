@@ -385,23 +385,6 @@ class DemoModel extends ChangeNotifier
     notifyListeners();
   }
 
-  /// 主动结束：当前药待核实、后续药未执行，保留已发生计数并等待取盒。
-  void cancel() {
-    if (!active) return;
-    for (var index = _medicineIndex; index < _taskMedicines.length; index++) {
-      _medicineResults[_taskMedicines[index].id] = MedicineResult(
-        outcome: index == _medicineIndex
-            ? MedicineOutcome.unverified
-            : MedicineOutcome.notStarted,
-        countedParticles: index == _medicineIndex ? _count : 0,
-      );
-    }
-    _stage = DispenseStage.cancelled;
-    _taskEvents.add(RecordEvent(DateTime.now(), '人工结束本次摆药，当前药待核实，剩余药未执行'));
-    _finishRecord(TaskOutcome.cancelled);
-    notifyListeners();
-  }
-
   /// 一次任务最多创建一条结果。复制资料、逐药结果和事件，避免后续编辑改写历史。
   void _finishRecord(TaskOutcome outcome) {
     if (_currentRecordId != null) return;

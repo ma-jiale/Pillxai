@@ -205,7 +205,7 @@ void main() {
     backend.dispose();
   });
   for (final size in [const Size(1280, 800), const Size(390, 844)]) {
-    testWidgets('本机任务界面暂停恢复、连接锁定与取盒状态 $size', (tester) async {
+    testWidgets('本机任务界面暂停恢复与取盒状态 $size', (tester) async {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -251,22 +251,8 @@ void main() {
       await tester.tap(find.text('继续'));
       await tester.pumpAndSettle();
       expect(host.operations, contains('resume'));
-      await tester.ensureVisible(find.byTooltip('更多操作'));
-      await tester.tap(find.byTooltip('更多操作'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('查看设备'));
-      await tester.pumpAndSettle();
-      expect(find.byType(TerminalDeviceDialog), findsOneWidget);
-      await tester.tap(find.byTooltip('配置设备'));
-      await tester.pumpAndSettle();
-      expect(
-        tester
-            .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '保存连接'))
-            .onPressed,
-        isNull,
-      );
-      await tester.tap(find.byTooltip('关闭我的设备'));
-      await tester.pumpAndSettle();
+      expect(find.byTooltip('更多操作'), findsNothing);
+      expect(find.text('停止并结束本次'), findsNothing);
       (host.value['state'] as Map).addAll(<String, Object>{
         'phase': 'collecting',
         'message': '请取出药盒。',

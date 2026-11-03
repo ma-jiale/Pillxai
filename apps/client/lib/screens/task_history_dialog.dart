@@ -17,14 +17,22 @@ String _time(DateTime value) {
 }
 
 String _state(api.TaskView task) =>
-    const {
-      'claimed': '已领取',
-      'started': '执行中',
-      'awaiting_collection': '摆药完成，待取盒',
-      'completed': '已完成',
-      'cancelled': '已取消',
-    }[task.state.toJson()] ??
-    '待核实';
+    task.skippedBatches.isNotEmpty &&
+        [
+          api.TaskState.completed,
+          api.TaskState.awaitingCollection,
+        ].contains(task.state)
+    ? (task.completedBatches.isNotEmpty || task.manualBatches.isNotEmpty
+          ? '部分完成'
+          : '未完成')
+    : const {
+            'claimed': '已领取',
+            'started': '执行中',
+            'awaiting_collection': '摆药完成，待取盒',
+            'completed': '已完成',
+            'cancelled': '已取消',
+          }[task.state.toJson()] ??
+          '待核实';
 
 /// The existing API returns at most 200 recent records. Filters explicitly apply
 /// to that loaded set, rather than claiming to search the complete archive.
@@ -96,7 +104,16 @@ class _TaskHistoryDialogState extends State<TaskHistoryDialog> {
           task.plan.residentId != widget.residentId) {
         return false;
       }
-      if (result != 'all' && task.state.toJson() != result) return false;
+      if (result == 'partial' && _state(task) != '部分完成') return false;
+      if (result == 'incomplete' && _state(task) != '未完成') return false;
+      if (result == 'completed' &&
+          (task.state != api.TaskState.completed ||
+              task.skippedBatches.isNotEmpty)) {
+        return false;
+      }
+      if (result == 'cancelled' && task.state != api.TaskState.cancelled) {
+        return false;
+      }
       if (device != 'all' && task.deviceId != device) return false;
       final at = (task.startedAt ?? task.updatedAt).toLocal();
       final day = DateTime(at.year, at.month, at.day);
@@ -217,6 +234,8 @@ class _TaskHistoryDialogState extends State<TaskHistoryDialog> {
                         options: const [
                           AppSelectOption('all', '全部结果'),
                           AppSelectOption('completed', '已完成'),
+                          AppSelectOption('partial', '部分完成'),
+                          AppSelectOption('incomplete', '未完成'),
                           AppSelectOption('cancelled', '已取消'),
                         ],
                         onChanged: (value) => setState(() {
@@ -525,6 +544,10 @@ class _TaskResultDetailsState extends State<TaskResultDetails> {
                         ResultBadge(
                           task.completedBatches.contains(batch.index)
                               ? '收到完成反馈'
+                              : task.manualBatches.contains(batch.index)
+                              ? '人工确认已摆好'
+                              : task.skippedBatches.contains(batch.index)
+                              ? '已跳过，未完成'
                               : '未确认完成',
                           attention: !task.completedBatches.contains(
                             batch.index,
@@ -543,6 +566,8 @@ class _TaskResultDetailsState extends State<TaskResultDetails> {
                       runSpacing: 8,
                       children: [
                         Text('计划 ${batch.total} 颗'),
+                        if (task.manualBatches.contains(batch.index))
+                          Text('人工确认 ${batch.total} 颗（本盘全部计划格）'),
                         Text(
                           batch.index < task.counts.length
                               ? '反馈 ${task.counts[batch.index]} 颗'
@@ -592,13 +617,21 @@ class _TaskResultDetailsState extends State<TaskResultDetails> {
                   contentPadding: EdgeInsets.zero,
                   title: Text(
                     event.detail['message']?.toString() ??
-                        const {
+                        {
                           'count': '收到累计计数',
                           'finish': '收到完成反馈',
                           'paused': '已暂停',
                           'resumed': '已继续',
                           'cancelled': '本次已取消',
                           'completed': '任务已完成',
+                          'skip_requested': '请求跳过药物',
+                          'counter_review_requested': '机器报告当前药物摆药错误，等待人工核对',
+                          'skip_completed':
+                              event.detail['all_remaining'] == true
+                              ? '已跳过该长者全部剩余药物'
+                              : event.detail['manual'] == true
+                              ? '人工确认本盘该药已摆好'
+                              : '已跳过本盘当前药物',
                         }[event.kind] ??
                         '收到设备处理反馈',
                     style: const TextStyle(fontSize: 13),

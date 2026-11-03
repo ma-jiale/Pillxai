@@ -27,6 +27,9 @@ import 'settings_page.dart';
 import 'plan_preview_page.dart';
 import 'terminal_device_dialog.dart';
 import 'pillbox_layout_dialog.dart';
+import 'device_disconnected_dialog.dart';
+import 'motor_stall_dialog.dart';
+import 'count_review_dialog.dart';
 import 'terminal_execution_panel.dart';
 import 'workspace_lifecycle.dart';
 
@@ -58,8 +61,132 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
   static const window = MethodChannel('pillxai/window');
   int page = 1;
   bool signingOut = false;
+  bool disconnectDialogOpen = false;
+  bool stallDialogOpen = false;
+  bool countReviewOpen = false;
   bool restoringLogin = true;
   String? restoreError;
+
+  void _checkDeviceNotices() {
+    _checkDisconnectNotice();
+    if (!disconnectDialogOpen) _checkStallNotice();
+    if (!disconnectDialogOpen && !stallDialogOpen) {
+      _checkCountReview();
+    }
+  }
+
+  void _checkCountReview() {
+    final current = terminal;
+    final task = current?.task;
+    final batch = current?.batch;
+    if (!mounted ||
+        countReviewOpen ||
+        current == null ||
+        task == null ||
+        batch == null ||
+        !current.ownTask ||
+        !CountReviewDialog.active(current.phase)) {
+      return;
+    }
+    countReviewOpen = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!mounted ||
+            disconnectDialogOpen ||
+            stallDialogOpen ||
+            !CountReviewDialog.active(current.phase)) {
+          return;
+        }
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) =>
+              CountReviewDialog(terminal: current, task: task, batch: batch),
+        );
+      } finally {
+        countReviewOpen = false;
+        if (mounted) _checkDeviceNotices();
+      }
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  void _checkStallNotice() {
+    final current = terminal;
+    if (!mounted ||
+        stallDialogOpen ||
+        current == null ||
+        backend.account == null) {
+      return;
+    }
+    final notice = (current.view['stall_notices'] as List? ?? [])
+        .cast<Map>()
+        .where(
+          (notice) =>
+              notice['seen'] != true &&
+              (notice['owner_id'] == null ||
+                  notice['owner_id'] == backend.account!.id),
+        )
+        .firstOrNull;
+    if (notice == null) return;
+    stallDialogOpen = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!mounted || disconnectDialogOpen) return;
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => MotorStallDialog(
+            terminal: current,
+            notice: Map<String, dynamic>.from(notice),
+          ),
+        );
+      } finally {
+        stallDialogOpen = false;
+        if (mounted && !disconnectDialogOpen) _checkStallNotice();
+      }
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  void _checkDisconnectNotice() {
+    final current = terminal;
+    final notice = current?.view['disconnect_notice'] as Map?;
+    if (!mounted ||
+        disconnectDialogOpen ||
+        notice == null ||
+        backend.account == null ||
+        (notice['owner_id'] != null &&
+            backend.account?.id != notice['owner_id'])) {
+      return;
+    }
+    disconnectDialogOpen = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      try {
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => DeviceDisconnectedDialog(
+            onAcknowledged: () async {
+              await current!.host.command('dismiss_disconnect_notice', {
+                'task_id': notice['task_id'],
+              });
+            },
+          ),
+        );
+        if (mounted) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          setState(() => page = 1);
+          controller?.refresh();
+          current?.refreshAfterResume();
+        }
+      } finally {
+        disconnectDialogOpen = false;
+      }
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
 
   @override
   void initState() {
@@ -182,6 +309,8 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
       );
     });
     controller!.refresh();
+    terminal!.removeListener(_checkDeviceNotices);
+    terminal!.addListener(_checkDeviceNotices);
     await terminal!.initialize();
     if (!mounted) return;
     updates?.dispose();

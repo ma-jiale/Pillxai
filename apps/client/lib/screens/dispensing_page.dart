@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../widgets/app_menu.dart';
+import '../data/medicine_image.dart';
+
 import '../widgets/dispensing_medicine_cards.dart';
 
 import '../models/demo_model.dart';
@@ -56,7 +57,7 @@ class DispensingPage extends StatelessWidget {
   );
 
   Widget _actions(BuildContext context) {
-    // 执行页仅在 active 时挂载；此处只需表达运行和暂停两个操作。
+    // 执行页仅在 active 时挂载，保留暂停/继续、跳过和调整开口。
     final running = model.stage == DispenseStage.running;
     final label = running ? '暂停' : '继续摆药';
     final icon = running ? Icons.pause_rounded : Icons.play_arrow_rounded;
@@ -86,23 +87,6 @@ class DispensingPage extends StatelessWidget {
               : () => _adjustOpening(context),
           icon: const Icon(Icons.tune_rounded, size: 18),
           label: const Text('调整开口'),
-        ),
-        AppActionMenu(
-          tooltip: '更多操作',
-          actions: [
-            AppMenuAction(
-              '查看本次计划',
-              () => _showPlan(context),
-              icon: Icons.list_alt_rounded,
-            ),
-            if (model.stage != DispenseStage.cancelled &&
-                model.stage != DispenseStage.completed)
-              AppMenuAction(
-                '结束本次摆药',
-                () => _cancel(context),
-                icon: Icons.stop_circle_outlined,
-              ),
-          ],
         ),
       ],
     );
@@ -279,88 +263,6 @@ class DispensingPage extends StatelessWidget {
       ),
     ),
   );
-
-  Future<void> _showPlan(BuildContext context) => showDialog<void>(
-    context: context,
-    builder: (context) => AlertDialog(
-      scrollable: true,
-      title: const Text('本次摆药计划'),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('${model.taskResidentName} · ${model.taskResidentBed}'),
-            const SizedBox(height: 18),
-            ...model.taskMedicines.map(
-              (medicine) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text('${medicine.name} · ${medicine.form}'),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text('${medicine.target} 颗'),
-                        if (model.medicineResults[medicine.id]
-                            case final result?)
-                          Text(
-                            result.label,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xff737373),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('关闭'),
-        ),
-      ],
-    ),
-  );
-
-  /// 结束确认也先暂停；拒绝结束时恢复原状态，确认后保留结果等待取盒。
-  Future<void> _cancel(BuildContext context) async {
-    final wasRunning = model.stage == DispenseStage.running;
-    if (wasRunning) model.pause();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('结束本次摆药？'),
-        content: const Text(
-          '已完成药物和已有计数会保留。当前药标为待核实，剩余药物标为未执行；结束后返回首页，结果保存在历史记录。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('继续当前任务'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('结束摆药'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      model.cancel();
-    } else if (wasRunning) {
-      model.resume();
-    }
-  }
 }
 
 DispensingMedicine _displayMedicine(Medicine medicine) => DispensingMedicine(
@@ -369,7 +271,7 @@ DispensingMedicine _displayMedicine(Medicine medicine) => DispensingMedicine(
   form: medicine.form,
   strength: medicine.strength,
   target: medicine.target,
-  image: medicine.imageAsset == null ? null : AssetImage(medicine.imageAsset!),
+  image: medicineImageProvider(medicine.imageAsset),
 );
 
 class MedicinePhoto extends StatelessWidget {
@@ -378,8 +280,6 @@ class MedicinePhoto extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MedicineImage(
     name: medicine.name,
-    image: medicine.imageAsset == null
-        ? null
-        : AssetImage(medicine.imageAsset!),
+    image: medicineImageProvider(medicine.imageAsset),
   );
 }

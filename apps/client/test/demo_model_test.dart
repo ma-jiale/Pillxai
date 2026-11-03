@@ -132,15 +132,15 @@ void main() {
     expect(model.medicineIndex, 1);
   });
 
-  test('取消后保留最后进度，但不再执行或继续', () {
+  test('跳过剩余药物后保留最后进度，但不再执行或继续', () {
     startShortTask();
     model.advance();
-    model.cancel();
+    model.skipRemaining();
 
     model.advance();
     model.resume();
 
-    expect(model.stage, DispenseStage.cancelled);
+    expect(model.stage, DispenseStage.completed);
     expect(model.count, 1);
     expect(model.active, isFalse);
   });

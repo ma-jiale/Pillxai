@@ -32,7 +32,6 @@ void main() {
     expect(snapshot.medicines[1].result.confirmedParticles, 2);
     expect(model.demoCoverage['r1'], DateTime(2026, 10, 31));
     model.advance();
-    model.cancel();
     model.skipRemaining();
     expect(model.records.length, 1);
     expect(model.startPreparedTask(model.planFor(model.residents[1])), isFalse);
@@ -72,19 +71,19 @@ void main() {
     expect(model.records.length, 1);
   });
 
-  test('取消保留已完成与当前计数，未知结果不计覆盖；失败重试不改变结果', () {
+  test('跳过剩余药物保留已完成与当前计数，不计整轮覆盖；失败重试不改变结果', () {
     final model = runningTask();
     addTearDown(model.dispose);
     model.advance();
     model.advance();
     model.advance();
-    model.cancel();
+    model.skipRemaining();
     final result = model.currentRecord!;
-    expect(result.outcome, TaskOutcome.cancelled);
+    expect(result.outcome, TaskOutcome.partial);
     expect(result.medicines.map((m) => m.result.outcome), [
       MedicineOutcome.completed,
-      MedicineOutcome.unverified,
-      MedicineOutcome.notStarted,
+      MedicineOutcome.skipped,
+      MedicineOutcome.skipped,
     ]);
     expect(result.medicines[1].result.countedParticles, 1);
     expect(model.demoCoverage['r1'], isNull);
@@ -114,7 +113,7 @@ void main() {
       trackReady: true,
     );
     expect(model.records.single.medicines, result.medicines);
-    expect(model.records.single.outcome, TaskOutcome.cancelled);
+    expect(model.records.single.outcome, TaskOutcome.partial);
     expect(model.busy, isFalse);
     expect(model.records.length, 1);
   });
