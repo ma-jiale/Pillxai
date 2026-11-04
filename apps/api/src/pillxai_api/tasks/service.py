@@ -501,12 +501,18 @@ def identifier_collection_confirmed(connection, task, detail):
             stage = 1 if stage >= 1 else 0
             present.clear()
             removed.clear()
-        elif kind == "counter_review_requested" and record["batch"] == len(task.batches) - 1:
+        elif kind == "skip_open_requested" or (
+            kind == "counter_review_requested" and record["batch"] == len(task.batches) - 1
+        ):
             # The last medicine's review opening also serves for collection.
             stage = 1
             waiting_for_review = True
-        elif kind == "skip_completed" and data.get("source") == "counter_review":
+        elif kind == "skip_completed" and data.get("source") in ("counter_review", "skip_review"):
             waiting_for_review = False
+            if record["batch"] != len(task.batches) - 1 and not data.get("all_remaining"):
+                stage = 0
+                present.clear()
+                removed.clear()
         elif (kind == "batch_finished" and record["batch"] == len(task.batches) - 1) or (
             kind == "skip_completed"
             and data.get("source") != "counter_review"

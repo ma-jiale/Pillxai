@@ -73,6 +73,47 @@ def test_skip_evidence_rejects_missing_ack_recovery_and_invalid_confirmation():
     assert not confirmed_skip(records[:-1], 0, dict(manual=True, all_remaining=True))
 
 
+def test_opening_is_optional_and_cancel_does_not_confirm_a_skip():
+    detail = dict(source="skip_review", manual=False, all_remaining=True)
+    records = [event(1, "skip_open_requested"), *skip_events()[2:-1]]
+    for kind in ("written", "ack", "command_done"):
+        records.append(event(len(records) + 1, kind, {"command": "open"}))
+    opening_done = records.pop()
+    decision = event(20, "skip_requested", detail)
+    assert not confirmed_skip(records + [decision], 0, detail)
+    records += [opening_done, event(19, "skip_review_cancelled")]
+    assert not confirmed_skip(records, 0, detail)
+    assert confirmed_skip(records + [decision], 0, detail)
+    released = [
+        event(20, k, {"command": "release_stall_3"}) for k in ("written", "ack", "command_done")
+    ]
+    assert confirmed_skip(records + released + [decision], 0, detail)
+    assert not confirmed_skip(records + [event(20, "recovered"), decision], 0, detail)
+
+
+def test_preopened_skip_uses_the_same_opening_for_final_collection(world):  # noqa: F811
+    client, tokens, _, _ = world
+    token = tokens["admin"]
+    fixture = setup(client, token, mode="hardware")
+    task = claim(client, token, fixture).json()
+    assert start(client, token, fixture, task).status_code == 200
+    detail = dict(manual=False, all_remaining=True, source="skip_review")
+    records = [event(1, "skip_open_requested"), *skip_events()[2:-1]]
+    records.extend([event(0, "written", {"command": "open"}), event(0, "ack", {"command": "open"})])
+    collection = collection_events(task, 0)
+    records += collection[:2] + [
+        event(0, "skip_review_cancelled"),
+        event(0, "skip_requested", detail),
+        event(0, "skip_completed", detail),
+    ] + collection[2:]
+    for i, item in enumerate(records, 1):
+        item["sequence"] = i
+    response = upload(client, token, fixture, task, records)
+    assert response.status_code == 200, response.text
+    assert response.json()["state"] == "completed"
+    assert response.json()["skipped_batches"] == [0]
+
+
 def test_retry_writes_never_replace_ack_or_duplicate_skip_completion():
     records = skip_events()
     retries = [
