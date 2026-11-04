@@ -220,17 +220,18 @@ def claim(connection, account, task_id, request):
     config = device.configuration
     if config.terminal_id != request.terminal_id:
         reject("设备已固定到其他终端。")
-    if config.mode == DeviceMode.hardware and not config.positions_verified:
-        reject("须先完成并确认实体位置映射，才能下发真实计划。")
-    # Compose shared physical box order with the device's protocol calibration.
-    # The immutable task still exposes time-slot -> protocol-row to older clients.
     layout = preview.snapshot.settings
     order = list(layout.box_slot_order)
     if not layout.bedtime_enabled:
         order.remove(3)
         order.append(3)
-    rows = [config.rows[order.index(slot)] for slot in range(4)]
-    device = device.model_copy(update={"configuration": config.model_copy(update={"rows": rows})})
+    # Physical box rows from top to bottom on the supported 4 x 7 protocol.
+    protocol_rows = (2, 1, 0, 3)
+    rows = [protocol_rows[order.index(slot)] for slot in range(4)]
+    task_config = config.model_copy(
+        update={"rows": rows, "reverse_columns": layout.box_reverse_columns}
+    )
+    device = device.model_copy(update={"configuration": task_config})
     active = connection.execute(
         select(tasks.c.id).where(
             tasks.c.active,
@@ -279,6 +280,7 @@ def claim(connection, account, task_id, request):
         batches=make_batches(connection, task_id, preview.snapshot, device),
         sequence=0,
         completed_batches=[],
+        identifier_collection=device.configuration.mode == DeviceMode.hardware,
         skip_protocol=1,
         counts=[0] * sum(len(t.medicines) for t in preview.snapshot.trays),
         started_at=None,
@@ -434,8 +436,8 @@ def sync(connection, account, task_id, request):
             if task.state != TaskState.awaiting_collection:
                 reject("取盒与就绪依据不完整，不能释放任务。")
             if config.barcode_removal_closes:
-                if not barcode_collection_confirmed(connection, task, event.detail):
-                    reject("缺少当前条码消失及收仓 ACK/DONE，不能释放任务。")
+                if not identifier_collection_confirmed(connection, task, event.detail):
+                    reject("缺少当前药盒的取出反馈或收仓 ACK/DONE，不能释放任务。")
             elif not config.feedback_verified or (
                 event.detail.get("absent") != task.device.configuration.tray_absent_line
                 or event.detail.get("ready") != task.device.configuration.ready_line
@@ -460,17 +462,31 @@ def sync(connection, account, task_id, request):
     return persist_task(connection, task)
 
 
-def barcode_collection_confirmed(connection, task, detail):
+def identifier_collection_confirmed(connection, task, detail):
     codes = {
         b.value
         for b in task.recognition_bindings
         if b.source == "barcode" and b.resident_id == task.plan.resident_id
     }
-    if len(codes) != 1:
-        return False
-    absent = "DISAPPEARED," + next(iter(codes))
-    if detail != dict(source="barcode", absent=absent, ready="ACK,DONE"):
-        return False
+    source = detail.get("source")
+    value = detail.get("value")
+    tracked = value is not None and task.identifier_collection
+    if tracked:
+        allowed = task.labels if source == "rfid" else codes
+        if source not in ("rfid", "barcode") or value not in allowed:
+            return False
+        absent = "NO CARD" if source == "rfid" else "DISAPPEARED," + value
+        if detail != dict(source=source, value=value, absent=absent, ready="ACK,DONE"):
+            return False
+    else:
+        # Previously shipped barcode clients omit value.
+        if len(codes) != 1:
+            return False
+        absent = "DISAPPEARED," + next(iter(codes))
+        if detail != dict(source="barcode", absent=absent, ready="ACK,DONE"):
+            return False
+    present = {}
+    removed = {}
     stage = 0
     waiting_for_review = False
     for record in connection.execute(
@@ -483,6 +499,8 @@ def barcode_collection_confirmed(connection, task, detail):
             # Keep settled medicine results, but require a fresh opening and
             # removal/closing sequence after an explicitly retried collection.
             stage = 1 if stage >= 1 else 0
+            present.clear()
+            removed.clear()
         elif kind == "counter_review_requested" and record["batch"] == len(task.batches) - 1:
             # The last medicine's review opening also serves for collection.
             stage = 1
@@ -495,10 +513,33 @@ def barcode_collection_confirmed(connection, task, detail):
             and (record["batch"] == len(task.batches) - 1 or data.get("all_remaining") is True)
         ):
             stage = 1
+        elif stage == 1 and kind == "collection_box":
+            if not tracked:
+                return False
+            present = {k: data[k] for k in ("uid", "barcode") if data.get(k)}
+            removed.clear()
         elif stage == 1 and kind == "command_done" and data.get("command") == "open":
             stage = 2
-        elif stage >= 3 and kind == "feedback" and data.get("kind") == "barcodeAppeared":
+        elif stage >= 3 and kind == "feedback" and data.get("kind") in ("rfid", "barcodeAppeared"):
             stage = 2 if waiting_for_review and stage == 3 else 0
+            if stage == 2 and tracked:
+                key = "uid" if data["kind"] == "rfid" else "barcode"
+                present[key] = data.get(key)
+                removed.clear()
+        elif stage == 2 and kind == "feedback" and tracked:
+            feedback = data.get("kind")
+            if feedback in ("rfid", "barcodeAppeared"):
+                key = "uid" if feedback == "rfid" else "barcode"
+                present[key] = data.get(key)
+                removed.clear()
+            elif feedback == "noCard" and data.get("raw") == "NO CARD" and "uid" in present:
+                removed["rfid"] = present.pop("uid")
+            elif (feedback == "barcodeDisappeared" and "barcode" in present
+                  and data.get("barcode") == present["barcode"]
+                  and data.get("raw") == "DISAPPEARED," + present["barcode"]):
+                removed["barcode"] = present.pop("barcode")
+            if not present and removed.get(source) == value:
+                stage = 3
         elif stage == 2 and kind == "feedback" and data.get("raw") == absent:
             stage = 3
         elif (

@@ -8,7 +8,7 @@ from test_business import world  # noqa: F401
 from test_tasks import claim, collection_events, event, setup, start, upload
 
 from pillxai_api.tasks.coverage import completed_until
-from pillxai_api.tasks.service import barcode_collection_confirmed
+from pillxai_api.tasks.service import identifier_collection_confirmed
 from pillxai_api.tasks.skipping import confirmed_skip
 
 
@@ -128,7 +128,7 @@ def test_barcode_collection_retry_keeps_result_but_requires_fresh_removal():
         event(2, "recovery")]
     connection = Mock()
     connection.execute.return_value.scalars.return_value = records
-    assert not barcode_collection_confirmed(connection, task, evidence)
+    assert not identifier_collection_confirmed(connection, task, evidence)
     records.extend([
         event(3, "command_done", {"command": "open"}),
         event(4, "feedback", {"raw": "DISAPPEARED,000010"}),
@@ -136,7 +136,7 @@ def test_barcode_collection_retry_keeps_result_but_requires_fresh_removal():
         event(6, "ack", {"command": "close"}),
         event(7, "command_done", {"command": "close"}),
     ])
-    assert barcode_collection_confirmed(connection, task, evidence)
+    assert identifier_collection_confirmed(connection, task, evidence)
 
 
 def test_machine_completion_after_skip_keeps_partial_result(world):  # noqa: F811

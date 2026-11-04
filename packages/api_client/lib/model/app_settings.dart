@@ -16,6 +16,7 @@ class AppSettings {
     required this.timezone,
     required this.bedtimeEnabled,
     this.boxSlotOrder = const [],
+    this.boxReverseColumns = false,
     required this.preparationDays,
     required this.splitMeals,
     required this.startTomorrow,
@@ -27,6 +28,8 @@ class AppSettings {
   final bool bedtimeEnabled;
 
   final List<int> boxSlotOrder;
+
+  final bool boxReverseColumns;
 
   final int preparationDays;
 
@@ -41,6 +44,7 @@ class AppSettings {
     other.timezone == timezone &&
     other.bedtimeEnabled == bedtimeEnabled &&
     _deepEquality.equals(other.boxSlotOrder, boxSlotOrder) &&
+    other.boxReverseColumns == boxReverseColumns &&
     other.preparationDays == preparationDays &&
     other.splitMeals == splitMeals &&
     other.startTomorrow == startTomorrow &&
@@ -52,19 +56,21 @@ class AppSettings {
     (timezone.hashCode) +
     (bedtimeEnabled.hashCode) +
     (boxSlotOrder.hashCode) +
+    (boxReverseColumns.hashCode) +
     (preparationDays.hashCode) +
     (splitMeals.hashCode) +
     (startTomorrow.hashCode) +
     (revision.hashCode);
 
   @override
-  String toString() => 'AppSettings[timezone=$timezone, bedtimeEnabled=$bedtimeEnabled, boxSlotOrder=$boxSlotOrder, preparationDays=$preparationDays, splitMeals=$splitMeals, startTomorrow=$startTomorrow, revision=$revision]';
+  String toString() => 'AppSettings[timezone=$timezone, bedtimeEnabled=$bedtimeEnabled, boxSlotOrder=$boxSlotOrder, boxReverseColumns=$boxReverseColumns, preparationDays=$preparationDays, splitMeals=$splitMeals, startTomorrow=$startTomorrow, revision=$revision]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
       json[r'timezone'] = this.timezone;
       json[r'bedtime_enabled'] = this.bedtimeEnabled;
       json[r'box_slot_order'] = this.boxSlotOrder;
+      json[r'box_reverse_columns'] = this.boxReverseColumns;
       json[r'preparation_days'] = this.preparationDays;
       json[r'split_meals'] = this.splitMeals;
       json[r'start_tomorrow'] = this.startTomorrow;
@@ -78,6 +84,7 @@ class AppSettings {
     String? timezone,
     bool? bedtimeEnabled,
     List<int>? boxSlotOrder,
+    bool? boxReverseColumns,
     int? preparationDays,
     bool? splitMeals,
     bool? startTomorrow,
@@ -86,6 +93,7 @@ class AppSettings {
     timezone: timezone ?? this.timezone,
     bedtimeEnabled: bedtimeEnabled ?? this.bedtimeEnabled,
     boxSlotOrder: boxSlotOrder ?? this.boxSlotOrder,
+    boxReverseColumns: boxReverseColumns ?? this.boxReverseColumns,
     preparationDays: preparationDays ?? this.preparationDays,
     splitMeals: splitMeals ?? this.splitMeals,
     startTomorrow: startTomorrow ?? this.startTomorrow,
@@ -124,6 +132,7 @@ class AppSettings {
         boxSlotOrder: json[r'box_slot_order'] is Iterable
             ? (json[r'box_slot_order'] as Iterable).cast<int>().toList(growable: false)
             : const [],
+        boxReverseColumns: mapValueOfType<bool>(json, r'box_reverse_columns') ?? false,
         preparationDays: mapValueOfType<int>(json, r'preparation_days')!,
         splitMeals: mapValueOfType<bool>(json, r'split_meals')!,
         startTomorrow: mapValueOfType<bool>(json, r'start_tomorrow')!,

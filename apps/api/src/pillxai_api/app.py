@@ -21,7 +21,7 @@ from .residents.routes import router as residents_router
 from .storage import RevisionConflict, read_sample, save_sample
 from .tasks.routes import router as tasks_router
 
-SCHEMA_REVISION = "20261103_delete_records"
+SCHEMA_REVISION = "20261104_box_direction"
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

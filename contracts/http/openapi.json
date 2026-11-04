@@ -3790,6 +3790,11 @@
             "minItems": 4,
             "title": "Box Slot Order"
           },
+          "box_reverse_columns": {
+            "type": "boolean",
+            "title": "Box Reverse Columns",
+            "default": false
+          },
           "preparation_days": {
             "type": "integer",
             "title": "Preparation Days"
@@ -5403,6 +5408,17 @@
             "type": "boolean",
             "title": "Bedtime Enabled"
           },
+          "box_reverse_columns": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Box Reverse Columns"
+          },
           "box_slot_order": {
             "anyOf": [
               {
@@ -5703,6 +5719,11 @@
             },
             "type": "array",
             "title": "Manual Batches"
+          },
+          "identifier_collection": {
+            "type": "boolean",
+            "title": "Identifier Collection",
+            "default": false
           },
           "skip_protocol": {
             "type": "integer",

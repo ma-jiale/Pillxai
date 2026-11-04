@@ -29,6 +29,7 @@ class TaskView {
     this.completedBatches = const [],
     this.skippedBatches = const [],
     this.manualBatches = const [],
+    this.identifierCollection = false,
     this.skipProtocol = 0,
     this.counts = const [],
     required this.startedAt,
@@ -68,6 +69,8 @@ class TaskView {
 
   final List<int> manualBatches;
 
+  final bool identifierCollection;
+
   final int skipProtocol;
 
   final List<int> counts;
@@ -96,6 +99,7 @@ class TaskView {
     _deepEquality.equals(other.completedBatches, completedBatches) &&
     _deepEquality.equals(other.skippedBatches, skippedBatches) &&
     _deepEquality.equals(other.manualBatches, manualBatches) &&
+    other.identifierCollection == identifierCollection &&
     other.skipProtocol == skipProtocol &&
     _deepEquality.equals(other.counts, counts) &&
     other.startedAt == startedAt &&
@@ -121,6 +125,7 @@ class TaskView {
     (completedBatches.hashCode) +
     (skippedBatches.hashCode) +
     (manualBatches.hashCode) +
+    (identifierCollection.hashCode) +
     (skipProtocol.hashCode) +
     (counts.hashCode) +
     (startedAt == null ? 0 : startedAt!.hashCode) +
@@ -128,7 +133,7 @@ class TaskView {
     (learningResults.hashCode);
 
   @override
-  String toString() => 'TaskView[id=$id, planId=$planId, deviceId=$deviceId, terminalId=$terminalId, ownerId=$ownerId, revision=$revision, state=$state, plan=$plan, device=$device, labels=$labels, recognitionBindings=$recognitionBindings, batches=$batches, sequence=$sequence, completedBatches=$completedBatches, skippedBatches=$skippedBatches, manualBatches=$manualBatches, skipProtocol=$skipProtocol, counts=$counts, startedAt=$startedAt, updatedAt=$updatedAt, learningResults=$learningResults]';
+  String toString() => 'TaskView[id=$id, planId=$planId, deviceId=$deviceId, terminalId=$terminalId, ownerId=$ownerId, revision=$revision, state=$state, plan=$plan, device=$device, labels=$labels, recognitionBindings=$recognitionBindings, batches=$batches, sequence=$sequence, completedBatches=$completedBatches, skippedBatches=$skippedBatches, manualBatches=$manualBatches, identifierCollection=$identifierCollection, skipProtocol=$skipProtocol, counts=$counts, startedAt=$startedAt, updatedAt=$updatedAt, learningResults=$learningResults]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -148,6 +153,7 @@ class TaskView {
       json[r'completed_batches'] = this.completedBatches;
       json[r'skipped_batches'] = this.skippedBatches;
       json[r'manual_batches'] = this.manualBatches;
+      json[r'identifier_collection'] = this.identifierCollection;
       json[r'skip_protocol'] = this.skipProtocol;
       json[r'counts'] = this.counts;
     if (this.startedAt != null) {
@@ -179,6 +185,7 @@ class TaskView {
     List<int>? completedBatches,
     List<int>? skippedBatches,
     List<int>? manualBatches,
+    bool? identifierCollection,
     int? skipProtocol,
     List<int>? counts,
     DateTime? startedAt,
@@ -202,6 +209,7 @@ class TaskView {
     completedBatches: completedBatches ?? this.completedBatches,
     skippedBatches: skippedBatches ?? this.skippedBatches,
     manualBatches: manualBatches ?? this.manualBatches,
+    identifierCollection: identifierCollection ?? this.identifierCollection,
     skipProtocol: skipProtocol ?? this.skipProtocol,
     counts: counts ?? this.counts,
     startedAt: startedAtSetToNull ? null : startedAt ?? this.startedAt,
@@ -279,6 +287,7 @@ class TaskView {
         manualBatches: json[r'manual_batches'] is Iterable
             ? (json[r'manual_batches'] as Iterable).cast<int>().toList(growable: false)
             : const [],
+        identifierCollection: mapValueOfType<bool>(json, r'identifier_collection') ?? false,
         skipProtocol: mapValueOfType<int>(json, r'skip_protocol') ?? 0,
         counts: json[r'counts'] is Iterable
             ? (json[r'counts'] as Iterable).cast<int>().toList(growable: false)

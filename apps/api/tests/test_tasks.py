@@ -19,13 +19,20 @@ def test_shared_box_order_for_two_machines_and_bedtime(workspace):  # noqa: F811
         }).status_code == 422
     order = [2, 3, 1, 0]
     result = client.put("/settings", headers=token, json=save_payload(current) | {
-        "box_slot_order": order, "bedtime_enabled": False
+        "box_slot_order": order, "bedtime_enabled": False, "box_reverse_columns": True
     })
     assert result.status_code == 200
     three = result.json()
     for _ in range(2):
         f = setup(client, token, mode="hardware")
+        # An old device registration must not override the shared layout.
+        device = f["config"] | dict(rows=[3, 0, 1, 2], positions_verified=False)
+        assert client.put(f"/devices/{f['device']}", headers=token,
+                          json=dict(expected_revision=1, configuration=device)).status_code == 200
         task = claim(client, token, f).json()
+        assert task["device"]["configuration"]["reverse_columns"] is True
+        assert not any(row[0] for row in task["batches"][0]["matrix"])
+        assert any(row[6] for row in task["batches"][0]["matrix"])
         assert task["device"]["configuration"]["rows"] == [0, 1, 2, 3]
         assert task["plan"]["settings"]["box_slot_order"] == order
     # An existing caller can toggle bedtime without resending or resetting the layout.
@@ -44,7 +51,7 @@ def test_shared_box_order_for_two_machines_and_bedtime(workspace):  # noqa: F811
                             json=dict(days=2)).json()["snapshot"]
     task = claim(client, token, f).json()
     assert task["device"]["configuration"]["rows"] == [3, 0, 2, 1]
-    assert [row[0] for row in task["batches"][0]["matrix"]] == [0, 1, 0, 1]
+    assert [row[6] for row in task["batches"][0]["matrix"]] == [0, 1, 0, 1]
 
 
 def setup(client, token, *, mode="simulator", with_parameters=True, days=2):

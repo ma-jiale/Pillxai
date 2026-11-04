@@ -32,6 +32,7 @@ settings = Table(
     Column("timezone", String(64), nullable=False),
     Column("bedtime_enabled", Boolean, nullable=False),
     Column("box_slot_order", JSONB, nullable=False, server_default="[0,1,2,3]"),
+    Column("box_reverse_columns", Boolean, nullable=False, server_default="false"),
     Column("preparation_days", Integer, nullable=False),
     Column("split_meals", Boolean, nullable=False),
     Column("start_tomorrow", Boolean, nullable=False),
@@ -67,6 +68,7 @@ class AppSettings(BaseModel):
     timezone: str
     bedtime_enabled: bool
     box_slot_order: BoxSlotOrder = Field(default_factory=lambda: [0, 1, 2, 3])
+    box_reverse_columns: bool = False
     preparation_days: int
     split_meals: bool
     start_tomorrow: bool
@@ -78,6 +80,7 @@ class SaveSettings(Input):
     preparation_days: Annotated[int, Field(strict=True, ge=1, le=7)]
     split_meals: Annotated[bool, Field(strict=True)]
     bedtime_enabled: Annotated[bool, Field(strict=True)]
+    box_reverse_columns: Annotated[bool, Field(strict=True)] | None = None
     box_slot_order: BoxSlotOrder | None = None
     start_tomorrow: Annotated[bool, Field(strict=True)]
 

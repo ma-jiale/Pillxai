@@ -22,8 +22,8 @@ class DeviceConfiguration(Input):
     identity: Name
     terminal_id: UUID
     mode: DeviceMode
-    # Registry: physical box position -> protocol row. Task snapshots compose
-    # this calibration with the shared box order: morning/noon/evening/night -> row.
+    # Task snapshots map morning/noon/evening/night to protocol rows.
+    # Registry mapping fields are retained for existing clients.
     rows: list[Annotated[int, Field(strict=True, ge=0, le=3)]] = Field(min_length=4, max_length=4)
     reverse_columns: bool = False
     positions_verified: bool = False
@@ -182,6 +182,7 @@ class TaskView(BaseModel):
     completed_batches: list[int]
     skipped_batches: list[int] = Field(default_factory=list)
     manual_batches: list[int] = Field(default_factory=list)
+    identifier_collection: bool = False
     skip_protocol: int = 0
     counts: list[int]
     started_at: datetime | None

@@ -135,3 +135,30 @@ def test_barcode_collection_requires_ordered_close_evidence(world):
     assert result.status_code == 200, result.text
     assert result.json()["state"] == "completed"
     assert upload(client, token, f, task, evidence).status_code == 200
+
+
+def test_rfid_collection_requires_current_uid_removal_and_close(world):
+    client, tokens, _, _ = world
+    token = tokens["admin"]
+    f = setup(client, token, mode="hardware")
+    task = claim(client, token, f).json()
+    assert task["identifier_collection"]
+    task = start(client, token, f, task).json()
+    uid = f["uid"]
+    detail = dict(source="rfid", value=uid, absent="NO CARD", ready="ACK,DONE")
+    assert upload(client, token, f, task, [
+        event(1, "count", {"count": task["batches"][0]["total"]}),
+        event(2, "batch_finished", {"feedback": "machine_state:FINISH"}),
+        event(3, "collection_box", {"uid": uid, "barcode": None}),
+        event(4, "command_done", {"command": "open"}),
+    ]).status_code == 200
+    assert upload(client, token, f, task, [event(5, "collection_ready", detail)]).status_code == 409
+    result = upload(client, token, f, task, [
+        event(5, "feedback", {"kind": "noCard", "raw": "NO CARD"}),
+        event(6, "written", {"command": "close"}),
+        event(7, "ack", {"command": "close"}),
+        event(8, "command_done", {"command": "close"}),
+        event(9, "collection_ready", detail),
+    ])
+    assert result.status_code == 200, result.text
+    assert result.json()["state"] == "completed"

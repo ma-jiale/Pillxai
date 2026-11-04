@@ -17,6 +17,7 @@ class SaveSettings {
     required this.preparationDays,
     required this.splitMeals,
     required this.bedtimeEnabled,
+    this.boxReverseColumns,
     this.boxSlotOrder,
     required this.startTomorrow,
   });
@@ -32,6 +33,8 @@ class SaveSettings {
 
   final bool bedtimeEnabled;
 
+  final bool? boxReverseColumns;
+
   final List<int>? boxSlotOrder;
 
   final bool startTomorrow;
@@ -42,6 +45,7 @@ class SaveSettings {
     other.preparationDays == preparationDays &&
     other.splitMeals == splitMeals &&
     other.bedtimeEnabled == bedtimeEnabled &&
+    other.boxReverseColumns == boxReverseColumns &&
     _deepEquality.equals(other.boxSlotOrder, boxSlotOrder) &&
     other.startTomorrow == startTomorrow;
 
@@ -52,11 +56,12 @@ class SaveSettings {
     (preparationDays.hashCode) +
     (splitMeals.hashCode) +
     (bedtimeEnabled.hashCode) +
+    (boxReverseColumns == null ? 0 : boxReverseColumns!.hashCode) +
     (boxSlotOrder == null ? 0 : boxSlotOrder!.hashCode) +
     (startTomorrow.hashCode);
 
   @override
-  String toString() => 'SaveSettings[expectedRevision=$expectedRevision, preparationDays=$preparationDays, splitMeals=$splitMeals, bedtimeEnabled=$bedtimeEnabled, boxSlotOrder=$boxSlotOrder, startTomorrow=$startTomorrow]';
+  String toString() => 'SaveSettings[expectedRevision=$expectedRevision, preparationDays=$preparationDays, splitMeals=$splitMeals, bedtimeEnabled=$bedtimeEnabled, boxReverseColumns=$boxReverseColumns, boxSlotOrder=$boxSlotOrder, startTomorrow=$startTomorrow]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -64,6 +69,11 @@ class SaveSettings {
       json[r'preparation_days'] = this.preparationDays;
       json[r'split_meals'] = this.splitMeals;
       json[r'bedtime_enabled'] = this.bedtimeEnabled;
+    if (this.boxReverseColumns != null) {
+      json[r'box_reverse_columns'] = this.boxReverseColumns;
+    } else {
+      json[r'box_reverse_columns'] = null;
+    }
     if (this.boxSlotOrder != null) {
       json[r'box_slot_order'] = this.boxSlotOrder;
     } else {
@@ -80,6 +90,8 @@ class SaveSettings {
     int? preparationDays,
     bool? splitMeals,
     bool? bedtimeEnabled,
+    bool? boxReverseColumns,
+    bool boxReverseColumnsSetToNull = false,
     List<int>? boxSlotOrder,
     bool boxSlotOrderSetToNull = false,
     bool? startTomorrow,
@@ -88,6 +100,7 @@ class SaveSettings {
     preparationDays: preparationDays ?? this.preparationDays,
     splitMeals: splitMeals ?? this.splitMeals,
     bedtimeEnabled: bedtimeEnabled ?? this.bedtimeEnabled,
+    boxReverseColumns: boxReverseColumnsSetToNull ? null : boxReverseColumns ?? this.boxReverseColumns,
     boxSlotOrder: boxSlotOrderSetToNull ? null : boxSlotOrder ?? this.boxSlotOrder,
     startTomorrow: startTomorrow ?? this.startTomorrow,
   );
@@ -121,6 +134,7 @@ class SaveSettings {
         preparationDays: mapValueOfType<int>(json, r'preparation_days')!,
         splitMeals: mapValueOfType<bool>(json, r'split_meals')!,
         bedtimeEnabled: mapValueOfType<bool>(json, r'bedtime_enabled')!,
+        boxReverseColumns: mapValueOfType<bool>(json, r'box_reverse_columns'),
         boxSlotOrder: json[r'box_slot_order'] is Iterable
             ? (json[r'box_slot_order'] as Iterable).cast<int>().toList(growable: false)
             : const [],
