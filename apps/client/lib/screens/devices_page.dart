@@ -24,11 +24,8 @@ class DeviceStatusButton extends StatelessWidget {
     listenable: devices,
     builder: (context, _) => DeviceConnectionButton(
       onPressed: onPressed,
-      label: devices.connectingDevice != null
-          ? '连接中'
-          : devices.connectedDevice == null
-          ? '未连接'
-          : '已连接',
+      connecting: devices.connectingDevice != null,
+      label: devices.connectedDevice == null ? '未连接' : '已连接',
     ),
   );
 }
@@ -222,16 +219,15 @@ class _DevicesPageState extends State<DevicesPage> {
                       ? widget.devices.disconnect()
                       : widget.devices.connect(name),
                 ),
-          child: Text(
+          child: ConnectionActionLabel(
             discovery
                 ? (added ? '已添加' : '添加')
-                : connecting
-                ? '连接中'
                 : connected
                 ? '断开'
                 : failed
                 ? '重试'
                 : '连接',
+            connecting: !discovery && connecting,
           ),
         ),
         if (!discovery)

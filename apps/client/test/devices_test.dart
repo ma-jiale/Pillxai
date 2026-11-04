@@ -124,11 +124,19 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       await capture('results');
-      await tapKey('add-PillDispenser01');
+      await tester.tap(find.byKey(const ValueKey('add-PillDispenser01')));
+      await tester.pump();
       expect(find.text('我的设备'), findsOneWidget);
       await tester.pump();
       await capture('added');
       expect(find.text('正在连接… · 蓝牙'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('connect-PillDispenser01')),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsOneWidget,
+      );
       await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
       expect(

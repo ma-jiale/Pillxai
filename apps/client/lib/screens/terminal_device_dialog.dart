@@ -4,6 +4,7 @@ import 'package:pillxai_api_client/api.dart' as api;
 import '../data/terminal_controller.dart';
 import 'device_mapping_dialog.dart';
 import '../widgets/device_panel.dart';
+import '../widgets/device_connection_button.dart';
 import '../widgets/app_menu.dart';
 
 class TerminalDeviceDialog extends StatefulWidget {
@@ -63,7 +64,7 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
     ),
   );
 
-  Future<bool> save() async {
+  Future<bool> save({bool andConnect = false}) async {
     if (terminal.active || terminal.busy || !terminal.canMaintain) return false;
     var saved = false;
     await terminal.run(() async {
@@ -104,7 +105,7 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
       );
       selected = terminal.device;
       saved = true;
-    });
+    }, connectingTo: andConnect ? identity.text.trim() : null);
     return saved;
   }
 
@@ -113,7 +114,10 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
         (terminal.active || !terminal.canMaintain)) {
       return;
     }
-    if (!terminal.active && terminal.canMaintain && !await save()) return;
+    if (!terminal.active &&
+        terminal.canMaintain &&
+        !await save(andConnect: true))
+      return;
     await terminal.action('connect');
   }
 
@@ -165,7 +169,13 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
 
   String _deviceStatus(api.DeviceView device) {
     final current = terminal.device?.id == device.id;
-    final status = current && terminal.connected ? '已连接' : '未连接';
+    final status =
+        terminal.connectingIdentity ==
+            device.configuration.identity.toUpperCase()
+        ? '连接中'
+        : current && terminal.connected
+        ? '已连接'
+        : '未连接';
     if (device.configuration.mode == api.DeviceMode.simulator) return status;
     final connection = terminal.connection;
     final type = current ? terminal.portTransports[connection['port']] : null;
@@ -222,7 +232,7 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
                           _configure(device);
                         }
                       },
-                child: Text(
+                child: ConnectionActionLabel(
                   terminal.device?.id == device.id
                       ? (terminal.connected
                             ? '断开'
@@ -230,6 +240,9 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
                             ? '尝试重连'
                             : '连接')
                       : '选用',
+                  connecting:
+                      terminal.connectingIdentity ==
+                      device.configuration.identity.toUpperCase(),
                 ),
               ),
               IconButton(
@@ -309,7 +322,12 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
                     setState(() => _page = 'list');
                   }
                 },
-          child: Text(added ? '已添加' : '添加'),
+          child: ConnectionActionLabel(
+            added ? '已添加' : '添加',
+            connecting:
+                identity != null &&
+                terminal.connectingIdentity == identity.toUpperCase(),
+          ),
         ),
       ],
     );
@@ -490,12 +508,15 @@ class _TerminalDeviceDialogState extends State<TerminalDeviceDialog> {
                       (terminal.connection.isEmpty && !terminal.canMaintain)
                   ? null
                   : connect,
-              child: Text(
+              child: ConnectionActionLabel(
                 terminal.active
                     ? '尝试重连'
                     : terminal.canMaintain
                     ? '保存并连接'
                     : '连接',
+                connecting:
+                    terminal.connectingIdentity ==
+                    identity.text.trim().toUpperCase(),
               ),
             ),
             OutlinedButton(

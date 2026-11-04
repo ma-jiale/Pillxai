@@ -69,6 +69,12 @@ void main() {
       }
       await tester.pumpAndSettle();
       expect(bounds('medicine-current-slot'), current);
+      index.value = 2;
+      await tester.pump();
+      expect(bounds('medicine-promotion'), preview);
+      await tester.pumpAndSettle();
+      expect(bounds('medicine-current-slot'), current);
+      expect(find.byKey(const ValueKey('medicine-next-slot')), findsNothing);
     });
   }
 

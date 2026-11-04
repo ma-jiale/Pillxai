@@ -8,6 +8,7 @@ import '../widgets/execution_medicine_card.dart';
 import '../widgets/dispensing_medicine_cards.dart';
 import '../widgets/opening_slider.dart';
 import '../widgets/dispenser_icon.dart';
+import '../widgets/device_connection_button.dart';
 import 'skip_medicine_dialog.dart';
 import 'motor_stall_dialog.dart';
 
@@ -295,7 +296,10 @@ class TerminalExecutionPanel extends StatelessWidget {
                       onPressed: terminal.connected || terminal.busy
                           ? null
                           : () => terminal.action('connect'),
-                      child: const Text('尝试重连'),
+                      child: ConnectionActionLabel(
+                        '尝试重连',
+                        connecting: terminal.connectingIdentity != null,
+                      ),
                     ),
                     FilledButton(
                       onPressed:

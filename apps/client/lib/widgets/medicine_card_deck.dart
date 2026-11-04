@@ -136,10 +136,8 @@ class _MedicineCardDeckState extends State<MedicineCardDeck>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(child: current),
-        if (next != null) ...[
-          const SizedBox(width: 24),
-          SizedBox(width: 224, child: next),
-        ],
+        const SizedBox(width: 24),
+        SizedBox(width: 224, child: next),
       ],
     );
   }

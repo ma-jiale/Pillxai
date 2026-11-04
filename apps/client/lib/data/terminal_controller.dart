@@ -22,6 +22,7 @@ class TerminalController extends ChangeNotifier {
   Map<String, String> portTransports = {};
   List<Map<String, dynamic>> nearbyDevices = [];
   String? deviceSetupStatus;
+  String? connectingIdentity;
   api.TaskView? task;
   String? error;
   String? syncError;
@@ -166,14 +167,14 @@ class TerminalController extends ChangeNotifier {
     await host.command('pair_device', {'address': address});
     if (active) throw const SaveFailure('请先完成当前摆药，再添加设备。');
     await _saveAndConnectCandidate(address, name, address);
-  });
+  }, connectingTo: address);
 
   Future<void> addWindowsDevice(String port, String name) => run(() async {
     if (active || !canMaintain) return;
     final identity = portIdentities[port];
     if (identity == null) throw const SaveFailure('无法识别设备，请重新搜索。');
     await _saveAndConnectCandidate(identity, name, port);
-  });
+  }, connectingTo: portIdentities[port]);
 
   Future<void> _saveAndConnectCandidate(
     String identity,
@@ -212,9 +213,13 @@ class TerminalController extends ChangeNotifier {
     _accept(Map<String, dynamic>.from(await host.command('view') as Map));
   }
 
-  Future<void> run(Future<void> Function() action) async {
+  Future<void> run(
+    Future<void> Function() action, {
+    String? connectingTo,
+  }) async {
     if (busy || _disposed) return;
     busy = true;
+    connectingIdentity = connectingTo?.toUpperCase();
     error = null;
     notifyListeners();
     try {
@@ -223,6 +228,7 @@ class TerminalController extends ChangeNotifier {
       error = failure.toString();
     } finally {
       busy = false;
+      connectingIdentity = null;
       deviceSetupStatus = null;
       if (!_disposed) notifyListeners();
     }
@@ -322,14 +328,19 @@ class TerminalController extends ChangeNotifier {
   Future<void> action(
     String operation, [
     Map<String, dynamic> data = const {},
-  ]) => run(() async {
-    if (!ownTask) throw const SaveFailure('请使用领取任务的原账号处理本机任务。');
-    await host.command(operation, data);
-    if (operation == 'connect' && view['claim_intent'] != null) {
-      await recoverClaim();
-    }
-    await synchronize();
-  });
+  ]) => run(
+    () async {
+      if (!ownTask) throw const SaveFailure('请使用领取任务的原账号处理本机任务。');
+      await host.command(operation, data);
+      if (operation == 'connect' && view['claim_intent'] != null) {
+        await recoverClaim();
+      }
+      await synchronize();
+    },
+    connectingTo: operation == 'connect'
+        ? device?.configuration.identity
+        : null,
+  );
 
   Map<String, dynamic> jsonMap(Object value) =>
       jsonDecode(jsonEncode(value)) as Map<String, dynamic>;

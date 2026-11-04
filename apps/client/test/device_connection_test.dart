@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -14,6 +15,7 @@ class ConnectionHost extends FakeHost {
   Map<String, dynamic>? connectedConfiguration;
   bool failPair = false;
   bool failConnect = false;
+  Completer<void>? pendingConnection;
   @override
   Future<dynamic> command(
     String operation, [
@@ -38,6 +40,7 @@ class ConnectionHost extends FakeHost {
       events.add(value);
     }
     if (operation == 'connect') {
+      await pendingConnection?.future;
       if (failConnect) throw StateError('连接失败');
       connectedConfiguration = Map<String, dynamic>.from(
         value['configuration'] as Map,
@@ -246,8 +249,22 @@ void main() {
       expect(find.text('未配对 · 蓝牙'), findsOneWidget);
       expect(find.text('手动配置'), findsNothing);
       expect(find.text('AA:BB:CC:DD:EE:FF'), findsNothing);
+      final reachesConnect = failure == 'none' || failure == 'connect';
+      if (reachesConnect) host.pendingConnection = Completer<void>();
       await tester.tap(find.text('添加'));
+      if (reachesConnect) {
+        await tester.pump();
+        expect(
+          find.descendant(
+            of: find.byType(TextButton),
+            matching: find.byType(CircularProgressIndicator),
+          ),
+          findsOneWidget,
+        );
+        host.pendingConnection!.complete();
+      }
       await tester.pumpAndSettle();
+      expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(host.operations, contains('pair_device'));
       if (failure == 'none') {
         expect(

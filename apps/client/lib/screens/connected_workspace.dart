@@ -505,6 +505,7 @@ class _ConnectedWorkspaceState extends State<ConnectedWorkspace>
                         ListenableBuilder(
                           listenable: terminal!,
                           builder: (context, _) => DeviceConnectionButton(
+                            connecting: terminal!.connectingIdentity != null,
                             label: terminal!.connected ? '已连接' : '未连接',
                             onPressed: () => showDialog<void>(
                               context: context,
