@@ -73,6 +73,7 @@ Class | Method | HTTP request | Description
 *ExecutionApi* | [**listLabels**](doc//ExecutionApi.md#listlabels) | **GET** /residents/{resident_id}/labels | List Labels
 *ExecutionApi* | [**listTaskEvents**](doc//ExecutionApi.md#listtaskevents) | **GET** /tasks/{task_id}/events | List Events
 *ExecutionApi* | [**listTasks**](doc//ExecutionApi.md#listtasks) | **GET** /tasks | List Tasks
+*ExecutionApi* | [**resolveLabel**](doc//ExecutionApi.md#resolvelabel) | **GET** /labels/{uid} | Resolve Label
 *ExecutionApi* | [**saveDevice**](doc//ExecutionApi.md#savedevice) | **PUT** /devices/{device_id} | Save Device
 *ExecutionApi* | [**saveParameters**](doc//ExecutionApi.md#saveparameters) | **PUT** /residents/{resident_id}/prescriptions/{prescription_id}/parameters | Save Parameters
 *ExecutionApi* | [**startTask**](doc//ExecutionApi.md#starttask) | **POST** /tasks/{task_id}/start | Start Task

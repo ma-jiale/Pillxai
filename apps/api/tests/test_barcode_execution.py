@@ -71,3 +71,21 @@ def test_barcode_only_claim_and_start_snapshot(world):
         checked_at=datetime.now(UTC).isoformat(),
     )
     assert allowed.status_code == 200, allowed.text
+
+
+def test_rfid_scan_before_plan_requires_current_check(world):
+    client, tokens, _, _ = world
+    token = tokens["admin"]
+    f = setup(client, token)
+    assert client.get(f"/labels/{f['uid']}", headers=token).json() == [
+        dict(uid=f["uid"], resident_id=f["rid"])
+    ]
+    observed = datetime.now(UTC).isoformat()
+    f["plan"] = client.post(
+        f"/residents/{f['rid']}/plans/preview", headers=token, json=dict(days=2)
+    ).json()["snapshot"]
+    task = claim(client, token, f).json()
+    assert start(client, token, f, task, observed_at=observed).status_code == 409
+    assert start(
+        client, token, f, task, observed_at=observed, checked_at=datetime.now(UTC).isoformat()
+    ).status_code == 200

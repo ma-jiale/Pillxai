@@ -28,6 +28,11 @@ router = APIRouter(
 )
 
 
+@router.get("/labels/{uid}", operation_id="resolve_label", response_model=list[LabelView])
+def resolve_label(uid: str, account: AccountDep, connection: ConnectionDep):
+    return connection.execute(select(labels).where(labels.c.uid == uid)).mappings().all()
+
+
 @router.get("/devices", operation_id="list_devices", response_model=list[DeviceView])
 def list_devices(account: AccountDep, connection: ConnectionDep):
     rows = connection.execute(select(devices).order_by(devices.c.identity)).mappings()

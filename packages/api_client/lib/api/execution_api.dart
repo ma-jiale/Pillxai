@@ -591,6 +591,63 @@ class ExecutionApi {
     return null;
   }
 
+  /// Resolve Label
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] uid (required):
+  Future<Response> resolveLabelWithHttpInfo(String uid, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/labels/{uid}'
+      .replaceAll('{uid}', uid);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Resolve Label
+  ///
+  /// Parameters:
+  ///
+  /// * [String] uid (required):
+  Future<List<LabelView>?> resolveLabel(String uid, { Future<void>? abortTrigger, }) async {
+    final response = await resolveLabelWithHttpInfo(uid, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      final responseBody = await _decodeBodyBytes(response);
+      return (await apiClient.deserializeAsync(responseBody, 'List<LabelView>') as List)
+        .cast<LabelView>()
+        .toList(growable: false);
+
+    }
+    return null;
+  }
+
   /// Save Device
   ///
   /// Note: This method returns the HTTP [Response].
