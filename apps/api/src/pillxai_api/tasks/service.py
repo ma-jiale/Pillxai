@@ -10,7 +10,15 @@ from ..prescriptions.service import prescription_row
 from ..residents.service import resident_row
 from ..residents.tables import residents
 from .learning import evaluate_batch, select_parameters
-from .models import BatchPlan, DeviceMode, DeviceView, ParameterView, TaskState, TaskView
+from .models import (
+    BatchPlan,
+    DeviceConfiguration,
+    DeviceMode,
+    DeviceView,
+    ParameterView,
+    TaskState,
+    TaskView,
+)
 from .skipping import confirmed_skip
 from .tables import devices, events, labels, parameters, tasks, tombstones
 
@@ -30,7 +38,6 @@ def device_view(row):
 
 
 def save_device(connection, account, device_id, request):
-    require_maintain(account)
     row = (
         connection.execute(select(devices).where(devices.c.id == device_id).with_for_update())
         .mappings()
@@ -47,6 +54,15 @@ def save_device(connection, account, device_id, request):
             configuration=request.configuration,
         )
     )
+    # Connecting or naming a machine never requires access to protocol calibration.
+    config = device.configuration
+    baseline = device_view(row).configuration if row else DeviceConfiguration(
+        name=config.name, identity=config.identity, terminal_id=config.terminal_id,
+        mode=DeviceMode.hardware, rows=[2, 1, 0, 3], barcode_removal_closes=True,
+    )
+    connection_fields = {"name": config.name, "terminal_id": config.terminal_id}
+    if config != baseline.model_copy(update=connection_fields):
+        require_maintain(account)
     values = dict(
         identity=device.configuration.identity,
         revision=device.revision,
@@ -218,8 +234,6 @@ def claim(connection, account, task_id, request):
         not_found()
     device = device_view(row)
     config = device.configuration
-    if config.terminal_id != request.terminal_id:
-        reject("设备已固定到其他终端。")
     layout = preview.snapshot.settings
     order = list(layout.box_slot_order)
     if not layout.bedtime_enabled:
@@ -228,19 +242,23 @@ def claim(connection, account, task_id, request):
     # Physical box rows from top to bottom on the supported 4 x 7 protocol.
     protocol_rows = (2, 1, 0, 3)
     rows = [protocol_rows[order.index(slot)] for slot in range(4)]
-    task_config = config.model_copy(
-        update={"rows": rows, "reverse_columns": layout.box_reverse_columns}
-    )
+    task_config = config.model_copy(update={
+        "terminal_id": request.terminal_id,
+        "rows": rows,
+        "reverse_columns": layout.box_reverse_columns,
+    })
     device = device.model_copy(update={"configuration": task_config})
     active = connection.execute(
-        select(tasks.c.id).where(
+        select(tasks.c.device_id).where(
             tasks.c.active,
             (tasks.c.device_id == device.id)
             | (tasks.c.resident_id == preview.snapshot.resident_id),
         )
-    ).first()
+    ).scalars().all()
+    if device.id in active:
+        reject("这台摆药机有未结束的任务，请在原终端完成或结束后再试。", "already_claimed")
     if active:
-        reject("这位长者或设备已有未结束任务，请处理原任务。", "already_claimed")
+        reject("这位长者已有未结束的摆药任务，请先处理原任务。", "already_claimed")
     bound = list(
         connection.execute(
             select(labels.c.uid).where(labels.c.resident_id == preview.snapshot.resident_id)

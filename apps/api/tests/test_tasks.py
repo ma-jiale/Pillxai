@@ -206,14 +206,17 @@ def test_claim_concurrency_owner_recognition_and_immutable_plan(world):  # noqa:
     client, tokens, _, settings = world
     f = setup(client, tokens["admin"])
 
-    def attempt(_):
+    def attempt(terminal):
         with TestClient(create_app(settings)) as other:
-            return claim(other, tokens["admin"], f)
+            return claim(other, tokens["admin"], f | dict(terminal=terminal))
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        results = list(pool.map(attempt, range(2)))
+        results = list(pool.map(attempt, [str(uuid4()), str(uuid4())]))
     assert sorted(r.status_code for r in results) == [200, 409]
     task = next(r.json() for r in results if r.status_code == 200)
+    assert task["device"]["configuration"]["terminal_id"] == task["terminal_id"]
+    assert start(client, tokens["admin"], f, task).status_code == 403
+    f["terminal"] = task["terminal_id"]
     assert claim(client, tokens["admin"], f, task["id"]).json() == task
     assert task["batches"][0]["matrix"][2][:2] == [1, 1]
     assert task["batches"][0]["matrix"][0][:2] == [1, 1]
@@ -302,7 +305,35 @@ def test_result_deduplication_collection_and_coverage(world):  # noqa: F811
         collection_events(task, 3),
     )
     assert collected.json()["state"] == "completed"
+    next_terminal = str(uuid4())
+    next_task = claim(
+        client, tokens["staff"], f | dict(plan=future["snapshot"], terminal=next_terminal)
+    )
+    assert next_task.status_code == 200, next_task.text
+    assert next_task.json()["terminal_id"] == next_terminal
     assert len(client.get(f"/tasks/{task['id']}/events", headers=tokens["admin"]).json()) == 8
+
+
+def test_staff_can_register_machine(world):  # noqa: F811
+    client, tokens, actors, _ = world
+    assert not actors["staff"]["can_maintain"]
+    response = client.put(
+        f"/devices/{uuid4()}", headers=tokens["staff"],
+        json=dict(expected_revision=0, configuration=dict(
+            name="摆药机", identity=str(uuid4()), terminal_id=str(uuid4()),
+            mode="hardware", rows=[2, 1, 0, 3],
+        )),
+    )
+    assert response.status_code == 200, response.text
+    registered = response.json()
+    path = f"/devices/{registered['id']}"
+    config = registered["configuration"]
+    assert client.put(path, headers=tokens["staff"], json=dict(
+        expected_revision=1, configuration=config | dict(name="一号摆药机"),
+    )).status_code == 200
+    assert client.put(path, headers=tokens["staff"], json=dict(
+        expected_revision=2, configuration=config | dict(identity=str(uuid4())),
+    )).status_code == 403
 
 
 def test_late_idle_connection_does_not_block_cancelled_task_sync(world):  # noqa: F811
