@@ -261,7 +261,10 @@ def main():
         raise ValueError("Expected full commit SHA")
     args.output.mkdir(parents=True, exist_ok=False)
     python_image = pull_pinned("python:3.12.15-slim-bookworm")
-    postgres_source = pull_pinned("postgres:18.6-bookworm")
+    # Keep application releases on the deployed database image until a reviewed DB upgrade.
+    postgres_source = pull_pinned(
+        "postgres@sha256:5c4783a8cc3f0074912164f94dfa1be4e043438f0f707cf968d7af9a0d31a2c8"
+    )
     pg_id = inspect(postgres_source)["Id"]
     pg_image = "pillxai-v2-postgres:" + pg_id.split(":")[1]
     run(["docker", "tag", postgres_source, pg_image])
